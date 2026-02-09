@@ -1,83 +1,160 @@
 import pool from '../config/db.js';
 
-// OBTENER EL LISTADO DE VENTAS CCF
+// --- OBTENER TODAS LAS VENTAS (PARA LA TABLA) ---
 export const getVentasCCF = async (req, res) => {
     try {
-        // Seleccionamos las columnas principales de la tabla credfiscal
+        const [rows] = await pool.query(`
+            SELECT 
+                idCredFiscal,
+                FiscFecha,
+                FiscNumDoc,
+                FiscNit,
+                FiscNomRazonDenomi,
+                FiscTotalVtas,
+                FiscDebitoFiscal,
+                FiscVtaGravLocal
+            FROM credfiscal
+            ORDER BY FiscFecha DESC
+            LIMIT 50
+        `);
+        res.json(rows);
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al obtener ventas', error: error.message});
+    }
+};
+
+// --- OBTENER UNA VENTA POR ID (PARA EDITAR) ---
+export const getVentaCCFById = async (req, res) => {
+    const { id } = req.params;
+    try {
         const [rows] = await pool.query(`
             SELECT 
                 idCredFiscal as id,
                 FiscFecha as fecha,
-                FiscNumDoc as numeroComprobante,
-                FiscNomRazonDenomi as cliente,
+                FisClasDoc as claseDocumento,
+                FisTipoDoc as tipoDocumento,
+                FiscNumResol as numeroResolucion,
+                FiscSerieDoc as serieDocumento,
+                FiscNumDoc as numeroDocumento,
+                FiscNumContInter as controlInterno,
                 FiscNit as nit,
-                FiscTotalVtas as total
+                FiscNomRazonDenomi as nombreCliente,
+                FiscNumDuiClien as duiCliente,
+                FiscVtaExen as ventasExentas,
+                FiscVtaNoSujetas as ventasNoSujetas,
+                FiscVtaGravLocal as ventasGravadas,
+                FiscDebitoFiscal as debitoFiscal,
+                FiscVtaCtaTercNoDomici as ventasTerceros,
+                FiscDebFiscVtaCtaTerceros as debitoTerceros,
+                FiscTotalVtas as totalVentas,
+                BusFiscTipoOperaRenta as tipoOperacion,
+                BusFiscTipoIngresoRenta as tipoIngreso,
+                FiscNumAnexo as numeroAnexo
             FROM credfiscal
-            ORDER BY idCredFiscal DESC
-        `);
+            WHERE idCredFiscal = ?
+        `, [id]);
+
+        if (rows.length === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         
-        res.json(rows);
+        res.json(rows[0]);
     } catch (error) {
-        console.error('Error al obtener ventas:', error);
-        res.status(500).json({ message: 'Error interno al obtener ventas', error: error.message});
+        return res.status(500).json({ message: 'Error al obtener la venta', error: error.message });
     }
 };
 
-// CREAR UNA NUEVA VENTA CCF
+// --- CREAR NUEVA VENTA ---
 export const createVentasCCF = async (req, res) => {
-    console.log("Datos recibidos para CCF:", req.body);
-    
-    // Desestructuramos los datos que vienen del formulario Vue
+    // console.log("Datos recibidos CCF:", req.body);
     const { 
-        clienteId, // OJO: Asegúrate que el frontend envíe el NIT o Nombre, no un "1" si no es ID real.
-        fecha, 
-        numeroComprobante, 
-        sumas, 
-        iva, 
-        totalVenta,
-        ivaRetenido
+        fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
+        numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
+        ventasExentas, ventasNoSujetas, ventasGravadas, debitoFiscal,
+        ventasTerceros, debitoTerceros, totalVentas, tipoOperacion, tipoIngreso, numeroAnexo
     } = req.body;
 
+    // Validación básica: Campos obligatorios mínimos
+    if (!fecha || !numeroDocumento || !nit) {
+        return res.status(400).json({message: 'Faltan datos obligatorios (Fecha, No. Documento, Cliente)'});
+    }
+
     try {
-        // NOTA: Como no tienes tabla de 'Items', solo guardamos el resumen en 'credfiscal'.
-        // Asumimos que 'clienteId' trae el NIT o buscamos el nombre (aquí guardo el ID en NIT por ahora)
-        
         const query = `
             INSERT INTO credfiscal 
             (
-                FiscFecha, 
-                FiscNumDoc, 
-                FiscNit, 
-                FiscVtaGravLocal, 
-                FiscDebitoFiscal, 
-                FiscTotalVtas,
-                FisTipoDoc,
-                FisClasDoc
-            ) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                FiscFecha, FisClasDoc, FisTipoDoc, FiscNumResol, FiscSerieDoc, 
+                FiscNumDoc, FiscNumContInter, FiscNit, FiscNomRazonDenomi, FiscNumDuiClien, 
+                FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, 
+                FiscVtaCtaTercNoDomici, FiscDebFiscVtaCtaTerceros, FiscTotalVtas, 
+                BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
-        // Valores a insertar
         const values = [
-            fecha,
-            numeroComprobante,
-            clienteId,          // Guardamos el cliente (NIT o ID)
-            sumas,              // Ventas Gravadas (Subtotal neto)
-            iva,                // 13% IVA
-            totalVenta,         // Total Final
-            '03 COMPROBANTE DE CREDITO FISCAL', // Tipo de documento fijo
-            '4. DOCUMENTO TRIBUTARIO DTE'       // Clase fija (ajustar según necesidad)
+            fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
+            numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
+            ventasExentas || 0, ventasNoSujetas || 0, ventasGravadas || 0, debitoFiscal || 0,
+            ventasTerceros || 0, debitoTerceros || 0, totalVentas || 0, tipoOperacion, tipoIngreso, numeroAnexo
+        ];
+
+        const [result] = await pool.query(query, values);
+        res.status(201).json({ message: 'Comprobante guardado correctamente', id: result.insertId });
+
+    } catch (error) {
+        console.error('Error al guardar:', error);
+        res.status(500).json({ message: 'Error al guardar en BD', error: error.message });
+    }
+};
+
+// --- ACTUALIZAR VENTA ---
+export const updateVentasCCF = async (req, res) => {
+    const { id } = req.params;
+    const { 
+        fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
+        numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
+        ventasExentas, ventasNoSujetas, ventasGravadas, debitoFiscal,
+        ventasTerceros, debitoTerceros, totalVentas, tipoOperacion, tipoIngreso, numeroAnexo
+    } = req.body;
+
+    try {
+        const query = `
+            UPDATE credfiscal SET 
+                FiscFecha = ?, FisClasDoc = ?, FisTipoDoc = ?, FiscNumResol = ?, FiscSerieDoc = ?, 
+                FiscNumDoc = ?, FiscNumContInter = ?, FiscNit = ?, FiscNomRazonDenomi = ?, FiscNumDuiClien = ?, 
+                FiscVtaExen = ?, FiscVtaNoSujetas = ?, FiscVtaGravLocal = ?, FiscDebitoFiscal = ?, 
+                FiscVtaCtaTercNoDomici = ?, FiscDebFiscVtaCtaTerceros = ?, FiscTotalVtas = ?, 
+                BusFiscTipoOperaRenta = ?, BusFiscTipoIngresoRenta = ?, FiscNumAnexo = ?
+            WHERE idCredFiscal = ?
+        `;
+
+        const values = [
+            fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
+            numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
+            ventasExentas || 0, ventasNoSujetas || 0, ventasGravadas || 0, debitoFiscal || 0,
+            ventasTerceros || 0, debitoTerceros || 0, totalVentas || 0, tipoOperacion, tipoIngreso, numeroAnexo,
+            id
         ];
 
         const [result] = await pool.query(query, values);
 
-        res.json({ 
-            message: 'Comprobante de Crédito Fiscal guardado correctamente', 
-            id: result.insertId 
-        });
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
+
+        res.json({ message: 'Comprobante actualizado correctamente' });
 
     } catch (error) {
-        console.error('Error al guardar venta:', error);
-        res.status(500).json({ message: 'Error al guardar en base de datos', error: error.message });
+        return res.status(500).json({ message: 'Error al actualizar', error: error.message });
+    }
+};
+
+// --- ELIMINAR VENTA ---
+export const deleteVentasCCF = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.query('DELETE FROM credfiscal WHERE idCredFiscal = ?', [id]);
+
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
+
+        res.json({ message: 'Comprobante eliminado correctamente' });
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al eliminar', error: error.message });
     }
 };

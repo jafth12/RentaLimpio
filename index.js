@@ -28,7 +28,7 @@ app.use('/api', proveedoresRoutes);
 app.use('/api', comprasRoutes);
 app.use('/api', ventasCFRoutes);
 app.use('/api', sujetosRoutes);
-app.use('/api/ventas-ccf', ventasCCFRoutes);
+app.use('/api', ventasCCFRoutes);
 
 app.get('/', (req, res) => {
     res.send('<h1>¡Sistema de Renta Activo! 🇸🇻</h1>');
