@@ -4,7 +4,7 @@ import HomeView from '../views/HomeView.vue'
 import EnConstruccion from '../views/EnConstruccion.vue'
 import { usuarioAutenticado } from '../auth.js'
 
-// 1. IMPORTAR LAS VISTAS
+// 1. IMPORTAR LAS VISTAS DE LOS MÓDULOS ACTIVOS
 import ComprasView from '../views/ComprasView.vue'
 import SujetosExcluidosView from '../views/SujetosExcluidosView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
@@ -55,16 +55,15 @@ const router = createRouter({
             meta: { requiresAuth: true }
         },
         {
-            path: '/ventas-ccf',
+            path: '/venta-credito',
             name: 'ventas-ccf',
             component: VentasCreditoFiscalView,
             meta: { requiresAuth: true }
         },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
+        // Se eliminaron las rutas que ya tienen módulos activos arriba
 
-        { path: '/venta-consumidor', name: 'Venta Consumidor Final', component: EnConstruccion },
-        { path: '/venta-credito', name: 'Venta Credito Fiscal', component: EnConstruccion },
         { path: '/venta-terceros', name: 'Venta por Terceros', component: EnConstruccion },
         { path: '/clientes-menu', name: 'Gestion de Clientes', component: EnConstruccion },
 
@@ -91,11 +90,13 @@ const router = createRouter({
     ]
 })
 
+
 router.beforeEach((to, from, next) => {
     if (to.path === '/login' || to.path === '/') {
         usuarioAutenticado.value = false;
     }
 
+    // Verificación de autenticación
     if (to.meta.requiresAuth && !usuarioAutenticado.value) {
         next('/login');
     } else if (to.path === '/inicio' && !usuarioAutenticado.value) {

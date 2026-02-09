@@ -11,7 +11,9 @@
             <label class="form-label">Cliente (Contribuyente)</label>
             <select v-model="form.clienteId" class="form-select">
               <option value="">Seleccione un cliente...</option>
-              <option value="1">Distribuidora El Sol (NRC: 12345-6)</option>
+              <option v-for="cliente in clientes" :key="cliente.ClienNIT" :value="cliente.ClienNIT">
+                {{ cliente.ClienNom }} (NIT: {{ cliente.ClienNIT }})
+              </option>
             </select>
           </div>
           <div class="col-md-3">
@@ -82,33 +84,36 @@
         <div class="row justify-content-end">
           <div class="col-md-4">
             <table class="table table-sm table-borderless">
-              <tr>
-                <td class="text-end fw-bold">Sumas (Neto):</td>
-                <td class="text-end">${{ form.sumas.toFixed(2) }}</td>
-              </tr>
-              <tr>
-                <td class="text-end fw-bold">13% IVA:</td>
-                <td class="text-end">${{ form.iva.toFixed(2) }}</td>
-              </tr>
-              <tr>
-                <td class="text-end fw-bold">Sub-Total:</td>
-                <td class="text-end">${{ form.subtotal.toFixed(2) }}</td>
-              </tr>
-              <tr>
-                <td class="text-end text-danger">(-) IVA Retenido 1%:</td>
-                <td><input type="number" v-model.number="form.ivaRetenido" class="form-control form-control-sm text-end"></td>
-              </tr>
-              <tr>
-                <td class="text-end fw-bold fs-5">VENTA TOTAL:</td>
-                <td class="text-end fw-bold fs-5">${{ form.totalVenta.toFixed(2) }}</td>
-              </tr>
+              <tbody> <tr>
+                    <td class="text-end fw-bold">Sumas (Neto):</td>
+                    <td class="text-end">${{ form.sumas.toFixed(2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="text-end fw-bold">13% IVA:</td>
+                    <td class="text-end">${{ form.iva.toFixed(2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="text-end fw-bold">Sub-Total:</td>
+                    <td class="text-end">${{ form.subtotal.toFixed(2) }}</td>
+                  </tr>
+                  <tr>
+                    <td class="text-end text-danger">(-) IVA Retenido 1%:</td>
+                    <td><input type="number" v-model.number="form.ivaRetenido" class="form-control form-control-sm text-end"></td>
+                  </tr>
+                  <tr>
+                    <td class="text-end fw-bold fs-5">VENTA TOTAL:</td>
+                    <td class="text-end fw-bold fs-5">${{ form.totalVenta.toFixed(2) }}</td>
+                  </tr>
+              </tbody>
             </table>
           </div>
         </div>
 
         <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
             <button class="btn btn-secondary me-md-2">Cancelar</button>
-            <button @click="guardarVenta" class="btn btn-primary">Guardar Comprobante</button>
+            <button @click="guardarVenta" class="btn btn-primary" :disabled="form.items.length === 0 || !form.clienteId">
+                Guardar Comprobante
+            </button>
         </div>
 
       </div>
@@ -117,8 +122,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
+
+// URL base de la API (toma la del .env o usa localhost por defecto)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+// Estado para la lista de clientes
+const clientes = ref([]);
 
 // Estado del formulario principal
 const form = ref({
@@ -140,6 +151,18 @@ const itemActual = ref({
   precio: 0
 });
 
+// --- CARGAR CLIENTES AL INICIAR ---
+onMounted(async () => {
+    try {
+        // Asumiendo que tienes una ruta GET /api/clientes
+        const respuesta = await axios.get(`${API_URL}/api/clientes`);
+        clientes.value = respuesta.data;
+    } catch (error) {
+        console.error("Error al cargar clientes:", error);
+        // Si falla, podrías mostrar una alerta o dejar la lista vacía
+    }
+});
+
 // Función para agregar item a la lista
 const agregarItem = () => {
   if (itemActual.value.descripcion && itemActual.value.precio > 0) {
@@ -157,7 +180,7 @@ const eliminarItem = (index) => {
   form.value.items.splice(index, 1);
 };
 
-// CÁLCULOS AUTOMÁTICOS (El corazón del CCF)
+// CÁLCULOS AUTOMÁTICOS
 watch(() => form.value.items, (nuevosItems) => {
   let sumaGravada = 0;
   nuevosItems.forEach(item => {
@@ -178,14 +201,24 @@ const calcularTotalFinal = () => {
   form.value.totalVenta = form.value.subtotal - form.value.ivaRetenido;
 };
 
-// Guardar en Backend (Conectado a la ruta que creamos)
+// Guardar en Backend
 const guardarVenta = async () => {
+  if (!form.value.clienteId) {
+      alert("Por favor seleccione un cliente.");
+      return;
+  }
+
   try {
-    const respuesta = await axios.post('http://localhost:3000/api/ventas-ccf', form.value);
+    const respuesta = await axios.post(`${API_URL}/api/ventas-ccf`, form.value);
     alert('Éxito: ' + respuesta.data.message);
+    
+    // Opcional: Limpiar formulario tras guardar
+    form.value.items = [];
+    form.value.numeroComprobante = '';
+    
   } catch (error) {
     console.error(error);
-    alert('Error al guardar');
+    alert('Error al guardar: ' + (error.response?.data?.message || error.message));
   }
 };
 </script>
