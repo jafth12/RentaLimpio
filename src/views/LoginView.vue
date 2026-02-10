@@ -41,6 +41,11 @@
     import { useRouter } from 'vue-router';
     import { usuarioAutenticado } from '../auth.js';
 
+    // --- LÓGICA DINÁMICA DE IP ---
+    const hostname = window.location.hostname; // Detecta si es 192... o 190...
+    const BASE_URL = `http://${hostname}:3000`; 
+    // -----------------------------
+
     const UsuaNombre = ref('');
     const UsuarioPassword = ref('');
     const error = ref('');
@@ -52,7 +57,8 @@
        error.value = '';
 
        try {
-        const respuesta = await axios.post(import.meta.env.VITE_API_URL + '/api/login', {
+        // Usamos la BASE_URL dinámica en lugar del .env fijo
+        const respuesta = await axios.post(BASE_URL + '/api/login', {
              UsuaNombre: UsuaNombre.value,
             UsuarioPassword: UsuarioPassword.value
         });

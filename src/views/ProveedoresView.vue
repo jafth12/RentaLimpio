@@ -144,7 +144,11 @@ const ultimoGuardado = ref(null);
 const mensaje = ref('');
 const tipoMensaje = ref('');
 
-const API_URL = import.meta.env.VITE_API_URL + '/api/proveedores';
+// --- LÓGICA DINÁMICA DE IP ---
+const hostname = window.location.hostname;
+const BASE_URL = `http://${hostname}:3000`;
+const API_URL = BASE_URL + '/api/proveedores';
+// -----------------------------
 
 // --- FUNCIONES ---
 

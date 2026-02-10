@@ -216,8 +216,11 @@
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 
-// --- CONFIGURACIÓN ---
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// --- LÓGICA DINÁMICA DE IP ---
+const hostname = window.location.hostname;
+const API_URL = `http://${hostname}:3000`; // Se adapta automáticamente
+// -----------------------------
+
 const mostrarFormulario = ref(true);
 const clientes = ref([]);
 const historialVentas = ref([]);

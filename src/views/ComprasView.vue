@@ -197,9 +197,14 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 
-const API_PROVEEDORES = import.meta.env.VITE_API_URL + '/api/proveedores';
-const API_COMPRAS = import.meta.env.VITE_API_URL + '/api/compras';
-const API_DECLARANTES = import.meta.env.VITE_API_URL + '/api/declarantes'; 
+// --- LÓGICA DINÁMICA DE IP (Funciona en 192... y 190...) ---
+const hostname = window.location.hostname;
+const BASE_URL = `http://${hostname}:3000`;
+
+const API_PROVEEDORES = BASE_URL + '/api/proveedores';
+const API_COMPRAS = BASE_URL + '/api/compras';
+const API_DECLARANTES = BASE_URL + '/api/declarantes'; 
+// -----------------------------------------------------------
 
 // --- LISTAS DE OPCIONES ---
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
