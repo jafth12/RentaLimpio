@@ -1,6 +1,6 @@
 import pool from '../config/db.js';
 
-// Helper para obtener el nombre del mes automáticamente desde la fecha
+// Helper para obtener el nombre del mes automáticamente (como respaldo)
 const obtenerMesDesdeFecha = (fecha) => {
     if (!fecha) return 'Desconocido';
     const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -19,7 +19,8 @@ export const getCompras = async (req, res) => {
 
 export const createCompra = async (req, res) => {
     const {
-        fecha, numero, nitProveedor, nombreProveedor, duiProveedor,
+        fecha, numero, nitProveedor, nombreProveedor, duiProveedor, 
+        iddeclaNIT, mesDeclarado, // <--- ACEPTAMOS EL MES MANUAL
         claseDocumento, tipoDocumento, tipoOperacion, clasificacion, sector, tipoCostoGasto,
         internasExentas, internacionalesExentas, importacionesNoSujetas,
         internasGravadas, internacionalesGravBienes, importacionesGravBienes, importacionesGravServicios,
@@ -27,31 +28,24 @@ export const createCompra = async (req, res) => {
     } = req.body;
 
     // --- VALIDACIÓN ESTRICTA ---
-    // 1. Fecha
-    // 2. Número CCF (ComNumero)
-    // 3. NIT Proveedor
-    // 4. Internas Gravadas (Debe ser un número válido, aunque sea 0, pero verifiquemos que se envió)
-    
-    if (!fecha || !numero || !nitProveedor) {
-        return res.status(400).json({ message: 'Faltan datos obligatorios: Fecha, Número CCF o NIT del Proveedor.' });
+    if (!fecha || !numero || !nitProveedor || !iddeclaNIT) {
+        return res.status(400).json({ message: 'Faltan datos obligatorios: Fecha, Número CCF, Declarante o Proveedor.' });
     }
 
-    // Validación extra: Si es CCF, solemos requerir monto gravado, pero a veces es exento.
-    // Lo importante es que el backend reciba algo.
-
-    const mesCalculado = obtenerMesDesdeFecha(fecha);
+    // LÓGICA DE MES: Prioridad al manual, si no existe, calculamos.
+    const mesFinal = mesDeclarado || obtenerMesDesdeFecha(fecha);
 
     try {
         const [result] = await pool.query(
             `INSERT INTO compras 
-            (ComFecha, ComNumero, proveedor_ProvNIT, ComNomProve, ComDuiProve, ComMesDeclarado,
+            (ComFecha, ComNumero, proveedor_ProvNIT, ComNomProve, ComDuiProve, iddeclaNIT, ComMesDeclarado,
              ComClase, ComTipo, ComTipoOpeRenta, ComClasiRenta, ComSecNum, ComTipoCostoGasto,
              ComIntExe, ComInternacioExe, ComImpExeNoSujetas, 
              ComIntGrav, ComInternacGravBienes, ComImportGravBienes, ComImportGravServicios, 
              ComCredFiscal, ComTotal) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                fecha, numero, nitProveedor, nombreProveedor, duiProveedor || null, mesCalculado,
+                fecha, numero, nitProveedor, nombreProveedor, duiProveedor || null, iddeclaNIT, mesFinal,
                 claseDocumento, tipoDocumento, tipoOperacion, clasificacion, sector, tipoCostoGasto,
                 internasExentas || 0, internacionalesExentas || 0, importacionesNoSujetas || 0,
                 internasGravadas || 0, internacionalesGravBienes || 0, importacionesGravBienes || 0, importacionesGravServicios || 0,
@@ -70,7 +64,8 @@ export const createCompra = async (req, res) => {
 export const updateCompra = async (req, res) => {
     const { id } = req.params;
     const {
-        fecha, numero, nitProveedor, nombreProveedor, duiProveedor,
+        fecha, numero, nitProveedor, nombreProveedor, duiProveedor, 
+        iddeclaNIT, mesDeclarado, // <--- ACEPTAMOS EL MES MANUAL
         claseDocumento, tipoDocumento, tipoOperacion, clasificacion, sector, tipoCostoGasto,
         internasExentas, internacionalesExentas, importacionesNoSujetas,
         internasGravadas, internacionalesGravBienes, importacionesGravBienes, importacionesGravServicios,
@@ -81,19 +76,20 @@ export const updateCompra = async (req, res) => {
         return res.status(400).json({ message: 'Faltan datos obligatorios para actualizar.' });
     }
 
-    const mesCalculado = obtenerMesDesdeFecha(fecha);
+    // LÓGICA DE MES: Prioridad al manual
+    const mesFinal = mesDeclarado || obtenerMesDesdeFecha(fecha);
 
     try {
         const [result] = await pool.query(
             `UPDATE compras SET 
-            ComFecha = ?, ComNumero = ?, proveedor_ProvNIT = ?, ComNomProve = ?, ComDuiProve = ?, ComMesDeclarado = ?,
+            ComFecha = ?, ComNumero = ?, proveedor_ProvNIT = ?, ComNomProve = ?, ComDuiProve = ?, iddeclaNIT = ?, ComMesDeclarado = ?,
             ComClase = ?, ComTipo = ?, ComTipoOpeRenta = ?, ComClasiRenta = ?, ComSecNum = ?, ComTipoCostoGasto = ?,
             ComIntExe = ?, ComInternacioExe = ?, ComImpExeNoSujetas = ?,
             ComIntGrav = ?, ComInternacGravBienes = ?, ComImportGravBienes = ?, ComImportGravServicios = ?,
             ComCredFiscal = ?, ComTotal = ?
             WHERE idcompras = ?`,
             [
-                fecha, numero, nitProveedor, nombreProveedor, duiProveedor || null, mesCalculado,
+                fecha, numero, nitProveedor, nombreProveedor, duiProveedor || null, iddeclaNIT, mesFinal,
                 claseDocumento, tipoDocumento, tipoOperacion, clasificacion, sector, tipoCostoGasto,
                 internasExentas, internacionalesExentas, importacionesNoSujetas,
                 internasGravadas, internacionalesGravBienes, importacionesGravBienes, importacionesGravServicios,

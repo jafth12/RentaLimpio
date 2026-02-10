@@ -9,6 +9,7 @@ import proveedoresRoutes from './src/routes/proveedores.routes.js';
 import sujetosRoutes from './src/routes/sujetos.routes.js';
 import comprasRoutes from './src/routes/compras.routes.js';
 import ventasCCFRoutes from './src/routes/ventasCreditoFiscal.routes.js'
+import declarantesRoutes from './src/routes/declarantes.routes.js';
 
 // MÓDULOS DE VENTAS
 import ventasCFRoutes from './src/routes/ventasCF.routes.js'; 
@@ -29,11 +30,12 @@ app.use('/api', comprasRoutes);
 app.use('/api', ventasCFRoutes);
 app.use('/api', sujetosRoutes);
 app.use('/api', ventasCCFRoutes);
+app.use('/api', declarantesRoutes);
 
 app.get('/', (req, res) => {
     res.send('<h1>¡Sistema de Renta Activo! 🇸🇻</h1>');
 });
 
-app.listen(PORT, () => {
-    console.log(`✅ Servidor corriendo en http://192.168.1.7:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`✅ Servidor corriendo en http://190.62.2.18:${PORT}`);
 });

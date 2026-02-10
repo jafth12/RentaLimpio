@@ -7,7 +7,7 @@ const pool = createPool({
     host: process.env.DB_HOST || '192.168.1.7',
     user: process.env.DB_USER || 'mayli_dev',
     password: process.env.DB_PASSWORD || 'coreasuno',
-    database: process.env.DB_NAME || 'declaracion_renta_db',
+    database: process.env.DB_NAME || 'declaraciones',
     port: process.env.DB_PORT || 3306,
     waitForConnections: true,
     connectionLimit: 10,

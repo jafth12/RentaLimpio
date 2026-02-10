@@ -3,7 +3,7 @@ import { getVentasCCF, createVentasCCF } from "../controllers/ventasCreditoFisca
 
 const router = Router();
 
-router.get('/', getVentasCCF);
-router.post('/', createVentasCCF);
+router.get('/ventas-CCF', getVentasCCF);
+router.post('/ventas-CCF', createVentasCCF);
 
 export default router;

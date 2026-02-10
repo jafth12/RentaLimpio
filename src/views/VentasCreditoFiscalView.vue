@@ -263,7 +263,6 @@ const alternarVista = () => {
 const cargarClientes = async () => {
   try {
     const res = await axios.get(`${API_URL}/api/clientes`);
-    // Verificamos en consola qué nombres trae la BD
     console.log("CLIENTES cargados:", res.data); 
     clientes.value = res.data;
   } catch (error) {
@@ -357,7 +356,6 @@ const limpiarFormulario = () => {
 </script>
 
 <style scoped>
-/* ESTILOS PROPORCIONADOS POR EL USUARIO + AJUSTES */
 .ventas-container { padding: 2rem; background: #e3f2fd; min-height: 100vh; font-family: 'Segoe UI', sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
 .header-buttons { display: flex; gap: 10px; }

@@ -56,7 +56,7 @@ const router = createRouter({
         },
         {
             path: '/venta-credito',
-            name: 'ventas-ccf',
+            name: 'ventas-CCF',
             component: VentasCreditoFiscalView,
             meta: { requiresAuth: true }
         },

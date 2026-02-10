@@ -21,10 +21,31 @@
 
         <form @submit.prevent="guardarCompra">
           
+          <div class="seccion-proveedor" :class="{ 'error-borde': errores.declarante }" style="margin-bottom: 15px;">
+            <label>Declarante <span class="required">*</span></label>
+            <div v-if="!declaranteSeleccionado" class="buscador-wrapper">
+              <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar Declarante por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasDeclarante = true">
+              <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="lista-sugerencias">
+                <li v-for="decla in declarantesFiltrados" :key="decla.iddeclaNIT" @click="seleccionarDeclarante(decla)">
+                  <strong>{{ decla.declarante }}</strong> <small>{{ decla.iddeclaNIT }}</small>
+                </li>
+              </ul>
+              <div v-else-if="busquedaDeclarante && declarantesFiltrados.length === 0" class="no-resultados">No se encontraron declarantes.</div>
+            </div>
+            <div v-else class="proveedor-seleccionado" style="background: #fff8e1; border-color: #ffb74d;">
+              <div class="info-prov">
+                <span class="icono">👤</span>
+                <div><strong>{{ declaranteSeleccionado.declarante }}</strong> <small>NIT: {{ declaranteSeleccionado.iddeclaNIT }}</small></div>
+              </div>
+              <button @click="quitarDeclarante" type="button" class="btn-cambiar" style="color: #e65100;">Cambiar</button>
+            </div>
+            <small v-if="errores.declarante" class="msg-error">Debe seleccionar un declarante.</small>
+          </div>
+
           <div class="seccion-proveedor" :class="{ 'error-borde': errores.proveedor }">
             <label>Proveedor <span class="required">*</span></label>
             <div v-if="!proveedorSeleccionado" class="buscador-wrapper">
-              <input type="text" v-model="busqueda" placeholder="🔍 Buscar por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerencias = true">
+              <input type="text" v-model="busqueda" placeholder="🔍 Buscar Proveedor por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerencias = true">
               <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="lista-sugerencias">
                 <li v-for="prov in proveedoresFiltrados" :key="prov.ProvNIT" @click="seleccionarProveedor(prov)">
                   <strong>{{ prov.ProvNombre }}</strong> <small>{{ prov.ProvNIT }}</small>
@@ -39,7 +60,7 @@
               </div>
               <button @click="quitarProveedor" type="button" class="btn-cambiar">Cambiar</button>
             </div>
-            <small v-if="errores.proveedor" class="msg-error">Debe seleccionar un proveedor (NIT).</small>
+            <small v-if="errores.proveedor" class="msg-error">Debe seleccionar un proveedor.</small>
           </div>
 
           <div class="form-row grid-fiscal">
@@ -57,6 +78,14 @@
                 <input type="date" v-model="formulario.fecha" :class="{ 'input-error': errores.fecha }" required>
                 <small v-if="errores.fecha" class="msg-error">Fecha requerida.</small>
             </div>
+
+            <div class="form-group">
+                <label>Mes Declarado <span class="required">*</span></label>
+                <select v-model="formulario.mesDeclarado" required class="select-destacado" style="border-color: #55C2B7;">
+                    <option v-for="mes in opcionesMeses" :key="mes" :value="mes">{{ mes }}</option>
+                </select>
+            </div>
+
             <div class="form-group">
                 <label>Número (CCF) <span class="required">*</span></label>
                 <input type="text" v-model="formulario.numero" :class="{ 'input-error': errores.numero }" required placeholder="Ej: 12345">
@@ -126,14 +155,18 @@
         <div class="tabla-container">
           <table>
             <thead>
-              <tr><th>Fecha</th><th>Proveedor</th><th>Detalles</th><th>Total</th><th>Acciones</th></tr>
+              <tr><th>Fecha</th><th>Proveedor / Declarante</th><th>Detalles</th><th>Total</th><th>Acciones</th></tr>
             </thead>
             <tbody>
               <tr v-for="compra in comprasFiltradas" :key="compra.idcompras">
-                <td>{{ formatearFecha(compra.CompFecha) }}</td>
+                <td>
+                    {{ formatearFecha(compra.ComFecha) }}
+                    <small style="display:block; color:#666;">({{ compra.ComMesDeclarado || '---' }})</small>
+                </td>
                 <td>
                   <div class="prov-nombre">{{ compra.ComNomProve || '---' }}</div> 
-                  <small class="nit-sm">{{ compra.proveedor_ProvNIT }}</small>
+                  <small class="nit-sm" style="display:block;">Prov: {{ compra.proveedor_ProvNIT }}</small>
+                  <small v-if="compra.iddeclaNIT" class="nit-sm" style="color: #e65100;">Decla: {{ compra.iddeclaNIT }}</small>
                 </td>
                 <td class="detalle-td">
                     <div class="badges-container">
@@ -166,6 +199,7 @@ import axios from 'axios';
 
 const API_PROVEEDORES = import.meta.env.VITE_API_URL + '/api/proveedores';
 const API_COMPRAS = import.meta.env.VITE_API_URL + '/api/compras';
+const API_DECLARANTES = import.meta.env.VITE_API_URL + '/api/declarantes'; 
 
 // --- LISTAS DE OPCIONES ---
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
@@ -175,32 +209,43 @@ const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTER
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECURIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 
+const opcionesMeses = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+];
+
 const formulario = ref({ 
-    fecha: new Date().toISOString().split('T')[0], numero: '', duiProveedor: '',
+    fecha: new Date().toISOString().split('T')[0], 
+    mesDeclarado: opcionesMeses[new Date().getMonth()], // Mes actual por defecto
+    numero: '', duiProveedor: '',
     claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
-    // Montos
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
     internasExentas: '0.00', internacionalesExentas: '0.00', importacionesNoSujetas: '0.00',
     iva: '0.00', total: '0.00'
 });
 
-const errores = ref({ proveedor: false, fecha: false, numero: false, internas: false });
+const errores = ref({ proveedor: false, declarante: false, fecha: false, numero: false, internas: false });
 
 const todosLosProveedores = ref([]);
+const todosLosDeclarantes = ref([]);
 const listaCompras = ref([]);
-const busqueda = ref('');
-const filtroLista = ref(''); 
-const proveedorSeleccionado = ref(null);
-const mostrarSugerencias = ref(false);
 const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
 const mostrandoLista = ref(false); 
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
+const filtroLista = ref(''); 
 
-// --- CÁLCULOS INTELIGENTES ---
+const busqueda = ref('');
+const proveedorSeleccionado = ref(null);
+const mostrarSugerencias = ref(false);
+
+const busquedaDeclarante = ref('');
+const declaranteSeleccionado = ref(null);
+const mostrarSugerenciasDeclarante = ref(false);
+
 watch(() => [
     formulario.value.internasGravadas, 
     formulario.value.internacionalesGravBienes,
@@ -216,7 +261,6 @@ watch(() => [
     const ivaNum = parseFloat(formulario.value.iva);
     formulario.value.total = (baseGravada + ivaNum + sumExentas).toFixed(2);
     
-    // Limpiamos error de internas si ya escribió algo
     if(parseFloat(intG) > 0 || intG !== '') errores.value.internas = false;
 });
 
@@ -231,6 +275,12 @@ const proveedoresFiltrados = computed(() => {
   return todosLosProveedores.value.filter(p => p.ProvNombre.toLowerCase().includes(txt) || p.ProvNIT.includes(txt));
 });
 
+const declarantesFiltrados = computed(() => { 
+  if (!busquedaDeclarante.value) return [];
+  const txt = busquedaDeclarante.value.toLowerCase();
+  return todosLosDeclarantes.value.filter(d => d.declarante.toLowerCase().includes(txt) || d.iddeclaNIT.includes(txt));
+});
+
 const comprasFiltradas = computed(() => {
   if (!filtroLista.value) return listaCompras.value;
   const txt = filtroLista.value.toLowerCase();
@@ -240,18 +290,27 @@ const comprasFiltradas = computed(() => {
 });
 
 const alternarVista = () => { if (modoEdicion) cancelarEdicion(); mostrandoLista.value = !mostrandoLista.value; };
+
 const seleccionarProveedor = (prov) => { 
     proveedorSeleccionado.value = prov; mostrarSugerencias.value = false; busqueda.value = ''; 
     errores.value.proveedor = false; 
 };
 const quitarProveedor = () => proveedorSeleccionado.value = null;
 
+const seleccionarDeclarante = (decla) => { 
+    declaranteSeleccionado.value = decla; mostrarSugerenciasDeclarante.value = false; busquedaDeclarante.value = '';
+    errores.value.declarante = false;
+};
+const quitarDeclarante = () => declaranteSeleccionado.value = null;
+
 const prepararEdicion = (compra) => {
   let fechaSegura = new Date().toISOString().split('T')[0];
   if (compra.ComFecha) fechaSegura = new Date(compra.ComFecha).toISOString().split('T')[0];
 
   formulario.value = {
-    fecha: fechaSegura, numero: compra.ComNumero || '', duiProveedor: compra.ComDuiProve || '',
+    fecha: fechaSegura,
+    mesDeclarado: compra.ComMesDeclarado || opcionesMeses[new Date().getMonth()], 
+    numero: compra.ComNumero || '', duiProveedor: compra.ComDuiProve || '',
     claseDocumento: compra.ComClase || '4. DOCUMENTO TRIBUTARIO DTE',
     tipoDocumento: compra.ComTipo || '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: compra.ComTipoOpeRenta || '1. GRAVADA',
@@ -272,7 +331,14 @@ const prepararEdicion = (compra) => {
   const provEncontrado = todosLosProveedores.value.find(p => p.ProvNIT === compra.proveedor_ProvNIT);
   proveedorSeleccionado.value = provEncontrado || { ProvNIT: compra.proveedor_ProvNIT, ProvNombre: compra.ComNomProve || 'Proveedor Histórico' };
   
-  errores.value = { proveedor: false, fecha: false, numero: false, internas: false };
+  if (compra.iddeclaNIT) {
+      const declaEncontrado = todosLosDeclarantes.value.find(d => d.iddeclaNIT === compra.iddeclaNIT);
+      declaranteSeleccionado.value = declaEncontrado || { iddeclaNIT: compra.iddeclaNIT, declarante: 'Declarante Histórico' };
+  } else {
+      declaranteSeleccionado.value = null;
+  }
+
+  errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
   modoEdicion.value = true;
   idEdicion.value = compra.idcompras;
   mostrandoLista.value = false; 
@@ -281,33 +347,40 @@ const prepararEdicion = (compra) => {
 const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; };
 const resetForm = () => {
   formulario.value = { 
-    fecha: new Date().toISOString().split('T')[0], numero: '', duiProveedor: '',
+    fecha: new Date().toISOString().split('T')[0], 
+    mesDeclarado: opcionesMeses[new Date().getMonth()],
+    numero: '', duiProveedor: '',
     claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
     internasExentas: '0.00', internacionalesExentas: '0.00', importacionesNoSujetas: '0.00', iva: '0.00', total: '0.00'
   };
   proveedorSeleccionado.value = null;
-  errores.value = { proveedor: false, fecha: false, numero: false, internas: false };
+  declaranteSeleccionado.value = null;
+  errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
 };
 
 const cargarDatos = async () => {
   try {
-    const [resProv, resCompras] = await Promise.all([axios.get(API_PROVEEDORES), axios.get(API_COMPRAS)]);
+    const [resProv, resDecla, resCompras] = await Promise.all([
+        axios.get(API_PROVEEDORES), 
+        axios.get(API_DECLARANTES), 
+        axios.get(API_COMPRAS)
+    ]);
     todosLosProveedores.value = resProv.data;
+    todosLosDeclarantes.value = resDecla.data;
     listaCompras.value = resCompras.data;
   } catch (error) { console.error("Error cargando datos", error); }
 };
 
 const guardarCompra = async () => {
-  // VALIDACIÓN MANUAL ANTES DE ENVIAR
   errores.value.proveedor = !proveedorSeleccionado.value;
+  errores.value.declarante = !declaranteSeleccionado.value;
   errores.value.fecha = !formulario.value.fecha;
   errores.value.numero = !formulario.value.numero;
-  // Validamos que Internas Gravadas no esté vacío (puede ser 0 si es exenta, pero debe tener formato)
   errores.value.internas = formulario.value.internasGravadas === '';
 
-  if (errores.value.proveedor || errores.value.fecha || errores.value.numero || errores.value.internas) {
+  if (errores.value.proveedor || errores.value.declarante || errores.value.fecha || errores.value.numero || errores.value.internas) {
       alert("Por favor complete los campos obligatorios marcados en rojo.");
       return;
   }
@@ -315,9 +388,10 @@ const guardarCompra = async () => {
   cargando.value = true;
   const payload = { 
       ...formulario.value, 
+      mesDeclarado: formulario.value.mesDeclarado, // Envío explícito del mes
       nitProveedor: proveedorSeleccionado.value.ProvNIT, 
       nombreProveedor: proveedorSeleccionado.value.ProvNombre,
-      // Conversión a números para la BD
+      iddeclaNIT: declaranteSeleccionado.value.iddeclaNIT,
       internasGravadas: parseFloat(formulario.value.internasGravadas) || 0,
       internacionalesGravBienes: parseFloat(formulario.value.internacionalesGravBienes) || 0,
       importacionesGravBienes: parseFloat(formulario.value.importacionesGravBienes) || 0,
@@ -350,6 +424,7 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
+/* Estilos existentes */
 .compras-container { padding: 2rem; background: #f0f2f5; min-height: 100vh; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
 .header-buttons { display: flex; gap: 10px; }
@@ -386,7 +461,6 @@ input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
 .fila-res { display: flex; align-items: center; gap: 10px; }
 .fila-res span { font-weight: bold; color: #666; }
 .fila-res.total span { color: #55C2B7; font-size: 1.1rem; }
-.nota-edit { color: #f57c00; font-size: 0.8rem; display: block; width: 100%; margin-top: 5px; }
 
 /* Buscador y Tabla */
 .buscador-wrapper { position: relative; }

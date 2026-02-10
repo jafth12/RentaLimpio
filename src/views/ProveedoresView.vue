@@ -138,9 +138,8 @@ const listaProveedores = ref([]);
 const mostrarLista = ref(false);
 const cargando = ref(false);
 const modoEdicion = ref(false);
-const nitOriginalEdicion = ref(null); // Para saber a cuál hacer UPDATE
-const ultimoGuardado = ref(null); // Para resaltar el último creado
-
+const nitOriginalEdicion = ref(null); 
+const ultimoGuardado = ref(null); 
 // Mensajes
 const mensaje = ref('');
 const tipoMensaje = ref('');
