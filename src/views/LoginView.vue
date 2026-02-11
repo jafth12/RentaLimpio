@@ -65,7 +65,9 @@
 
         if (respuesta.data.message === 'Login exitoso') {
             usuarioAutenticado.value = true;
-            localStorage.setItem('sesionActiva', 'true');
+            sessionStorage.setItem('sesionActiva', 'true');
+            const rolUsuario = respuesta.data.rol || 'empleado';
+            sessionStorage.setItem('rolUsuario', rolUsuario);
             router.push('/inicio');
         }
 

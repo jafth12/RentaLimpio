@@ -10,6 +10,7 @@ import SujetosExcluidosView from '../views/SujetosExcluidosView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
 import VentasConsumidorView from '../views/VentasConsumidorView.vue'
 import VentasCreditoFiscalView from '../views/VentasCreditoFiscalView.vue'
+import AdminUsuariosView from '../views/AdminUsuariosView.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -60,6 +61,12 @@ const router = createRouter({
             component: VentasCreditoFiscalView,
             meta: { requiresAuth: true }
         },
+        {
+            path: '/admin-usuarios',
+            name: 'admin-usuarios',
+            component: AdminUsuariosView,
+            meta: { requiresAuth: true }
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
         // Se eliminaron las rutas que ya tienen módulos activos arriba
@@ -80,6 +87,12 @@ const router = createRouter({
         { path: '/modificar-empleado', name: 'ModificarEmpleado', component: EnConstruccion },
         { path: '/eliminar-empleado', name: 'EliminarEmpleado', component: EnConstruccion },
 
+        { path: '/crear-usuario', name: 'CrearUsuario', component: EnConstruccion },
+        { path: '/eliminar-usuario', name: 'EliminarUsuario', component: EnConstruccion },
+
+        { path: '/crear-empleado', name: 'CrearEmpleado', component: EnConstruccion },
+        { path: '/modificar-empleado', name: 'ModificarEmpleado', component: EnConstruccion },
+        { path: '/eliminar-empleado', name: 'EliminarEmpleado', component: EnConstruccion },
         { path: '/crear-usuario', name: 'CrearUsuario', component: EnConstruccion },
         { path: '/eliminar-usuario', name: 'EliminarUsuario', component: EnConstruccion },
 

@@ -1,5 +1,5 @@
 import { ref } from 'vue';
 
-const estadoInicial = localStorage.getItem('sesionActiva') === 'true';
+const estadoInicial = sessionStorage.getItem('sesionActiva') === 'true';
 
 export const usuarioAutenticado = ref(estadoInicial);

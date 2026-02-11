@@ -76,7 +76,7 @@
                     Cancelar
                 </button>
 
-                <button v-if="modoEdicion" @click.prevent="eliminarProveedor" class="btn-eliminar">
+                <button v-if="modoEdicion && rolActual === 'admin'" @click.prevent="eliminarProveedor" class="btn-eliminar">
                    🗑️ Eliminar
                  </button>
               </div>
@@ -131,6 +131,8 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+
+const rolActual = sessionStorage.getItem('rolUsuario') || 'empleado';
 
 // --- ESTADOS ---
 const formulario = ref({ nit: '', nombre: '', direccion: '', departamento: '' });

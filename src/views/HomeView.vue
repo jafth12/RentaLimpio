@@ -5,7 +5,14 @@
       <div class="header-content">
         <div class="titulos">
           <h1>Control de Registro Fiscal</h1>
-          <p>Bienvenido al sistema. Seleccione una opción:</p>
+          
+          <div class="info-usuario">
+             <p>Bienvenido al sistema.</p>
+             
+             <span :class="['badge-rol', esAdmin ? 'rol-admin' : 'rol-empleado']">
+                {{ esAdmin ? '🛡️ Administrador' : '👤 Empleado' }}
+             </span>
+          </div>
         </div>
         
         <button @click="cerrarSesion" class="btn-logout">
@@ -16,6 +23,14 @@
 
     <div class="grid-menu">
       
+      <div v-if="esAdmin" class="card" style="border-top-color: #ff9800;">
+        <h3>🛡️ Administración</h3>
+        <div class="botones-grid">
+          <router-link to="/admin-usuarios" class="btn-menu" style="background-color: #fff3e0; color: #e65100; border: 1px solid #ffe0b2;">
+            👨‍💻 Gestionar Usuarios y Empleados
+          </router-link>
+        </div>
+      </div>
       <div class="card">
         <h3>🛍️ Compras y Proveedores</h3>
         <div class="botones-grid">
@@ -65,15 +80,23 @@
 </template>
 
 <script setup>
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { usuarioAutenticado } from '../auth.js';
 
 const router = useRouter();
+const esAdmin = ref(false); 
+
+onMounted(() => {
+    const rol = sessionStorage.getItem('rolUsuario');
+    esAdmin.value = rol === 'admin';
+});
 
 const cerrarSesion = () => {
   usuarioAutenticado.value = false;
-  localStorage.removeItem('sesionActiva');
-  router.push('/login');
+  sessionStorage.removeItem('sesionActiva');
+  sessionStorage.removeItem('rolUsuario'); 
+  router.push('/');
 };
 </script>
 
@@ -84,7 +107,6 @@ const cerrarSesion = () => {
   min-height: 100vh;
 }
 
-/* HEADER MEJORADO */
 .dashboard-header {
   margin-bottom: 2rem;
   border-bottom: 2px solid #eee;
@@ -93,7 +115,7 @@ const cerrarSesion = () => {
 
 .header-content {
   display: flex;
-  justify-content: space-between; /* Texto a la izquierda, botón a la derecha */
+  justify-content: space-between;
   align-items: center;
   max-width: 1200px;
   margin: 0 auto;
@@ -105,14 +127,43 @@ h1 {
   margin: 0;
 }
 
-p {
-  color: #666;
-  margin: 5px 0 0 0;
+.info-usuario {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 5px;
 }
 
-/* ESTILO DEL BOTÓN CERRAR SESIÓN */
+p {
+  color: #666;
+  margin: 0;
+}
+
+/* --- BADGES DE ROL --- */
+.badge-rol {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: bold;
+    display: inline-flex;
+    align-items: center;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.rol-admin {
+    background-color: #fff3e0; /* Naranja suave para combinar con el menu */
+    color: #e65100;
+    border: 1px solid #ffe0b2;
+}
+
+.rol-empleado {
+    background-color: #f5f5f5;
+    color: #616161;
+    border: 1px solid #e0e0e0;
+}
+
 .btn-logout {
-  background-color: #ff6b6b; /* Rojo suave */
+  background-color: #ff6b6b;
   color: white;
   border: none;
   padding: 10px 20px;
@@ -126,10 +177,9 @@ p {
 }
 
 .btn-logout:hover {
-  background-color: #e55a5a; /* Rojo más oscuro al pasar mouse */
+  background-color: #e55a5a;
 }
 
-/* GRID LAYOUT (Igual que antes) */
 .grid-menu {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -203,12 +253,14 @@ h3 {
   background-color: #777;
 }
 
-/* RESPONSIVE */
 @media (max-width: 768px) {
   .header-content {
     flex-direction: column;
     text-align: center;
     gap: 1rem;
+  }
+  .info-usuario {
+      justify-content: center;
   }
 }
 </style>
