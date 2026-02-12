@@ -146,7 +146,11 @@
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL + '/api/ventas-cf';
+// ✅ LÓGICA DINÁMICA APLICADA
+const hostname = window.location.hostname;
+const BASE_URL = `http://${hostname}:3000`;
+const API_URL = `${BASE_URL}/api/ventas-cf`;
+// -----------------------------
 
 // LISTAS REUTILIZADAS
 const opcionesClase = ["IMPRESO", "DTE", "OTROS"];
