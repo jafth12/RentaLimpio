@@ -1,83 +1,32 @@
 import pool from '../config/db.js';
 
-// --- OBTENER TODAS LAS VENTAS (PARA LA TABLA) ---
+// --- OBTENER TODAS LAS VENTAS ---
 export const getVentasCCF = async (req, res) => {
     try {
-        const [rows] = await pool.query(`
-            SELECT 
-                idCredFiscal,
-                FiscFecha,
-                FiscNumDoc,
-                FiscNit,
-                FiscNomRazonDenomi,
-                FiscTotalVtas,
-                FiscDebitoFiscal,
-                FiscVtaGravLocal
-            FROM credfiscal
-            ORDER BY FiscFecha DESC
-            LIMIT 50
-        `);
+        const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY idCredFiscal DESC LIMIT 100');
         res.json(rows);
     } catch (error) {
-        return res.status(500).json({ message: 'Error al obtener ventas', error: error.message});
+        return res.status(500).json({ message: 'Error al obtener ventas', error: error.message });
     }
 };
 
-// --- OBTENER UNA VENTA POR ID (PARA EDITAR) ---
+// --- OBTENER UNA VENTA (PARA EDITAR) ---
 export const getVentaCCFById = async (req, res) => {
     const { id } = req.params;
     try {
-        const [rows] = await pool.query(`
-            SELECT 
-                idCredFiscal as id,
-                FiscFecha as fecha,
-                FisClasDoc as claseDocumento,
-                FisTipoDoc as tipoDocumento,
-                FiscNumResol as numeroResolucion,
-                FiscSerieDoc as serieDocumento,
-                FiscNumDoc as numeroDocumento,
-                FiscNumContInter as controlInterno,
-                FiscNit as nit,
-                FiscNomRazonDenomi as nombreCliente,
-                FiscNumDuiClien as duiCliente,
-                FiscVtaExen as ventasExentas,
-                FiscVtaNoSujetas as ventasNoSujetas,
-                FiscVtaGravLocal as ventasGravadas,
-                FiscDebitoFiscal as debitoFiscal,
-                FiscVtaCtaTercNoDomici as ventasTerceros,
-                FiscDebFiscVtaCtaTerceros as debitoTerceros,
-                FiscTotalVtas as totalVentas,
-                BusFiscTipoOperaRenta as tipoOperacion,
-                BusFiscTipoIngresoRenta as tipoIngreso,
-                FiscNumAnexo as numeroAnexo
-            FROM credfiscal
-            WHERE idCredFiscal = ?
-        `, [id]);
-
+        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE idCredFiscal = ?', [id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Venta no encontrada' });
-        
         res.json(rows[0]);
     } catch (error) {
-        return res.status(500).json({ message: 'Error al obtener la venta', error: error.message });
+        return res.status(500).json({ message: 'Error al obtener venta', error: error.message });
     }
 };
 
-// --- CREAR NUEVA VENTA ---
+// --- CREAR VENTA ---
 export const createVentasCCF = async (req, res) => {
-    // console.log("Datos recibidos CCF:", req.body);
-    const { 
-        fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
-        numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
-        ventasExentas, ventasNoSujetas, ventasGravadas, debitoFiscal,
-        ventasTerceros, debitoTerceros, totalVentas, tipoOperacion, tipoIngreso, numeroAnexo
-    } = req.body;
-
-    // Validación básica: Campos obligatorios mínimos
-    if (!fecha || !numeroDocumento || !nit) {
-        return res.status(400).json({message: 'Faltan datos obligatorios (Fecha, No. Documento, Cliente)'});
-    }
-
     try {
+        const data = req.body;
+        
         const query = `
             INSERT INTO credfiscal 
             (
@@ -90,55 +39,50 @@ export const createVentasCCF = async (req, res) => {
         `;
 
         const values = [
-            fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
-            numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
-            ventasExentas || 0, ventasNoSujetas || 0, ventasGravadas || 0, debitoFiscal || 0,
-            ventasTerceros || 0, debitoTerceros || 0, totalVentas || 0, tipoOperacion, tipoIngreso, numeroAnexo
+            data.FiscFecha, data.FisClasDoc, data.FisTipoDoc, data.FiscNumResol, data.FiscSerieDoc,
+            data.FiscNumDoc, data.FiscNumContInter, data.FiscNit, data.FiscNomRazonDenomi, data.FiscNumDuiClien,
+            data.FiscVtaExen || 0, data.FiscVtaNoSujetas || 0, data.FiscVtaGravLocal || 0, data.FiscDebitoFiscal || 0,
+            data.FiscVtaCtaTercNoDomici || 0, data.FiscDebFiscVtaCtaTerceros || 0, data.FiscTotalVtas || 0,
+            data.BusFiscTipoOperaRenta, data.BusFiscTipoIngresoRenta, data.FiscNumAnexo
         ];
 
         const [result] = await pool.query(query, values);
-        res.status(201).json({ message: 'Comprobante guardado correctamente', id: result.insertId });
+        res.status(201).json({ message: 'Venta guardada correctamente', id: result.insertId });
 
     } catch (error) {
-        console.error('Error al guardar:', error);
-        res.status(500).json({ message: 'Error al guardar en BD', error: error.message });
+        console.error(error);
+        return res.status(500).json({ message: 'Error al guardar venta', error: error.message });
     }
 };
 
 // --- ACTUALIZAR VENTA ---
 export const updateVentasCCF = async (req, res) => {
     const { id } = req.params;
-    const { 
-        fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
-        numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
-        ventasExentas, ventasNoSujetas, ventasGravadas, debitoFiscal,
-        ventasTerceros, debitoTerceros, totalVentas, tipoOperacion, tipoIngreso, numeroAnexo
-    } = req.body;
-
     try {
+        const data = req.body;
         const query = `
             UPDATE credfiscal SET 
-                FiscFecha = ?, FisClasDoc = ?, FisTipoDoc = ?, FiscNumResol = ?, FiscSerieDoc = ?, 
-                FiscNumDoc = ?, FiscNumContInter = ?, FiscNit = ?, FiscNomRazonDenomi = ?, FiscNumDuiClien = ?, 
-                FiscVtaExen = ?, FiscVtaNoSujetas = ?, FiscVtaGravLocal = ?, FiscDebitoFiscal = ?, 
-                FiscVtaCtaTercNoDomici = ?, FiscDebFiscVtaCtaTerceros = ?, FiscTotalVtas = ?, 
-                BusFiscTipoOperaRenta = ?, BusFiscTipoIngresoRenta = ?, FiscNumAnexo = ?
+                FiscFecha=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, 
+                FiscNumDoc=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, FiscNumDuiClien=?, 
+                FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, 
+                FiscVtaCtaTercNoDomici=?, FiscDebFiscVtaCtaTerceros=?, FiscTotalVtas=?, 
+                BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?, FiscNumAnexo=?
             WHERE idCredFiscal = ?
         `;
 
         const values = [
-            fecha, claseDocumento, tipoDocumento, numeroResolucion, serieDocumento,
-            numeroDocumento, controlInterno, nit, nombreCliente, duiCliente,
-            ventasExentas || 0, ventasNoSujetas || 0, ventasGravadas || 0, debitoFiscal || 0,
-            ventasTerceros || 0, debitoTerceros || 0, totalVentas || 0, tipoOperacion, tipoIngreso, numeroAnexo,
+            data.FiscFecha, data.FisClasDoc, data.FisTipoDoc, data.FiscNumResol, data.FiscSerieDoc,
+            data.FiscNumDoc, data.FiscNumContInter, data.FiscNit, data.FiscNomRazonDenomi, data.FiscNumDuiClien,
+            data.FiscVtaExen, data.FiscVtaNoSujetas, data.FiscVtaGravLocal, data.FiscDebitoFiscal,
+            data.FiscVtaCtaTercNoDomici, data.FiscDebFiscVtaCtaTerceros, data.FiscTotalVtas,
+            data.BusFiscTipoOperaRenta, data.BusFiscTipoIngresoRenta, data.FiscNumAnexo,
             id
         ];
 
         const [result] = await pool.query(query, values);
-
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
-
-        res.json({ message: 'Comprobante actualizado correctamente' });
+        
+        res.json({ message: 'Venta actualizada correctamente' });
 
     } catch (error) {
         return res.status(500).json({ message: 'Error al actualizar', error: error.message });
@@ -150,10 +94,8 @@ export const deleteVentasCCF = async (req, res) => {
     const { id } = req.params;
     try {
         const [result] = await pool.query('DELETE FROM credfiscal WHERE idCredFiscal = ?', [id]);
-
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
-
-        res.json({ message: 'Comprobante eliminado correctamente' });
+        res.json({ message: 'Venta eliminada correctamente' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al eliminar', error: error.message });
     }

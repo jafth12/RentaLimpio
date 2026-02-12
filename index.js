@@ -8,12 +8,12 @@ import authRoutes from './src/routes/auth.routes.js';
 import proveedoresRoutes from './src/routes/proveedores.routes.js';
 import sujetosRoutes from './src/routes/sujetos.routes.js';
 import comprasRoutes from './src/routes/compras.routes.js';
-import ventasCCFRoutes from './src/routes/ventasCreditoFiscal.routes.js'
-import declarantesRoutes from './src/routes/declarantes.routes.js';
 import adminRoutes from './src/routes/admin.routes.js'
+import declarantesRoutes from './src/routes/declarantes.routes.js';
 
 // MÓDULOS DE VENTAS
 import ventasCFRoutes from './src/routes/ventasCF.routes.js'; 
+import ventasCCFRoutes from './src/routes/ventasCreditoFiscal.routes.js'
 
 dotenv.config();
 
