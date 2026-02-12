@@ -1,4 +1,5 @@
 <template>
+  <main-layout>
   <div class="proveedores-container">
     <div class="header-section">
       <h1>Gestión de Proveedores</h1>
@@ -126,11 +127,13 @@
 
     </div>
   </div>
+  </main-layout>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
+import MainLayout from '@/layouts/MainLayout.vue';
 
 const rolActual = sessionStorage.getItem('rolUsuario') || 'empleado';
 

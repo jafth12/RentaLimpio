@@ -1,262 +1,262 @@
 <template>
-  <div class="compras-container">
-    <div class="header-section">
-      <h1>🛍️ Gestión de Compras</h1>
-      <div class="header-buttons">
-        <button @click="alternarVista" class="btn-toggle">
-          {{ mostrandoLista ? '➕ Nueva Compra' : '📋 Ver Lista Guardada' }}
-        </button>
-        <button @click="$router.push('/inicio')" class="btn-volver">⬅ Menú</button>
+  <MainLayout> <div class="compras-container">
+      <div class="header-section">
+        <h1>🛍️ Gestión de Compras</h1>
+        <div class="header-buttons">
+          <button @click="alternarVista" class="btn-toggle">
+            {{ mostrandoLista ? '➕ Nueva Compra' : '📋 Ver Lista Guardada' }}
+          </button>
+          </div>
+      </div>
+
+      <div class="main-content">
+        <div v-if="!mostrandoLista" class="card-form">
+          <div class="form-header">
+            <h2>{{ modoEdicion ? '✏️ Editando Compra' : '✨ Nueva Compra' }}</h2>
+            <p v-if="modoEdicion">Modifique los datos necesarios y guarde los cambios.</p>
+            <p v-else>Ingrese los datos obligatorios marcados con asterisco (*).</p>
+          </div>
+
+          <form @submit.prevent="guardarCompra">
+            
+            <div class="seccion-proveedor" :class="{ 'error-borde': errores.declarante }" style="margin-bottom: 15px;">
+              <label>Declarante <span class="required">*</span></label>
+              <div v-if="!declaranteSeleccionado" class="buscador-wrapper">
+                <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar Declarante por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasDeclarante = true">
+                <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="lista-sugerencias">
+                  <li v-for="decla in declarantesFiltrados" :key="decla.iddeclaNIT" @click="seleccionarDeclarante(decla)">
+                    <strong>{{ decla.declarante }}</strong> <small>{{ decla.iddeclaNIT }}</small>
+                  </li>
+                </ul>
+                <div v-else-if="busquedaDeclarante && declarantesFiltrados.length === 0" class="no-resultados">No se encontraron declarantes.</div>
+              </div>
+              <div v-else class="proveedor-seleccionado" style="background: #fff8e1; border-color: #ffb74d;">
+                <div class="info-prov">
+                  <span class="icono">👤</span>
+                  <div><strong>{{ declaranteSeleccionado.declarante }}</strong> <small>NIT: {{ declaranteSeleccionado.iddeclaNIT }}</small></div>
+                </div>
+                <button @click="quitarDeclarante" type="button" class="btn-cambiar" style="color: #e65100;">Cambiar</button>
+              </div>
+              <small v-if="errores.declarante" class="msg-error">Debe seleccionar un declarante.</small>
+            </div>
+
+            <div class="seccion-proveedor" :class="{ 'error-borde': errores.proveedor }">
+              <label>Proveedor <span class="required">*</span></label>
+              <div v-if="!proveedorSeleccionado" class="buscador-wrapper">
+                <input type="text" v-model="busqueda" placeholder="🔍 Buscar Proveedor por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerencias = true">
+                <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="lista-sugerencias">
+                  <li v-for="prov in proveedoresFiltrados" :key="prov.ProvNIT" @click="seleccionarProveedor(prov)">
+                    <strong>{{ prov.ProvNombre }}</strong> <small>{{ prov.ProvNIT }}</small>
+                  </li>
+                </ul>
+                <div v-else-if="busqueda && proveedoresFiltrados.length === 0" class="no-resultados-container">
+                    <div class="no-resultados">No se encontraron proveedores.</div>
+                    <button type="button" class="btn-crear-prov" @click="irAProveedores">
+                      ➕ Crear "{{ busqueda }}" en Proveedores
+                    </button>
+                </div>
+              </div>
+              <div v-else class="proveedor-seleccionado">
+                <div class="info-prov">
+                  <span class="icono">🏢</span>
+                  <div><strong>{{ proveedorSeleccionado.ProvNombre }}</strong> <small>NIT: {{ proveedorSeleccionado.ProvNIT }}</small></div>
+                </div>
+                <button @click="quitarProveedor" type="button" class="btn-cambiar">Cambiar</button>
+              </div>
+              <small v-if="errores.proveedor" class="msg-error">Debe seleccionar un proveedor.</small>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                  <label>Fecha <span class="required">*</span></label>
+                  <input type="date" v-model="formulario.fecha" :class="{ 'input-error': errores.fecha }" required>
+                  <small v-if="errores.fecha" class="msg-error">Fecha requerida.</small>
+              </div>
+
+              <div class="form-group-duo">
+                   <div class="form-group">
+                      <label>Mes Decl. <span class="required">*</span></label>
+                      <select v-model="formulario.mesDeclarado" required class="select-destacado" style="border-color: #55C2B7;">
+                          <option v-for="mes in opcionesMeses" :key="mes" :value="mes">{{ mes }}</option>
+                      </select>
+                  </div>
+                  <div class="form-group">
+                      <label>Año <span class="required">*</span></label>
+                      <input type="number" v-model="formulario.anioDeclarado" placeholder="2026" required class="select-destacado" style="border-color: #55C2B7;">
+                  </div>
+              </div>
+
+              <div class="form-group" style="flex: 2;">
+              <label>Número (CCF) <span class="required">*</span></label>
+              
+              <div class="input-ccf-container" :class="{ 'input-error': errores.numero }">
+                  <span class="prefix">DTE</span>
+                  
+                  <input type="text" 
+                        :value="ccfParts.part1" 
+                        @input="e => handleInputMask(e, 'part1', 2)"
+                        class="input-part part-small" 
+                        placeholder="00">
+                  
+                  <input type="text" 
+                        :value="ccfParts.letraSerie" 
+                        @input="handleLetraInput"
+                        @focus="$event.target.select()"
+                        class="input-part part-letter" 
+                        maxlength="1"
+                        placeholder="S">
+                  
+                  <input type="text" 
+                        :value="ccfParts.part2" 
+                        @input="e => handleInputMask(e, 'part2', 3)"
+                        class="input-part part-medium" 
+                        placeholder="000">
+                  
+                  <span class="prefix">P</span>
+                  
+                  <input type="text" 
+                        :value="ccfParts.part3" 
+                        @input="e => handleInputMask(e, 'part3', 3)"
+                        class="input-part part-medium" 
+                        placeholder="000">
+                  
+                  <input type="text" 
+                        :value="ccfParts.part4" 
+                        @input="e => handleInputMask(e, 'part4', 15)"
+                        class="input-part part-large" 
+                        placeholder="000...">
+              </div>
+              
+              <small class="hint-text">Formato: DTE03 <strong>{{ ccfParts.letraSerie || 'S' }}</strong>001 P003 ...</small>
+              <small v-if="errores.numero" class="msg-error">Número requerido.</small>
+          </div>
+              
+              <div class="form-group"><label>DUI Proveedor (Opcional)</label><input type="text" v-model="formulario.duiProveedor" placeholder="00000000-0"></div>
+            </div>
+
+            <div class="form-row grid-fiscal">
+               <div class="form-group"><label>Clase *</label><select v-model="formulario.claseDocumento" required class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Tipo Doc *</label><select v-model="formulario.tipoDocumento" required class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Operación *</label><select v-model="formulario.tipoOperacion" required class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Clasificación *</label><select v-model="formulario.clasificacion" required class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Sector *</label><select v-model="formulario.sector" required class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Costo/Gasto *</label><select v-model="formulario.tipoCostoGasto" required class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
+            </div>
+
+            <hr class="separador">
+
+            <div class="seccion-montos">
+              <h3>💰 Detalles Económicos</h3>
+              
+              <div class="sub-seccion">
+                  <label class="sub-label">Compras Gravadas</label>
+                  <div class="form-row grid-montos">
+                      <div class="form-group">
+                          <label>Internas <span class="required">*</span></label>
+                          <input type="number" v-model="formulario.internasGravadas" step="0.01" 
+                                 class="input-monto principal" 
+                                 :class="{ 'input-error': errores.internas }"
+                                 @blur="formatearDecimal('internasGravadas')">
+                          <small v-if="errores.internas" class="msg-error">Requerido (min 0.00)</small>
+                      </div>
+                      <div class="form-group"><label>Internac. Bienes</label><input type="number" v-model="formulario.internacionalesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesGravBienes')"></div>
+                      <div class="form-group"><label>Import. Bienes</label><input type="number" v-model="formulario.importacionesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravBienes')"></div>
+                      <div class="form-group"><label>Import. Servicios</label><input type="number" v-model.number="formulario.importacionesGravServicios" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravServicios')"></div>
+                  </div>
+              </div>
+
+              <div class="sub-seccion">
+                  <label class="sub-label">Exentas / No Sujetas</label>
+                  <div class="form-row grid-montos">
+                      <div class="form-group"><label>Internas Exentas</label><input type="number" v-model="formulario.internasExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internasExentas')"></div>
+                      <div class="form-group"><label>Internac. Exentas</label><input type="number" v-model="formulario.internacionalesExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesExentas')"></div>
+                      <div class="form-group"><label>Import. No Sujetas</label><input type="number" v-model="formulario.importacionesNoSujetas" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesNoSujetas')"></div>
+                  </div>
+              </div>
+
+              <div class="sub-seccion">
+                   <div class="form-row grid-montos">
+                       <div class="form-group">
+                          <label title="Ej: Impuesto a la Gasolina">Impuesto Gasolina (Otro) </label>
+                          <input type="number" v-model="formulario.otroAtributo" step="0.01" class="input-sm" style="border-color: #9c27b0; color: #9c27b0; font-weight: bold;" @blur="formatearDecimal('otroAtributo')">
+                      </div>
+                   </div>
+              </div>
+
+              <hr class="separador-sm">
+
+              <div class="resultado-calculo">
+                  <div class="fila-res">
+                      <span>IVA (Crédito Fiscal):</span> 
+                      <input type="number" v-model="formulario.iva" step="0.01" class="input-monto secundario" @blur="formatearDecimal('iva')">
+                  </div>
+                  <div class="fila-res total">
+                      <span>TOTAL COMPRA:</span> 
+                      <input type="number" v-model="formulario.total" step="0.01" class="input-total" @blur="formatearDecimal('total')">
+                  </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
+              <button type="submit" class="btn-guardar" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar Compra' : '💾 Guardar Compra') }}
+              </button>
+            </div>
+            
+            <transition name="fade"><div v-if="mensaje" :class="['alert-box', tipoMensaje]"><span>{{ mensaje }}</span></div></transition>
+          </form>
+        </div>
+
+        <div v-if="mostrandoLista" class="card-lista-full">
+          <div class="lista-header"><h3>📄 Historial de Compras</h3><input type="text" v-model="filtroLista" placeholder="🔎 Filtrar..." class="filtro-input"></div>
+          <div class="tabla-container">
+            <table>
+              <thead>
+                <tr><th>Fecha/Periodo</th><th>Proveedor / Declarante</th><th>Detalles</th><th>Total</th><th>Acciones</th></tr>
+              </thead>
+              <tbody>
+                <tr v-for="compra in comprasFiltradas" :key="compra.idcompras">
+                  <td>
+                      {{ formatearFecha(compra.ComFecha) }}
+                      <small style="display:block; color:#666;">
+                          {{ compra.ComMesDeclarado || '---' }} {{ compra.ComAnioDeclarado ? ` ${compra.ComAnioDeclarado}` : '' }}
+                      </small>
+                  </td>
+                  <td>
+                    <div class="prov-nombre">{{ compra.ComNomProve || '---' }}</div> 
+                    <small class="nit-sm" style="display:block;">Prov: {{ compra.proveedor_ProvNIT }}</small>
+                    <small v-if="compra.iddeclaNIT" class="nit-sm" style="color: #e65100;">Decla: {{ compra.iddeclaNIT }}</small>
+                  </td>
+                  <td class="detalle-td">
+                      <div class="badges-container">
+                          <span class="badge badge-tipo">{{ obtenerCodigo(compra.ComTipo) }}</span>
+                          <span class="badge badge-op">{{ obtenerCodigo(compra.ComTipoOpeRenta) }}</span>
+                      </div>
+                      <div class="montos-mini">
+                          <span v-if="parseFloat(compra.ComIntGrav)>0" title="Internas Gravadas">G: ${{ parseFloat(compra.ComIntGrav).toFixed(2) }}</span>
+                          <span v-if="parseFloat(compra.ComCredFiscal)>0" title="IVA">IVA: ${{ parseFloat(compra.ComCredFiscal).toFixed(2) }}</span>
+                          <span v-if="parseFloat(compra.ComOtroAtributo)>0" style="color: #9c27b0; font-weight: bold;">Otro: ${{ parseFloat(compra.ComOtroAtributo).toFixed(2) }}</span>
+                      </div>
+                  </td>
+                  <td class="monto-total">$ {{ parseFloat(compra.ComTotal || 0).toFixed(2) }}</td>
+                  <td class="acciones-td">
+                    <button @click="prepararEdicion(compra)" class="btn-accion btn-editar" title="Editar">✏️</button>
+                    <button v-if="rolActual === 'admin'" @click="eliminarCompra(compra.idcompras)" class="btn-accion btn-borrar" title="Eliminar">🗑️</button>
+                  </td>
+                </tr>
+                <tr v-if="comprasFiltradas.length === 0"><td colspan="5" class="vacio">No hay registros que coincidan.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
-
-    <div class="main-content">
-      
-      <div v-if="!mostrandoLista" class="card-form">
-        <div class="form-header">
-          <h2>{{ modoEdicion ? '✏️ Editando Compra' : '✨ Nueva Compra' }}</h2>
-          <p v-if="modoEdicion">Modifique los datos necesarios y guarde los cambios.</p>
-          <p v-else>Ingrese los datos obligatorios marcados con asterisco (*).</p>
-        </div>
-
-        <form @submit.prevent="guardarCompra">
-          
-          <div class="seccion-proveedor" :class="{ 'error-borde': errores.declarante }" style="margin-bottom: 15px;">
-            <label>Declarante <span class="required">*</span></label>
-            <div v-if="!declaranteSeleccionado" class="buscador-wrapper">
-              <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar Declarante por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasDeclarante = true">
-              <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="lista-sugerencias">
-                <li v-for="decla in declarantesFiltrados" :key="decla.iddeclaNIT" @click="seleccionarDeclarante(decla)">
-                  <strong>{{ decla.declarante }}</strong> <small>{{ decla.iddeclaNIT }}</small>
-                </li>
-              </ul>
-              <div v-else-if="busquedaDeclarante && declarantesFiltrados.length === 0" class="no-resultados">No se encontraron declarantes.</div>
-            </div>
-            <div v-else class="proveedor-seleccionado" style="background: #fff8e1; border-color: #ffb74d;">
-              <div class="info-prov">
-                <span class="icono">👤</span>
-                <div><strong>{{ declaranteSeleccionado.declarante }}</strong> <small>NIT: {{ declaranteSeleccionado.iddeclaNIT }}</small></div>
-              </div>
-              <button @click="quitarDeclarante" type="button" class="btn-cambiar" style="color: #e65100;">Cambiar</button>
-            </div>
-            <small v-if="errores.declarante" class="msg-error">Debe seleccionar un declarante.</small>
-          </div>
-
-          <div class="seccion-proveedor" :class="{ 'error-borde': errores.proveedor }">
-            <label>Proveedor <span class="required">*</span></label>
-            <div v-if="!proveedorSeleccionado" class="buscador-wrapper">
-              <input type="text" v-model="busqueda" placeholder="🔍 Buscar Proveedor por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerencias = true">
-              <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="lista-sugerencias">
-                <li v-for="prov in proveedoresFiltrados" :key="prov.ProvNIT" @click="seleccionarProveedor(prov)">
-                  <strong>{{ prov.ProvNombre }}</strong> <small>{{ prov.ProvNIT }}</small>
-                </li>
-              </ul>
-              <div v-else-if="busqueda && proveedoresFiltrados.length === 0" class="no-resultados-container">
-                  <div class="no-resultados">No se encontraron proveedores.</div>
-                  <button type="button" class="btn-crear-prov" @click="irAProveedores">
-                    ➕ Crear "{{ busqueda }}" en Proveedores
-                  </button>
-              </div>
-            </div>
-            <div v-else class="proveedor-seleccionado">
-              <div class="info-prov">
-                <span class="icono">🏢</span>
-                <div><strong>{{ proveedorSeleccionado.ProvNombre }}</strong> <small>NIT: {{ proveedorSeleccionado.ProvNIT }}</small></div>
-              </div>
-              <button @click="quitarProveedor" type="button" class="btn-cambiar">Cambiar</button>
-            </div>
-            <small v-if="errores.proveedor" class="msg-error">Debe seleccionar un proveedor.</small>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-                <label>Fecha <span class="required">*</span></label>
-                <input type="date" v-model="formulario.fecha" :class="{ 'input-error': errores.fecha }" required>
-                <small v-if="errores.fecha" class="msg-error">Fecha requerida.</small>
-            </div>
-
-            <div class="form-group-duo">
-                 <div class="form-group">
-                    <label>Mes Decl. <span class="required">*</span></label>
-                    <select v-model="formulario.mesDeclarado" required class="select-destacado" style="border-color: #55C2B7;">
-                        <option v-for="mes in opcionesMeses" :key="mes" :value="mes">{{ mes }}</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Año <span class="required">*</span></label>
-                    <input type="number" v-model="formulario.anioDeclarado" placeholder="2026" required class="select-destacado" style="border-color: #55C2B7;">
-                </div>
-            </div>
-
-            <div class="form-group" style="flex: 2;">
-            <label>Número (CCF) <span class="required">*</span></label>
-            
-            <div class="input-ccf-container" :class="{ 'input-error': errores.numero }">
-                <span class="prefix">DTE</span>
-                
-                <input type="text" 
-                      :value="ccfParts.part1" 
-                      @input="e => handleInputMask(e, 'part1', 2)"
-                      class="input-part part-small" 
-                      placeholder="00">
-                
-                <input type="text" 
-                      :value="ccfParts.letraSerie" 
-                      @input="handleLetraInput"
-                      @focus="$event.target.select()"
-                      class="input-part part-letter" 
-                      maxlength="1"
-                      placeholder="S">
-                
-                <input type="text" 
-                      :value="ccfParts.part2" 
-                      @input="e => handleInputMask(e, 'part2', 3)"
-                      class="input-part part-medium" 
-                      placeholder="000">
-                
-                <span class="prefix">P</span>
-                
-                <input type="text" 
-                      :value="ccfParts.part3" 
-                      @input="e => handleInputMask(e, 'part3', 3)"
-                      class="input-part part-medium" 
-                      placeholder="000">
-                
-                <input type="text" 
-                      :value="ccfParts.part4" 
-                      @input="e => handleInputMask(e, 'part4', 15)"
-                      class="input-part part-large" 
-                      placeholder="000...">
-            </div>
-            
-            <small class="hint-text">Formato: DTE03 <strong>{{ ccfParts.letraSerie || 'S' }}</strong>001 P003 ...</small>
-            <small v-if="errores.numero" class="msg-error">Número requerido.</small>
-        </div>
-            
-            <div class="form-group"><label>DUI Proveedor (Opcional)</label><input type="text" v-model="formulario.duiProveedor" placeholder="00000000-0"></div>
-          </div>
-
-          <div class="form-row grid-fiscal">
-             <div class="form-group"><label>Clase *</label><select v-model="formulario.claseDocumento" required class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Tipo Doc *</label><select v-model="formulario.tipoDocumento" required class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Operación *</label><select v-model="formulario.tipoOperacion" required class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Clasificación *</label><select v-model="formulario.clasificacion" required class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Sector *</label><select v-model="formulario.sector" required class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Costo/Gasto *</label><select v-model="formulario.tipoCostoGasto" required class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
-          </div>
-
-          <hr class="separador">
-
-          <div class="seccion-montos">
-            <h3>💰 Detalles Económicos</h3>
-            
-            <div class="sub-seccion">
-                <label class="sub-label">Compras Gravadas</label>
-                <div class="form-row grid-montos">
-                    <div class="form-group">
-                        <label>Internas <span class="required">*</span></label>
-                        <input type="number" v-model="formulario.internasGravadas" step="0.01" 
-                               class="input-monto principal" 
-                               :class="{ 'input-error': errores.internas }"
-                               @blur="formatearDecimal('internasGravadas')">
-                        <small v-if="errores.internas" class="msg-error">Requerido (min 0.00)</small>
-                    </div>
-                    <div class="form-group"><label>Internac. Bienes</label><input type="number" v-model="formulario.internacionalesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesGravBienes')"></div>
-                    <div class="form-group"><label>Import. Bienes</label><input type="number" v-model="formulario.importacionesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravBienes')"></div>
-                    <div class="form-group"><label>Import. Servicios</label><input type="number" v-model.number="formulario.importacionesGravServicios" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravServicios')"></div>
-                </div>
-            </div>
-
-            <div class="sub-seccion">
-                <label class="sub-label">Exentas / No Sujetas</label>
-                <div class="form-row grid-montos">
-                    <div class="form-group"><label>Internas Exentas</label><input type="number" v-model="formulario.internasExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internasExentas')"></div>
-                    <div class="form-group"><label>Internac. Exentas</label><input type="number" v-model="formulario.internacionalesExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesExentas')"></div>
-                    <div class="form-group"><label>Import. No Sujetas</label><input type="number" v-model="formulario.importacionesNoSujetas" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesNoSujetas')"></div>
-                </div>
-            </div>
-
-            <div class="sub-seccion">
-                 <div class="form-row grid-montos">
-                     <div class="form-group">
-                        <label title="Ej: Impuesto a la Gasolina">Impuesto Gasolina (Otro) </label>
-                        <input type="number" v-model="formulario.otroAtributo" step="0.01" class="input-sm" style="border-color: #9c27b0; color: #9c27b0; font-weight: bold;" @blur="formatearDecimal('otroAtributo')">
-                    </div>
-                 </div>
-            </div>
-
-            <hr class="separador-sm">
-
-            <div class="resultado-calculo">
-                <div class="fila-res">
-                    <span>IVA (Crédito Fiscal):</span> 
-                    <input type="number" v-model="formulario.iva" step="0.01" class="input-monto secundario" @blur="formatearDecimal('iva')">
-                </div>
-                <div class="fila-res total">
-                    <span>TOTAL COMPRA:</span> 
-                    <input type="number" v-model="formulario.total" step="0.01" class="input-total" @blur="formatearDecimal('total')">
-                </div>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-            <button type="submit" class="btn-guardar" :disabled="cargando">
-              {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar Compra' : '💾 Guardar Compra') }}
-            </button>
-          </div>
-          
-          <transition name="fade"><div v-if="mensaje" :class="['alert-box', tipoMensaje]"><span>{{ mensaje }}</span></div></transition>
-        </form>
-      </div>
-
-      <div v-if="mostrandoLista" class="card-lista-full">
-        <div class="lista-header"><h3>📄 Historial de Compras</h3><input type="text" v-model="filtroLista" placeholder="🔎 Filtrar..." class="filtro-input"></div>
-        <div class="tabla-container">
-          <table>
-            <thead>
-              <tr><th>Fecha/Periodo</th><th>Proveedor / Declarante</th><th>Detalles</th><th>Total</th><th>Acciones</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="compra in comprasFiltradas" :key="compra.idcompras">
-                <td>
-                    {{ formatearFecha(compra.ComFecha) }}
-                    <small style="display:block; color:#666;">
-                        {{ compra.ComMesDeclarado || '---' }} {{ compra.ComAnioDeclarado ? ` ${compra.ComAnioDeclarado}` : '' }}
-                    </small>
-                </td>
-                <td>
-                  <div class="prov-nombre">{{ compra.ComNomProve || '---' }}</div> 
-                  <small class="nit-sm" style="display:block;">Prov: {{ compra.proveedor_ProvNIT }}</small>
-                  <small v-if="compra.iddeclaNIT" class="nit-sm" style="color: #e65100;">Decla: {{ compra.iddeclaNIT }}</small>
-                </td>
-                <td class="detalle-td">
-                    <div class="badges-container">
-                        <span class="badge badge-tipo">{{ obtenerCodigo(compra.ComTipo) }}</span>
-                        <span class="badge badge-op">{{ obtenerCodigo(compra.ComTipoOpeRenta) }}</span>
-                    </div>
-                    <div class="montos-mini">
-                        <span v-if="parseFloat(compra.ComIntGrav)>0" title="Internas Gravadas">G: ${{ parseFloat(compra.ComIntGrav).toFixed(2) }}</span>
-                        <span v-if="parseFloat(compra.ComCredFiscal)>0" title="IVA">IVA: ${{ parseFloat(compra.ComCredFiscal).toFixed(2) }}</span>
-                        <span v-if="parseFloat(compra.ComOtroAtributo)>0" style="color: #9c27b0; font-weight: bold;">Otro: ${{ parseFloat(compra.ComOtroAtributo).toFixed(2) }}</span>
-                    </div>
-                </td>
-                <td class="monto-total">$ {{ parseFloat(compra.ComTotal || 0).toFixed(2) }}</td>
-                <td class="acciones-td">
-                  <button @click="prepararEdicion(compra)" class="btn-accion btn-editar" title="Editar">✏️</button>
-                  <button v-if="rolActual === 'admin'" @click="eliminarCompra(compra.idcompras)" class="btn-accion btn-borrar" title="Eliminar">🗑️</button>
-                </td>
-              </tr>
-              <tr v-if="comprasFiltradas.length === 0"><td colspan="5" class="vacio">No hay registros que coincidan.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
+  
+  </MainLayout> </template>
 
 <script setup>
+import MainLayout from '../layouts/MainLayout.vue'
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router'; 

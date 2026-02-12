@@ -1,4 +1,5 @@
 <template>
+  <main-layout>
   <div class="ventas-container">
     <div class="header-section">
       <h1>🧾 Ventas Consumidor Final</h1>
@@ -140,11 +141,13 @@
 
     </div>
   </div>
+  </main-layout>
 </template>
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
+import MainLayout from '../layouts/MainLayout.vue';
 
 // ✅ LÓGICA DINÁMICA APLICADA
 const hostname = window.location.hostname;

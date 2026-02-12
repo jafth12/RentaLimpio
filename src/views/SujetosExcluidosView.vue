@@ -1,149 +1,152 @@
 <template>
-  <div class="sujetos-container">
-    <div class="header-section">
-      <h1>🚫 Compras a Sujetos Excluidos</h1>
-      <div class="header-buttons">
-        <button @click="alternarVista" class="btn-toggle">
-          {{ mostrandoLista ? '➕ Nuevo Registro' : '📋 Ver Lista' }}
-        </button>
-        <button @click="$router.push('/inicio')" class="btn-volver">⬅ Menú</button>
+  <MainLayout> <div class="sujetos-container">
+      <div class="header-section">
+        <h1>🚫 Compras a Sujetos Excluidos</h1>
+        <div class="header-buttons">
+          <button @click="alternarVista" class="btn-toggle">
+            {{ mostrandoLista ? '➕ Nuevo Registro' : '📋 Ver Lista' }}
+          </button>
+          </div>
       </div>
-    </div>
 
-    <div class="main-content">
-      
-      <div v-if="!mostrandoLista" class="card-form">
-        <div class="form-header">
-          <h2>{{ modoEdicion ? '✏️ Editando Registro' : '✨ Nuevo Ingreso' }}</h2>
-          <p>Ingrese los datos de la compra al sujeto excluido.</p>
-        </div>
-
-        <form @submit.prevent="guardarSujeto">
-          
-          <div class="form-row">
-             <div class="form-group">
-                <label>NIT Sujeto <span class="required">*</span></label>
-                <input type="text" v-model="formulario.nit" required placeholder="0000-000000-000-0">
-             </div>
-             <div class="form-group">
-                <label>Nombre <span class="required">*</span></label>
-                <input type="text" v-model="formulario.nombre" required>
-             </div>
+      <div class="main-content">
+        
+        <div v-if="!mostrandoLista" class="card-form">
+          <div class="form-header">
+            <h2>{{ modoEdicion ? '✏️ Editando Registro' : '✨ Nuevo Ingreso' }}</h2>
+            <p>Ingrese los datos de la compra al sujeto excluido.</p>
           </div>
 
-          <div class="form-row grid-3">
-             <div class="form-group">
-               <label>Fecha <span class="required">*</span></label>
-               <input type="date" v-model="formulario.fecha" required>
-             </div>
-             <div class="form-group">
-               <label>Serie</label>
-               <input type="text" v-model="formulario.serie">
-             </div>
-             <div class="form-group">
-               <label>No. Documento</label>
-               <input type="text" v-model="formulario.numeroDoc">
-             </div>
-          </div>
-
-          <div class="form-row grid-fiscal">
-             <div class="form-group"><label>Clase</label><select v-model="formulario.claseDoc" class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Tipo Doc</label><select v-model="formulario.tipoDoc" class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Operación</label><select v-model="formulario.tipoOp" class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Clasificación</label><select v-model="formulario.clasificacion" class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Sector</label><select v-model="formulario.sector" class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Costo/Gasto</label><select v-model="formulario.costoGasto" class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
-          </div>
-
-          <hr class="separador">
-
-          <div class="seccion-montos">
-            <h3>💰 Detalle de la Operación</h3>
+          <form @submit.prevent="guardarSujeto">
+            
             <div class="form-row">
-                <div class="form-group">
-                  <label>Monto Operación ($) <span class="required">*</span></label>
-                  <input type="number" 
-                         v-model="formulario.monto" 
-                         step="0.01" 
-                         min="0" 
-                         class="input-monto principal" 
-                         placeholder="0.00"
-                         @blur="formatearDecimal('monto')">
-                </div>
-                <div class="form-group">
-                  <label>Retención IVA (13%)</label>
-                  <input type="number" 
-                         v-model="formulario.retencion" 
-                         step="0.01" 
-                         class="input-monto secundario" 
-                         placeholder="0.00"
-                         @blur="formatearDecimal('retencion')">
-                  <small>Calculado automáticamente</small>
-                </div>
-                <div class="form-group">
-                  <label>Anexo</label>
-                  <input type="number" v-model="formulario.anexo" class="input-sm" readonly>
-                </div>
+               <div class="form-group">
+                  <label>NIT Sujeto <span class="required">*</span></label>
+                  <input type="text" v-model="formulario.nit" required placeholder="0000-000000-000-0">
+               </div>
+               <div class="form-group">
+                  <label>Nombre <span class="required">*</span></label>
+                  <input type="text" v-model="formulario.nombre" required>
+               </div>
             </div>
-          </div>
 
-          <div class="actions">
-            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-            <button type="submit" class="btn-guardar" :disabled="cargando">
-              {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar' : '💾 Guardar Registro') }}
-            </button>
-          </div>
-        </form>
-      </div>
+            <div class="form-row grid-3">
+               <div class="form-group">
+                 <label>Fecha <span class="required">*</span></label>
+                 <input type="date" v-model="formulario.fecha" required>
+               </div>
+               <div class="form-group">
+                 <label>Serie</label>
+                 <input type="text" v-model="formulario.serie">
+               </div>
+               <div class="form-group">
+                 <label>No. Documento</label>
+                 <input type="text" v-model="formulario.numeroDoc">
+               </div>
+            </div>
 
-      <div v-if="mostrandoLista" class="card-lista-full">
-        <h3>📋 Registros de Sujetos Excluidos</h3>
-        <div class="tabla-container">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Sujeto (NIT/Nombre)</th>
-                <th>Documento</th>
-                <th>Monto</th>
-                <th>Retención (13%)</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in listaSujetos" :key="item.idComSujExclui">
-                <td>{{ formatearFecha(item.ComprasSujExcluFecha) }}</td>
-                <td>
-                    <div class="prov-nombre">{{ item.ComprasSujExcluNom }}</div>
-                    <small>{{ item.ComprasSujExcluNIT }}</small>
-                </td>
-                <td>{{ item.ComprasSujExcluSerieDoc }} - {{ item.ComprasSujExcluNumDoc }}</td>
-                <td class="monto-total">$ {{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
-                <td class="negativo">$ {{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
-                <td class="acciones-td">
-                  <button @click="prepararEdicion(item)" class="btn-accion btn-editar">✏️</button>
-                  <button @click="eliminarSujeto(item.idComSujExclui)" class="btn-accion btn-borrar">🗑️</button>
-                </td>
-              </tr>
-              <tr v-if="listaSujetos.length === 0">
-                <td colspan="6" class="vacio">No hay registros guardados.</td>
-              </tr>
-            </tbody>
-          </table>
+            <div class="form-row grid-fiscal">
+               <div class="form-group"><label>Clase</label><select v-model="formulario.claseDoc" class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Tipo Doc</label><select v-model="formulario.tipoDoc" class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Operación</label><select v-model="formulario.tipoOp" class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Clasificación</label><select v-model="formulario.clasificacion" class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Sector</label><select v-model="formulario.sector" class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
+               <div class="form-group"><label>Costo/Gasto</label><select v-model="formulario.costoGasto" class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
+            </div>
+
+            <hr class="separador">
+
+            <div class="seccion-montos">
+              <h3>💰 Detalle de la Operación</h3>
+              <div class="form-row">
+                  <div class="form-group">
+                    <label>Monto Operación ($) <span class="required">*</span></label>
+                    <input type="number" 
+                           v-model="formulario.monto" 
+                           step="0.01" 
+                           min="0" 
+                           class="input-monto principal" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('monto')">
+                  </div>
+                  <div class="form-group">
+                    <label>Retención IVA (13%)</label>
+                    <input type="number" 
+                           v-model="formulario.retencion" 
+                           step="0.01" 
+                           class="input-monto secundario" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('retencion')">
+                    <small>Calculado automáticamente</small>
+                  </div>
+                  <div class="form-group">
+                    <label>Anexo</label>
+                    <input type="number" v-model="formulario.anexo" class="input-sm" readonly>
+                  </div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
+              <button type="submit" class="btn-guardar" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar' : '💾 Guardar Registro') }}
+              </button>
+            </div>
+          </form>
         </div>
-      </div>
 
+        <div v-if="mostrandoLista" class="card-lista-full">
+          <h3>📋 Registros de Sujetos Excluidos</h3>
+          <div class="tabla-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Sujeto (NIT/Nombre)</th>
+                  <th>Documento</th>
+                  <th>Monto</th>
+                  <th>Retención (13%)</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in listaSujetos" :key="item.idComSujExclui">
+                  <td>{{ formatearFecha(item.ComprasSujExcluFecha) }}</td>
+                  <td>
+                      <div class="prov-nombre">{{ item.ComprasSujExcluNom }}</div>
+                      <small>{{ item.ComprasSujExcluNIT }}</small>
+                  </td>
+                  <td>{{ item.ComprasSujExcluSerieDoc }} - {{ item.ComprasSujExcluNumDoc }}</td>
+                  <td class="monto-total">$ {{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
+                  <td class="negativo">$ {{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
+                  <td class="acciones-td">
+                    <button @click="prepararEdicion(item)" class="btn-accion btn-editar">✏️</button>
+                    <button @click="eliminarSujeto(item.idComSujExclui)" class="btn-accion btn-borrar">🗑️</button>
+                  </td>
+                </tr>
+                <tr v-if="listaSujetos.length === 0">
+                  <td colspan="6" class="vacio">No hay registros guardados.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
     </div>
-  </div>
-</template>
+  
+  </MainLayout> </template>
 
 <script setup>
 import { ref, watch, onMounted } from 'vue';
 import axios from 'axios';
+import MainLayout from '../layouts/MainLayout.vue'; // 3. ¡ESTA ES LA LÍNEA QUE FALTABA! 👈
 
-const API_URL = import.meta.env.VITE_API_URL + '/api/sujetos';
+const hostname = window.location.hostname;
+const BASE_URL = `http://${hostname}:3000`; // Usamos la URL dinámica
+const API_URL = `${BASE_URL}/api/sujetos`;
 
-// Listas reutilizadas (Con correcciones ortográficas)
+// Listas reutilizadas
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
 const opcionesTipo = ["03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO", "12. DECLARACION DE MERCANCIAS", "14. FACTURA DE SUJETO EXCLUIDO"]; 
 const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO O NO CONSTITUYE RENTA", "4. MIXTA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES", "0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES"];
@@ -151,7 +154,7 @@ const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTER
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECUARIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 
-// Inicialización como strings '0.00' para visualización
+// Inicialización
 const formulario = ref({
     fecha: new Date().toISOString().split('T')[0],
     tipoDoc: '4. DOCUMENTO TRIBUTARIO DTE',
@@ -171,18 +174,12 @@ const cargando = ref(false);
 // CÁLCULO AUTOMÁTICO DE RETENCIÓN 13%
 watch(() => formulario.value.monto, (val) => {
     const monto = parseFloat(val) || 0;
-    // Solo calculamos si el usuario está escribiendo el monto base
     formulario.value.retencion = (monto * 0.13).toFixed(2);
 });
 
-// Función de formateo visual (igual que en ComprasView)
 const formatearDecimal = (campo) => {
     const valor = parseFloat(formulario.value[campo]);
-    if (!isNaN(valor)) {
-        formulario.value[campo] = valor.toFixed(2);
-    } else {
-        formulario.value[campo] = '0.00';
-    }
+    formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
 };
 
 const cargarDatos = async () => {
@@ -194,8 +191,6 @@ const cargarDatos = async () => {
 
 const guardarSujeto = async () => {
     cargando.value = true;
-    
-    // Convertimos a números limpios antes de enviar
     const payload = {
         ...formulario.value,
         monto: parseFloat(formulario.value.monto) || 0,
@@ -239,7 +234,6 @@ const prepararEdicion = (item) => {
         nombre: item.ComprasSujExcluNom,
         serie: item.ComprasSujExcluSerieDoc,
         numeroDoc: item.ComprasSujExcluNumDoc, 
-        // Cargamos como string fixed(2)
         monto: parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2),
         retencion: parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2),
         tipoOp: item.ComprasSujExcluTipoOpera,
@@ -265,18 +259,14 @@ const resetForm = () => {
     idEdicion.value = null;
 };
 
-const alternarVista = () => {
-    if (modoEdicion) resetForm();
-    mostrandoLista.value = !mostrandoLista.value;
-};
-
+const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
 
 onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* Reutilizando estilos de ComprasView con toque morado */
+/* Reutilizando estilos */
 .sujetos-container { padding: 2rem; background: #f0f2f5; min-height: 100vh; }
 .header-section { display: flex; justify-content: space-between; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
 .header-buttons { display: flex; gap: 10px; }
