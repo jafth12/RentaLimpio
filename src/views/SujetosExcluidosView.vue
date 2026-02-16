@@ -1,131 +1,161 @@
 <template>
-  <MainLayout> <div class="sujetos-container">
+  <MainLayout>
+    <div class="sujetos-container">
+      
       <div class="header-section">
-        <h1>🚫 Compras a Sujetos Excluidos</h1>
-        <div class="header-buttons">
-          <button @click="alternarVista" class="btn-toggle">
-            {{ mostrandoLista ? '➕ Nuevo Registro' : '📋 Ver Lista' }}
+        <div class="title-box">
+          <h1>🚫 Sujetos Excluidos</h1>
+          <p class="subtitle">Registro de compras a proveedores no inscritos en IVA</p>
+        </div>
+        
+        <div class="header-actions">
+          <button @click="alternarVista" class="btn btn-primary">
+            {{ mostrandoLista ? '➕ Nuevo Registro' : '📋 Ver Listado' }}
           </button>
-          </div>
+        </div>
       </div>
 
       <div class="main-content">
         
-        <div v-if="!mostrandoLista" class="card-form">
-          <div class="form-header">
-            <h2>{{ modoEdicion ? '✏️ Editando Registro' : '✨ Nuevo Ingreso' }}</h2>
-            <p>Ingrese los datos de la compra al sujeto excluido.</p>
+        <div v-if="!mostrandoLista" class="card fade-in">
+          <div class="card-header">
+            <h2>{{ modoEdicion ? '✏️ Editar Registro' : '✨ Nueva Compra a Sujeto Excluido' }}</h2>
+            <span class="badge-info">{{ modoEdicion ? 'Actualizando datos' : 'Documento F-14 o equivalente' }}</span>
           </div>
 
-          <form @submit.prevent="guardarSujeto">
+          <form @submit.prevent="guardarSujeto" class="form-body">
             
-            <div class="form-row">
-               <div class="form-group">
-                  <label>NIT Sujeto <span class="required">*</span></label>
-                  <input type="text" v-model="formulario.nit" required placeholder="0000-000000-000-0">
-               </div>
-               <div class="form-group">
-                  <label>Nombre <span class="required">*</span></label>
-                  <input type="text" v-model="formulario.nombre" required>
-               </div>
-            </div>
-
-            <div class="form-row grid-3">
-               <div class="form-group">
-                 <label>Fecha <span class="required">*</span></label>
-                 <input type="date" v-model="formulario.fecha" required>
-               </div>
-               <div class="form-group">
-                 <label>Serie</label>
-                 <input type="text" v-model="formulario.serie">
-               </div>
-               <div class="form-group">
-                 <label>No. Documento</label>
-                 <input type="text" v-model="formulario.numeroDoc">
-               </div>
-            </div>
-
-            <div class="form-row grid-fiscal">
-               <div class="form-group"><label>Clase</label><select v-model="formulario.claseDoc" class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Tipo Doc</label><select v-model="formulario.tipoDoc" class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Operación</label><select v-model="formulario.tipoOp" class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Clasificación</label><select v-model="formulario.clasificacion" class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Sector</label><select v-model="formulario.sector" class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Costo/Gasto</label><select v-model="formulario.costoGasto" class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
-            </div>
-
-            <hr class="separador">
-
-            <div class="seccion-montos">
-              <h3>💰 Detalle de la Operación</h3>
-              <div class="form-row">
-                  <div class="form-group">
-                    <label>Monto Operación ($) <span class="required">*</span></label>
-                    <input type="number" 
-                           v-model="formulario.monto" 
-                           step="0.01" 
-                           min="0" 
-                           class="input-monto principal" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('monto')">
-                  </div>
-                  <div class="form-group">
-                    <label>Retención IVA (13%)</label>
-                    <input type="number" 
-                           v-model="formulario.retencion" 
-                           step="0.01" 
-                           class="input-monto secundario" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('retencion')">
-                    <small>Calculado automáticamente</small>
-                  </div>
-                  <div class="form-group">
-                    <label>Anexo</label>
-                    <input type="number" v-model="formulario.anexo" class="input-sm" readonly>
-                  </div>
+            <div class="form-section">
+              <h3 class="section-title">👤 Datos del Sujeto</h3>
+              
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">NIT <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.nit" class="form-control" placeholder="0000-000000-000-0" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Nombre Completo <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.nombre" class="form-control" required>
+                </div>
               </div>
             </div>
 
-            <div class="actions">
-              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-              <button type="submit" class="btn-guardar" :disabled="cargando">
-                {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar' : '💾 Guardar Registro') }}
+            <div class="form-section">
+              <h3 class="section-title">📄 Detalles del Documento</h3>
+              
+              <div class="form-grid three-cols">
+                <div class="form-group">
+                  <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
+                  <input type="date" v-model="formulario.fecha" class="form-control" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Serie</label>
+                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Número Doc.</label>
+                  <input type="text" v-model="formulario.numeroDoc" class="form-control" placeholder="Correlativo">
+                </div>
+              </div>
+
+              <div class="form-grid four-cols mt-3">
+                 <div class="form-group"><label class="form-label">Clase</label><select v-model="formulario.claseDoc" class="form-control"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Tipo Doc</label><select v-model="formulario.tipoDoc" class="form-control"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Operación</label><select v-model="formulario.tipoOp" class="form-control"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Clasificación</label><select v-model="formulario.clasificacion" class="form-control"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Sector</label><select v-model="formulario.sector" class="form-control"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Costo/Gasto</label><select v-model="formulario.costoGasto" class="form-control"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
+              </div>
+            </div>
+
+            <div class="form-section bg-light">
+              <h3 class="section-title">💰 Montos de la Operación</h3>
+              
+              <div class="montos-wrapper">
+                <div class="monto-group">
+                  <label class="monto-label">Monto Operación ($)</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.monto" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('monto')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label text-danger">Retención (13%)</label>
+                  <div class="input-wrapper">
+                    <span class="currency text-danger">-</span>
+                    <input type="number" 
+                           v-model="formulario.retencion" 
+                           step="0.01" 
+                           class="form-control monto-input text-danger" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('retencion')">
+                  </div>
+                  <small class="text-xs text-muted">Calculado auto. al ingresar monto</small>
+                </div>
+
+                <div class="monto-group total-group">
+                  <label class="monto-label">TOTAL A PAGAR</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input :value="totalNeto" type="text" class="form-control total-input" readonly>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar Registro') }}
               </button>
             </div>
+
           </form>
         </div>
 
-        <div v-if="mostrandoLista" class="card-lista-full">
-          <h3>📋 Registros de Sujetos Excluidos</h3>
-          <div class="tabla-container">
-            <table>
+        <div v-else class="card fade-in">
+          <div class="card-header flex-between">
+             <h3>📋 Historial de Sujetos Excluidos</h3>
+             </div>
+          
+          <div class="table-responsive">
+            <table class="table">
               <thead>
                 <tr>
                   <th>Fecha</th>
-                  <th>Sujeto (NIT/Nombre)</th>
+                  <th>Sujeto (NIT / Nombre)</th>
                   <th>Documento</th>
-                  <th>Monto</th>
-                  <th>Retención (13%)</th>
-                  <th>Acciones</th>
+                  <th class="text-right">Monto</th>
+                  <th class="text-right text-danger">Ret. 13%</th>
+                  <th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="item in listaSujetos" :key="item.idComSujExclui">
                   <td>{{ formatearFecha(item.ComprasSujExcluFecha) }}</td>
                   <td>
-                      <div class="prov-nombre">{{ item.ComprasSujExcluNom }}</div>
-                      <small>{{ item.ComprasSujExcluNIT }}</small>
+                      <div class="fw-bold text-dark">{{ item.ComprasSujExcluNom }}</div>
+                      <small class="text-muted">{{ item.ComprasSujExcluNIT }}</small>
                   </td>
-                  <td>{{ item.ComprasSujExcluSerieDoc }} - {{ item.ComprasSujExcluNumDoc }}</td>
-                  <td class="monto-total">$ {{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
-                  <td class="negativo">$ {{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
-                  <td class="acciones-td">
-                    <button @click="prepararEdicion(item)" class="btn-accion btn-editar">✏️</button>
-                    <button @click="eliminarSujeto(item.idComSujExclui)" class="btn-accion btn-borrar">🗑️</button>
+                  <td>
+                    <span class="badge badge-light">{{ item.ComprasSujExcluSerieDoc || 'S/S' }}</span>
+                    <span class="doc-number">{{ item.ComprasSujExcluNumDoc }}</span>
+                  </td>
+                  <td class="text-right fw-bold">${{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-danger">-${{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
+                  <td class="text-center">
+                    <button class="btn-icon" @click="prepararEdicion(item)" title="Editar">✏️</button>
+                    <button class="btn-icon text-danger" @click="eliminarSujeto(item.idComSujExclui)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
                 <tr v-if="listaSujetos.length === 0">
-                  <td colspan="6" class="vacio">No hay registros guardados.</td>
+                  <td colspan="6" class="text-center py-4 text-muted">No hay registros guardados.</td>
                 </tr>
               </tbody>
             </table>
@@ -134,21 +164,21 @@
 
       </div>
     </div>
-  
-  </MainLayout> </template>
+  </MainLayout>
+</template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import axios from 'axios';
-import MainLayout from '../layouts/MainLayout.vue'; // 3. ¡ESTA ES LA LÍNEA QUE FALTABA! 👈
+import MainLayout from '../layouts/MainLayout.vue'; 
 
 const hostname = window.location.hostname;
-const BASE_URL = `http://${hostname}:3000`; // Usamos la URL dinámica
+const BASE_URL = `http://${hostname}:3000`;
 const API_URL = `${BASE_URL}/api/sujetos`;
 
 // Listas reutilizadas
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
-const opcionesTipo = ["03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO", "12. DECLARACION DE MERCANCIAS", "14. FACTURA DE SUJETO EXCLUIDO"]; 
+const opcionesTipo = ["14. FACTURA DE SUJETO EXCLUIDO", "03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO"]; 
 const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO O NO CONSTITUYE RENTA", "4. MIXTA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES", "0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES"];
 const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. COSTO", "2. GASTO", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECUARIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
@@ -157,7 +187,7 @@ const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIOR
 // Inicialización
 const formulario = ref({
     fecha: new Date().toISOString().split('T')[0],
-    tipoDoc: '4. DOCUMENTO TRIBUTARIO DTE',
+    tipoDoc: '14. FACTURA DE SUJETO EXCLUIDO',
     nit: '', nombre: '', serie: '', numeroDoc: '',
     monto: '0.00', retencion: '0.00',
     tipoOp: '1. GRAVADA', clasificacion: '2. GASTO', sector: '4. SERVICIOS PROFESIONES, ARTES Y OFICIOS',
@@ -174,7 +204,15 @@ const cargando = ref(false);
 // CÁLCULO AUTOMÁTICO DE RETENCIÓN 13%
 watch(() => formulario.value.monto, (val) => {
     const monto = parseFloat(val) || 0;
+    // Si la retención es 0 o parece no haber sido editada manualmente, sugerimos el 13%
     formulario.value.retencion = (monto * 0.13).toFixed(2);
+});
+
+// Computado para el total neto (Monto - Retención)
+const totalNeto = computed(() => {
+    const m = parseFloat(formulario.value.monto) || 0;
+    const r = parseFloat(formulario.value.retencion) || 0;
+    return (m - r).toFixed(2);
 });
 
 const formatearDecimal = (campo) => {
@@ -200,16 +238,16 @@ const guardarSujeto = async () => {
     try {
         if(modoEdicion.value) {
             await axios.put(`${API_URL}/${idEdicion.value}`, payload);
-            alert('Actualizado correctamente');
+            alert('¡Registro actualizado correctamente!');
         } else {
             await axios.post(API_URL, payload);
-            alert('Guardado correctamente');
+            alert('¡Registro guardado correctamente!');
         }
         await cargarDatos();
         resetForm();
         mostrandoLista.value = true;
     } catch (error) {
-        alert('Error al guardar');
+        alert('Error al guardar el registro');
         console.error(error);
     } finally {
         cargando.value = false;
@@ -217,7 +255,7 @@ const guardarSujeto = async () => {
 };
 
 const eliminarSujeto = async (id) => {
-    if(!confirm('¿Eliminar registro?')) return;
+    if(!confirm('¿Seguro que deseas eliminar este registro?')) return;
     try {
         await axios.delete(`${API_URL}/${id}`);
         cargarDatos();
@@ -247,10 +285,12 @@ const prepararEdicion = (item) => {
     mostrandoLista.value = false;
 };
 
+const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
+
 const resetForm = () => {
     formulario.value = {
         fecha: new Date().toISOString().split('T')[0],
-        tipoDoc: '4. DOCUMENTO TRIBUTARIO DTE', nit: '', nombre: '', serie: '', numeroDoc: '',
+        tipoDoc: '14. FACTURA DE SUJETO EXCLUIDO', nit: '', nombre: '', serie: '', numeroDoc: '',
         monto: '0.00', retencion: '0.00',
         tipoOp: '1. GRAVADA', clasificacion: '2. GASTO', sector: '4. SERVICIOS PROFESIONES, ARTES Y OFICIOS',
         costoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION', anexo: 5
@@ -266,44 +306,118 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* Reutilizando estilos */
-.sujetos-container { padding: 2rem; background: #f0f2f5; min-height: 100vh; }
-.header-section { display: flex; justify-content: space-between; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
-.header-buttons { display: flex; gap: 10px; }
-.btn-toggle { background: #673ab7; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; } 
-.btn-toggle:hover { background: #5e35b1; }
-.btn-volver { background: #666; color: white; padding: 10px; border-radius: 8px; border: none; cursor: pointer; }
+/* --- ESTILO MATERIAL DESIGN / VUE CLEAN (Igual a Compras) --- */
+.sujetos-container {
+  padding: 20px;
+  /* Fondo desvanecido consistente con Compras */
+  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
 
-.card-form, .card-lista-full { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 1000px; margin: 0 auto; border-top: 5px solid #673ab7; }
+/* Encabezado */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
 
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-.grid-fiscal { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-.form-group { display: flex; flex-direction: column; }
+.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
+.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
 
-label { font-weight: bold; color: #555; font-size: 0.85rem; margin-bottom: 5px; }
-input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
-.select-destacado { border: 2px solid #d1c4e9; background-color: #f3e5f5; }
+/* Tarjetas */
+.card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgba(85, 194, 183, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.card-header {
+  border-bottom: 1px solid #f0fdfa;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.badge-info { 
+  font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px;
+}
+
+/* Formularios */
+.form-section { margin-bottom: 30px; }
+.section-title { 
+  font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; 
+  border-left: 4px solid #55C2B7; padding-left: 12px; 
+}
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.form-group { margin-bottom: 5px; }
+.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* Inputs Modernos */
+.form-control {
+  width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937;
+  background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem;
+  transition: all 0.2s; box-sizing: border-box;
+}
+.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem;
+  border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background-color: #55C2B7; color: white; }
+.btn-primary:hover { background-color: #45a89d; }
+.btn-success { background-color: #10b981; color: white; }
+.btn-success:hover { background-color: #059669; }
+.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
+.btn-secondary:hover { background-color: #f3f4f6; }
+.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; }
+.btn-icon:hover { background-color: #f9fafb; color: #111827; }
 
 /* Montos */
-.seccion-montos { background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #eee; }
-.input-monto.principal { border-color: #673ab7; font-weight: bold; font-size: 1.1rem; color: #333; }
-.input-monto.secundario { background: #eee; color: #d32f2f; font-weight: bold; font-size: 1.1rem; }
-.input-sm { width: 80px; text-align: center; }
+.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
+.monto-group { flex: 1; min-width: 150px; }
+.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
+.input-wrapper { position: relative; }
+.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
+.monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
+.total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
 
-.actions { margin-top: 1.5rem; display: flex; gap: 10px; }
-.btn-guardar { flex: 1; background: #673ab7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.btn-guardar:disabled { background: #ccc; }
-.btn-cancelar { background: #999; color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; }
+.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
 
 /* Tabla */
-.tabla-container { margin-top: 1rem; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px; border-bottom: 2px solid #eee; color: #777; }
-td { padding: 10px; border-bottom: 1px solid #eee; }
-.monto-total { color: #673ab7; font-weight: bold; }
-.negativo { color: #d32f2f; font-weight: bold; }
-.btn-accion { background: #f0f0f0; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; }
-.btn-accion:hover { background: #e0e0e0; }
-.vacio { text-align: center; color: #999; font-style: italic; padding: 20px; }
+.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+.table { width: 100%; border-collapse: collapse; background: white; }
+.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
+.table tr:hover td { background-color: #f9fafb; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+
+.text-danger { color: #ef4444; }
+.text-muted { color: #6b7280; }
+.mt-3 { margin-top: 15px; }
+.text-xs { font-size: 0.75rem; }
+
+@media (max-width: 768px) {
+  .montos-wrapper { flex-direction: column; }
+  .monto-group { width: 100%; }
+  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { width: 100%; }
+}
 </style>

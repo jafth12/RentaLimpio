@@ -1,259 +1,243 @@
 <template>
-  <MainLayout> <div class="compras-container">
+  <MainLayout>
+    <div class="compras-container">
+      
       <div class="header-section">
-        <h1>🛍️ Gestión de Compras</h1>
-        <div class="header-buttons">
-          <button @click="alternarVista" class="btn-toggle">
-            {{ mostrandoLista ? '➕ Nueva Compra' : '📋 Ver Lista Guardada' }}
+        <div class="title-box">
+          <h1>🛍️ Gestión de Compras</h1>
+          <p class="subtitle">Registra y administra tus documentos tributarios</p>
+        </div>
+        
+        <div class="header-actions">
+          <button @click="alternarVista" class="btn btn-primary">
+            {{ mostrandoLista ? '➕ Nueva Compra' : '📋 Ver Listado' }}
           </button>
-          </div>
+        </div>
       </div>
 
       <div class="main-content">
-        <div v-if="!mostrandoLista" class="card-form">
-          <div class="form-header">
-            <h2>{{ modoEdicion ? '✏️ Editando Compra' : '✨ Nueva Compra' }}</h2>
-            <p v-if="modoEdicion">Modifique los datos necesarios y guarde los cambios.</p>
-            <p v-else>Ingrese los datos obligatorios marcados con asterisco (*).</p>
+        
+        <div v-if="!mostrandoLista" class="card fade-in">
+          <div class="card-header">
+            <h2>{{ modoEdicion ? '✏️ Editar Compra' : '✨ Nueva Factura / CCF' }}</h2>
+            <span class="badge-info">{{ modoEdicion ? 'Modificando registro existente' : 'Ingresa los datos del documento' }}</span>
           </div>
 
-          <form @submit.prevent="guardarCompra">
+          <form @submit.prevent="guardarCompra" class="form-body">
             
-            <div class="seccion-proveedor" :class="{ 'error-borde': errores.declarante }" style="margin-bottom: 15px;">
-              <label>Declarante <span class="required">*</span></label>
-              <div v-if="!declaranteSeleccionado" class="buscador-wrapper">
-                <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar Declarante por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasDeclarante = true">
-                <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="lista-sugerencias">
-                  <li v-for="decla in declarantesFiltrados" :key="decla.iddeclaNIT" @click="seleccionarDeclarante(decla)">
-                    <strong>{{ decla.declarante }}</strong> <small>{{ decla.iddeclaNIT }}</small>
-                  </li>
-                </ul>
-                <div v-else-if="busquedaDeclarante && declarantesFiltrados.length === 0" class="no-resultados">No se encontraron declarantes.</div>
-              </div>
-              <div v-else class="proveedor-seleccionado" style="background: #fff8e1; border-color: #ffb74d;">
-                <div class="info-prov">
-                  <span class="icono">👤</span>
-                  <div><strong>{{ declaranteSeleccionado.declarante }}</strong> <small>NIT: {{ declaranteSeleccionado.iddeclaNIT }}</small></div>
-                </div>
-                <button @click="quitarDeclarante" type="button" class="btn-cambiar" style="color: #e65100;">Cambiar</button>
-              </div>
-              <small v-if="errores.declarante" class="msg-error">Debe seleccionar un declarante.</small>
-            </div>
-
-            <div class="seccion-proveedor" :class="{ 'error-borde': errores.proveedor }">
-              <label>Proveedor <span class="required">*</span></label>
-              <div v-if="!proveedorSeleccionado" class="buscador-wrapper">
-                <input type="text" v-model="busqueda" placeholder="🔍 Buscar Proveedor por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerencias = true">
-                <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="lista-sugerencias">
-                  <li v-for="prov in proveedoresFiltrados" :key="prov.ProvNIT" @click="seleccionarProveedor(prov)">
-                    <strong>{{ prov.ProvNombre }}</strong> <small>{{ prov.ProvNIT }}</small>
-                  </li>
-                </ul>
-                <div v-else-if="busqueda && proveedoresFiltrados.length === 0" class="no-resultados-container">
-                    <div class="no-resultados">No se encontraron proveedores.</div>
-                    <button type="button" class="btn-crear-prov" @click="irAProveedores">
-                      ➕ Crear "{{ busqueda }}" en Proveedores
-                    </button>
-                </div>
-              </div>
-              <div v-else class="proveedor-seleccionado">
-                <div class="info-prov">
-                  <span class="icono">🏢</span>
-                  <div><strong>{{ proveedorSeleccionado.ProvNombre }}</strong> <small>NIT: {{ proveedorSeleccionado.ProvNIT }}</small></div>
-                </div>
-                <button @click="quitarProveedor" type="button" class="btn-cambiar">Cambiar</button>
-              </div>
-              <small v-if="errores.proveedor" class="msg-error">Debe seleccionar un proveedor.</small>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                  <label>Fecha <span class="required">*</span></label>
-                  <input type="date" v-model="formulario.fecha" :class="{ 'input-error': errores.fecha }" required>
-                  <small v-if="errores.fecha" class="msg-error">Fecha requerida.</small>
-              </div>
-
-              <div class="form-group-duo">
-                   <div class="form-group">
-                      <label>Mes Decl. <span class="required">*</span></label>
-                      <select v-model="formulario.mesDeclarado" required class="select-destacado" style="border-color: #55C2B7;">
-                          <option v-for="mes in opcionesMeses" :key="mes" :value="mes">{{ mes }}</option>
-                      </select>
+            <div class="form-section">
+              <h3 class="section-title">👤 Datos del Emisor</h3>
+              
+              <div class="form-grid">
+                <div class="form-group" :class="{ 'has-error': errores.declarante }">
+                  <label class="form-label">Declarante <span class="text-danger">*</span></label>
+                  
+                  <div v-if="!declaranteSeleccionado" class="search-box">
+                    <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar declarante..." class="form-control" @focus="mostrarSugerenciasDeclarante = true">
+                    <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="suggestions-list">
+                      <li v-for="d in declarantesFiltrados" :key="d.iddeclaNIT" @click="seleccionarDeclarante(d)">
+                        <span class="font-bold">{{ d.declarante }}</span>
+                        <span class="text-xs text-muted">{{ d.iddeclaNIT }}</span>
+                      </li>
+                    </ul>
                   </div>
-                  <div class="form-group">
-                      <label>Año <span class="required">*</span></label>
-                      <input type="number" v-model="formulario.anioDeclarado" placeholder="2026" required class="select-destacado" style="border-color: #55C2B7;">
-                  </div>
-              </div>
-
-              <div class="form-group" style="flex: 2;">
-              <label>Número (CCF) <span class="required">*</span></label>
-              
-              <div class="input-ccf-container" :class="{ 'input-error': errores.numero }">
-                  <span class="prefix">DTE</span>
                   
-                  <input type="text" 
-                        :value="ccfParts.part1" 
-                        @input="e => handleInputMask(e, 'part1', 2)"
-                        class="input-part part-small" 
-                        placeholder="00">
-                  
-                  <input type="text" 
-                        :value="ccfParts.letraSerie" 
-                        @input="handleLetraInput"
-                        @focus="$event.target.select()"
-                        class="input-part part-letter" 
-                        maxlength="1"
-                        placeholder="S">
-                  
-                  <input type="text" 
-                        :value="ccfParts.part2" 
-                        @input="e => handleInputMask(e, 'part2', 3)"
-                        class="input-part part-medium" 
-                        placeholder="000">
-                  
-                  <span class="prefix">P</span>
-                  
-                  <input type="text" 
-                        :value="ccfParts.part3" 
-                        @input="e => handleInputMask(e, 'part3', 3)"
-                        class="input-part part-medium" 
-                        placeholder="000">
-                  
-                  <input type="text" 
-                        :value="ccfParts.part4" 
-                        @input="e => handleInputMask(e, 'part4', 15)"
-                        class="input-part part-large" 
-                        placeholder="000...">
-              </div>
-              
-              <small class="hint-text">Formato: DTE03 <strong>{{ ccfParts.letraSerie || 'S' }}</strong>001 P003 ...</small>
-              <small v-if="errores.numero" class="msg-error">Número requerido.</small>
-          </div>
-              
-              <div class="form-group"><label>DUI Proveedor (Opcional)</label><input type="text" v-model="formulario.duiProveedor" placeholder="00000000-0"></div>
-            </div>
-
-            <div class="form-row grid-fiscal">
-               <div class="form-group"><label>Clase *</label><select v-model="formulario.claseDocumento" required class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Tipo Doc *</label><select v-model="formulario.tipoDocumento" required class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Operación *</label><select v-model="formulario.tipoOperacion" required class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Clasificación *</label><select v-model="formulario.clasificacion" required class="select-destacado"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Sector *</label><select v-model="formulario.sector" required class="select-destacado"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Costo/Gasto *</label><select v-model="formulario.tipoCostoGasto" required class="select-destacado"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
-            </div>
-
-            <hr class="separador">
-
-            <div class="seccion-montos">
-              <h3>💰 Detalles Económicos</h3>
-              
-              <div class="sub-seccion">
-                  <label class="sub-label">Compras Gravadas</label>
-                  <div class="form-row grid-montos">
-                      <div class="form-group">
-                          <label>Internas <span class="required">*</span></label>
-                          <input type="number" v-model="formulario.internasGravadas" step="0.01" 
-                                 class="input-monto principal" 
-                                 :class="{ 'input-error': errores.internas }"
-                                 @blur="formatearDecimal('internasGravadas')">
-                          <small v-if="errores.internas" class="msg-error">Requerido (min 0.00)</small>
+                  <div v-else class="selected-item">
+                    <div class="selected-info">
+                      <span class="icon">👤</span>
+                      <div>
+                        <strong>{{ declaranteSeleccionado.declarante }}</strong>
+                        <small>{{ declaranteSeleccionado.iddeclaNIT }}</small>
                       </div>
-                      <div class="form-group"><label>Internac. Bienes</label><input type="number" v-model="formulario.internacionalesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesGravBienes')"></div>
-                      <div class="form-group"><label>Import. Bienes</label><input type="number" v-model="formulario.importacionesGravBienes" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravBienes')"></div>
-                      <div class="form-group"><label>Import. Servicios</label><input type="number" v-model.number="formulario.importacionesGravServicios" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesGravServicios')"></div>
+                    </div>
+                    <button type="button" @click="quitarDeclarante" class="btn-text text-danger">Cambiar</button>
                   </div>
-              </div>
+                  <span v-if="errores.declarante" class="error-msg">Requerido</span>
+                </div>
 
-              <div class="sub-seccion">
-                  <label class="sub-label">Exentas / No Sujetas</label>
-                  <div class="form-row grid-montos">
-                      <div class="form-group"><label>Internas Exentas</label><input type="number" v-model="formulario.internasExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internasExentas')"></div>
-                      <div class="form-group"><label>Internac. Exentas</label><input type="number" v-model="formulario.internacionalesExentas" step="0.01" class="input-sm" @blur="formatearDecimal('internacionalesExentas')"></div>
-                      <div class="form-group"><label>Import. No Sujetas</label><input type="number" v-model="formulario.importacionesNoSujetas" step="0.01" class="input-sm" @blur="formatearDecimal('importacionesNoSujetas')"></div>
+                <div class="form-group" :class="{ 'has-error': errores.proveedor }">
+                  <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                  
+                  <div v-if="!proveedorSeleccionado" class="search-box">
+                    <input type="text" v-model="busqueda" placeholder="🔍 Buscar proveedor..." class="form-control" @focus="mostrarSugerencias = true">
+                    <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="suggestions-list">
+                      <li v-for="p in proveedoresFiltrados" :key="p.ProvNIT" @click="seleccionarProveedor(p)">
+                        <span class="font-bold">{{ p.ProvNombre }}</span>
+                        <span class="text-xs text-muted">{{ p.ProvNIT }}</span>
+                      </li>
+                    </ul>
+                    <div v-else-if="busqueda && proveedoresFiltrados.length === 0" class="no-results">
+                       <span>No encontrado.</span>
+                       <button type="button" class="btn-link" @click="irAProveedores">Crear nuevo</button>
+                    </div>
                   </div>
-              </div>
 
-              <div class="sub-seccion">
-                   <div class="form-row grid-montos">
-                       <div class="form-group">
-                          <label title="Ej: Impuesto a la Gasolina">Impuesto Gasolina (Otro) </label>
-                          <input type="number" v-model="formulario.otroAtributo" step="0.01" class="input-sm" style="border-color: #9c27b0; color: #9c27b0; font-weight: bold;" @blur="formatearDecimal('otroAtributo')">
+                  <div v-else class="selected-item">
+                    <div class="selected-info">
+                      <span class="icon">🏢</span>
+                      <div>
+                        <strong>{{ proveedorSeleccionado.ProvNombre }}</strong>
+                        <small>{{ proveedorSeleccionado.ProvNIT }}</small>
                       </div>
+                    </div>
+                    <button type="button" @click="quitarProveedor" class="btn-text text-danger">Cambiar</button>
+                  </div>
+                  <span v-if="errores.proveedor" class="error-msg">Requerido</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3 class="section-title">📄 Detalles del Documento</h3>
+              
+              <div class="form-grid three-cols">
+                
+                <div class="form-group">
+                  <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
+                  <input type="date" v-model="formulario.fecha" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Periodo</label>
+                  <div class="input-group">
+                    <select v-model="formulario.mesDeclarado" class="form-control">
+                      <option v-for="m in opcionesMeses" :key="m" :value="m">{{ m }}</option>
+                    </select>
+                    <input type="number" v-model="formulario.anioDeclarado" class="form-control year-input" placeholder="Año">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                   <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
+                   <div class="dte-mask-container" :class="{ 'input-error': errores.numero }">
+                      <span class="dte-prefix">DTE</span>
+                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
+                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
+                      <span class="dte-sep">P</span>
+                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
+                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
                    </div>
+                   <small class="form-text text-muted">Ej: DTE-00-S-000-P-000...</small>
+                </div>
               </div>
 
-              <hr class="separador-sm">
-
-              <div class="resultado-calculo">
-                  <div class="fila-res">
-                      <span>IVA (Crédito Fiscal):</span> 
-                      <input type="number" v-model="formulario.iva" step="0.01" class="input-monto secundario" @blur="formatearDecimal('iva')">
-                  </div>
-                  <div class="fila-res total">
-                      <span>TOTAL COMPRA:</span> 
-                      <input type="number" v-model="formulario.total" step="0.01" class="input-total" @blur="formatearDecimal('total')">
-                  </div>
+              <div class="form-grid four-cols mt-3">
+                 <div class="form-group"><label class="form-label">Clase</label><select v-model="formulario.claseDocumento" class="form-control"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Tipo</label><select v-model="formulario.tipoDocumento" class="form-control"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Operación</label><select v-model="formulario.tipoOperacion" class="form-control"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Sector</label><select v-model="formulario.sector" class="form-control"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
               </div>
             </div>
 
-            <div class="actions">
-              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-              <button type="submit" class="btn-guardar" :disabled="cargando">
-                {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar Compra' : '💾 Guardar Compra') }}
+            <div class="form-section bg-light">
+              <h3 class="section-title">💰 Montos y Totales</h3>
+              
+              <div class="montos-wrapper">
+                <div class="monto-group">
+                  <label class="monto-label">Compras Gravadas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" v-model="formulario.internasGravadas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('internasGravadas')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label">Compras Exentas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" v-model="formulario.internasExentas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('internasExentas')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label">13% IVA <span class="text-xs text-muted">(Editable)</span></label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" v-model="formulario.iva" step="0.01" class="form-control monto-input" @input="calcularTotalManual" @blur="formatearDecimal('iva')">
+                  </div>
+                </div>
+
+                <div class="monto-group total-group">
+                  <label class="monto-label">TOTAL A PAGAR</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" v-model="formulario.total" step="0.01" class="form-control total-input" readonly>
+                  </div>
+                </div>
+              </div>
+              
+              <details class="advanced-options">
+                <summary>Ver otros impuestos (Importaciones, FOVIAL, etc.)</summary>
+                <div class="form-grid four-cols mt-2">
+                   <div class="form-group"><label>Internac. Bienes</label><input type="number" v-model="formulario.internacionalesGravBienes" class="form-control form-control-sm" @blur="formatearDecimal('internacionalesGravBienes')"></div>
+                   <div class="form-group"><label>Import. Bienes</label><input type="number" v-model="formulario.importacionesGravBienes" class="form-control form-control-sm" @blur="formatearDecimal('importacionesGravBienes')"></div>
+                   <div class="form-group"><label>Imp. Gasolina (Otro)</label><input type="number" v-model="formulario.otroAtributo" class="form-control form-control-sm" @blur="formatearDecimal('otroAtributo')"></div>
+                   <div class="form-group"><label>No Sujetas</label><input type="number" v-model="formulario.importacionesNoSujetas" class="form-control form-control-sm" @blur="formatearDecimal('importacionesNoSujetas')"></div>
+                </div>
+              </details>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Compra' : '💾 Guardar Compra') }}
               </button>
             </div>
-            
-            <transition name="fade"><div v-if="mensaje" :class="['alert-box', tipoMensaje]"><span>{{ mensaje }}</span></div></transition>
+
+            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
+              {{ mensaje }}
+            </div>
+
           </form>
         </div>
 
-        <div v-if="mostrandoLista" class="card-lista-full">
-          <div class="lista-header"><h3>📄 Historial de Compras</h3><input type="text" v-model="filtroLista" placeholder="🔎 Filtrar..." class="filtro-input"></div>
-          <div class="tabla-container">
-            <table>
+        <div v-else class="card fade-in">
+          <div class="card-header flex-between">
+             <h3>📋 Historial de Compras</h3>
+             <input type="text" v-model="filtroLista" placeholder="Buscar por proveedor o número..." class="form-control search-list">
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table">
               <thead>
-                <tr><th>Fecha/Periodo</th><th>Proveedor / Declarante</th><th>Detalles</th><th>Total</th><th>Acciones</th></tr>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Proveedor</th>
+                  <th>Documento</th>
+                  <th class="text-right">Total</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
               </thead>
               <tbody>
-                <tr v-for="compra in comprasFiltradas" :key="compra.idcompras">
+                <tr v-for="c in comprasFiltradas" :key="c.idcompras">
+                  <td>{{ formatearFecha(c.ComFecha) }}</td>
                   <td>
-                      {{ formatearFecha(compra.ComFecha) }}
-                      <small style="display:block; color:#666;">
-                          {{ compra.ComMesDeclarado || '---' }} {{ compra.ComAnioDeclarado ? ` ${compra.ComAnioDeclarado}` : '' }}
-                      </small>
+                    <div class="fw-bold text-dark">{{ c.ComNomProve }}</div>
+                    <small class="text-muted">{{ c.proveedor_ProvNIT }}</small>
                   </td>
                   <td>
-                    <div class="prov-nombre">{{ compra.ComNomProve || '---' }}</div> 
-                    <small class="nit-sm" style="display:block;">Prov: {{ compra.proveedor_ProvNIT }}</small>
-                    <small v-if="compra.iddeclaNIT" class="nit-sm" style="color: #e65100;">Decla: {{ compra.iddeclaNIT }}</small>
+                    <span class="badge badge-light">{{ obtenerCodigo(c.ComTipo) }}</span>
+                    <span class="doc-number">{{ c.ComNumero }}</span>
                   </td>
-                  <td class="detalle-td">
-                      <div class="badges-container">
-                          <span class="badge badge-tipo">{{ obtenerCodigo(compra.ComTipo) }}</span>
-                          <span class="badge badge-op">{{ obtenerCodigo(compra.ComTipoOpeRenta) }}</span>
-                      </div>
-                      <div class="montos-mini">
-                          <span v-if="parseFloat(compra.ComIntGrav)>0" title="Internas Gravadas">G: ${{ parseFloat(compra.ComIntGrav).toFixed(2) }}</span>
-                          <span v-if="parseFloat(compra.ComCredFiscal)>0" title="IVA">IVA: ${{ parseFloat(compra.ComCredFiscal).toFixed(2) }}</span>
-                          <span v-if="parseFloat(compra.ComOtroAtributo)>0" style="color: #9c27b0; font-weight: bold;">Otro: ${{ parseFloat(compra.ComOtroAtributo).toFixed(2) }}</span>
-                      </div>
-                  </td>
-                  <td class="monto-total">$ {{ parseFloat(compra.ComTotal || 0).toFixed(2) }}</td>
-                  <td class="acciones-td">
-                    <button @click="prepararEdicion(compra)" class="btn-accion btn-editar" title="Editar">✏️</button>
-                    <button v-if="rolActual === 'admin'" @click="eliminarCompra(compra.idcompras)" class="btn-accion btn-borrar" title="Eliminar">🗑️</button>
+                  <td class="text-right fw-bold text-success">${{ parseFloat(c.ComTotal || 0).toFixed(2) }}</td>
+                  <td class="text-center">
+                    <button class="btn-icon" @click="prepararEdicion(c)" title="Editar">✏️</button>
+                    <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
-                <tr v-if="comprasFiltradas.length === 0"><td colspan="5" class="vacio">No hay registros que coincidan.</td></tr>
+                <tr v-if="comprasFiltradas.length === 0">
+                  <td colspan="5" class="text-center py-4 text-muted">No se encontraron registros.</td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
+
       </div>
     </div>
-  
-  </MainLayout> </template>
+  </MainLayout>
+</template>
 
 <script setup>
 import MainLayout from '../layouts/MainLayout.vue'
@@ -271,19 +255,18 @@ const API_PROVEEDORES = BASE_URL + '/api/proveedores';
 const API_COMPRAS = BASE_URL + '/api/compras';
 const API_DECLARANTES = BASE_URL + '/api/declarantes'; 
 
-// --- LISTAS OPCIONES ---
+// --- LISTAS DE OPCIONES (AHORA SÍ ESTÁN TODAS COMPLETAS) ---
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
 const opcionesTipo = ["03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO", "12. DECLARACION DE MERCANCIAS"];
 const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO O NO CONSTITUYE RENTA", "4. MIXTA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES", "0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES"];
+// ESTA FALTABA:
 const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. COSTO", "2. GASTO", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECURIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
-
 const opcionesMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-// --- INPUTS COMPUESTOS PARA CCF (CORREGIDO: Agregado letraSerie) ---
+// --- VARIABLES REACTIVAS ---
 const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
-
 const formulario = ref({ 
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: opcionesMeses[new Date().getMonth()], 
@@ -314,75 +297,90 @@ const busquedaDeclarante = ref('');
 const declaranteSeleccionado = ref(null);
 const mostrarSugerenciasDeclarante = ref(false);
 
-// --- LÓGICA DE LETRA VARIABLE (S, A, B...) ---
+// --- MÉTODOS DE MÁSCARA DTE ---
 const handleLetraInput = (e) => {
-    let val = e.target.value.toUpperCase(); // Forzar mayúscula
-    val = val.replace(/[^A-Z0-9]/g, ''); // Solo letras y números
-    ccfParts.value.letraSerie = val;
-    e.target.value = val;
-    actualizarNumeroCompleto();
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto();
 };
-
-// --- LÓGICA DE INPUT MÁSCARA (DERECHA A IZQUIERDA) ---
 const handleInputMask = (e, partName, maxLength) => {
     let raw = e.target.value.replace(/\D/g, ''); 
-    if (raw.length > maxLength) {
-        raw = raw.slice(-maxLength);
-    }
+    if (raw.length > maxLength) raw = raw.slice(-maxLength);
     const padded = raw.padStart(maxLength, '0');
-    ccfParts.value[partName] = padded;
-    e.target.value = padded;
-    actualizarNumeroCompleto();
+    ccfParts.value[partName] = padded; e.target.value = padded; actualizarNumeroCompleto();
 };
-
 const actualizarNumeroCompleto = () => {
-    // Unimos todo usando la letra variable
     const letra = ccfParts.value.letraSerie || 'S';
     formulario.value.numero = `DTE${ccfParts.value.part1}${letra}${ccfParts.value.part2}P${ccfParts.value.part3}${ccfParts.value.part4}`;
 };
 
-// --- WATCHERS Y HELPERS ---
-const extraerSoloCodigo = (texto) => texto ? texto.split(/[\.\s]+/)[0] : '';
-const recuperarOpcionCompleta = (codigo, lista) => {
-    if (!codigo) return lista[0];
-    const enc = lista.find(op => op.split(/[\.\s]+/)[0] == String(codigo).trim());
-    return enc || codigo; 
+// --- HELPERS ---
+const extraerSoloCodigo = (t) => t ? t.split(/[\.\s]+/)[0] : '';
+const recuperarOpcionCompleta = (c, l) => { if (!c) return l[0]; const enc = l.find(op => op.split(/[\.\s]+/)[0] == String(c).trim()); return enc || c; };
+
+// --- LÓGICA DE CÁLCULO MEJORADA ---
+const calcularTotalGeneral = () => {
+    const baseGravada = 
+        (parseFloat(formulario.value.internasGravadas) || 0) + 
+        (parseFloat(formulario.value.internacionalesGravBienes) || 0) + 
+        (parseFloat(formulario.value.importacionesGravBienes) || 0) + 
+        (parseFloat(formulario.value.importacionesGravServicios) || 0);
+    
+    const sumExentas = 
+        (parseFloat(formulario.value.internasExentas) || 0) + 
+        (parseFloat(formulario.value.internacionalesExentas) || 0) + 
+        (parseFloat(formulario.value.importacionesNoSujetas) || 0);
+    
+    const iva = parseFloat(formulario.value.iva) || 0;
+    const otro = parseFloat(formulario.value.otroAtributo) || 0;
+
+    formulario.value.total = (baseGravada + sumExentas + iva + otro).toFixed(2);
 };
 
-watch(() => [
-    formulario.value.internasGravadas, formulario.value.internacionalesGravBienes,
-    formulario.value.importacionesGravBienes, formulario.value.importacionesGravServicios,
-    formulario.value.internasExentas, formulario.value.internacionalesExentas,
-    formulario.value.importacionesNoSujetas, formulario.value.otroAtributo 
-], ([intG, intlG, impG, impS, intE, intlE, impNS, otroAttr]) => {
-    const baseGravada = (parseFloat(intG)||0) + (parseFloat(intlG)||0) + (parseFloat(impG)||0) + (parseFloat(impS)||0);
+// Watcher para recalcular IVA automático cuando cambian las bases
+watch(() => [formulario.value.internasGravadas, formulario.value.internacionalesGravBienes, formulario.value.importacionesGravBienes, formulario.value.importacionesGravServicios], (vals) => {
+    const [intG, intlG, impG, impS] = vals.map(v => parseFloat(v) || 0);
+    const baseGravada = intG + intlG + impG + impS;
+    
+    // Auto-calculamos IVA (13%)
     formulario.value.iva = (baseGravada * 0.13).toFixed(2);
-    const sumExentas = (parseFloat(intE)||0) + (parseFloat(intlE)||0) + (parseFloat(impNS)||0);
-    formulario.value.total = (baseGravada + parseFloat(formulario.value.iva) + sumExentas + (parseFloat(otroAttr)||0)).toFixed(2);
-    if(parseFloat(intG) > 0 || intG !== '') errores.value.internas = false;
+    
+    if(intG > 0) errores.value.internas = false;
+    calcularTotalGeneral();
 });
 
-const formatearDecimal = (c) => { 
-    const v = parseFloat(formulario.value[c]); 
-    formulario.value[c] = !isNaN(v) ? v.toFixed(2) : '0.00'; 
+// Watcher para recalcular Total cuando cambian exentas u otros (sin tocar el IVA)
+watch(() => [formulario.value.internasExentas, formulario.value.internacionalesExentas, formulario.value.importacionesNoSujetas, formulario.value.otroAtributo], () => {
+    calcularTotalGeneral();
+});
+
+// Función manual para cuando el usuario edita el IVA directamente
+const calcularTotalManual = () => {
+    calcularTotalGeneral();
 };
 
+const formatearDecimal = (c) => { const v = parseFloat(formulario.value[c]); formulario.value[c] = !isNaN(v) ? v.toFixed(2) : '0.00'; };
+
+// --- FILTROS COMPUTADOS ---
 const proveedoresFiltrados = computed(() => {
-  if (!busqueda.value) return [];
-  return todosLosProveedores.value.filter(p => p.ProvNombre.toLowerCase().includes(busqueda.value.toLowerCase()) || p.ProvNIT.includes(busqueda.value));
+  if (!busqueda.value || !todosLosProveedores.value) return [];
+  const txt = busqueda.value.toLowerCase().trim();
+  return todosLosProveedores.value.filter(p => p && (String(p.ProvNombre || '').toLowerCase().includes(txt) || String(p.ProvNIT || '').includes(txt)));
 });
 
 const declarantesFiltrados = computed(() => { 
-  if (!busquedaDeclarante.value) return [];
-  return todosLosDeclarantes.value.filter(d => d.declarante.toLowerCase().includes(busquedaDeclarante.value.toLowerCase()) || d.iddeclaNIT.includes(busquedaDeclarante.value));
+  if (!busquedaDeclarante.value || !todosLosDeclarantes.value) return [];
+  const txt = busquedaDeclarante.value.toLowerCase().trim();
+  return todosLosDeclarantes.value.filter(d => d && (String(d.declarante || '').toLowerCase().includes(txt) || String(d.iddeclaNIT || '').includes(txt)));
 });
 
 const comprasFiltradas = computed(() => {
+  if (!listaCompras.value || !Array.isArray(listaCompras.value)) return [];
   if (!filtroLista.value) return listaCompras.value;
-  const txt = filtroLista.value.toLowerCase();
-  return listaCompras.value.filter(c => (c.ComNomProve && c.ComNomProve.toLowerCase().includes(txt)) || (c.CompNumero && c.CompNumero.includes(txt)));
+  const txt = filtroLista.value.toLowerCase().trim();
+  return listaCompras.value.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt)));
 });
 
+// --- ACCIONES ---
 const alternarVista = () => { if (modoEdicion) cancelarEdicion(); mostrandoLista.value = !mostrandoLista.value; };
 const seleccionarProveedor = (p) => { proveedorSeleccionado.value = p; mostrarSugerencias.value = false; busqueda.value = ''; errores.value.proveedor = false; };
 const quitarProveedor = () => proveedorSeleccionado.value = null;
@@ -391,19 +389,16 @@ const seleccionarDeclarante = (d) => { declaranteSeleccionado.value = d; mostrar
 const quitarDeclarante = () => declaranteSeleccionado.value = null;
 
 const prepararEdicion = (compra) => {
-  let fSegura = new Date().toISOString().split('T')[0];
-  if (compra.ComFecha) fSegura = new Date(compra.ComFecha).toISOString().split('T')[0];
-
+  let fSegura = compra.ComFecha ? new Date(compra.ComFecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
   formulario.value = {
     fecha: fSegura,
     mesDeclarado: compra.ComMesDeclarado || opcionesMeses[new Date().getMonth()],
     anioDeclarado: compra.ComAnioDeclarado || new Date().getFullYear(),
-    numero: compra.ComNumero || '', 
-    duiProveedor: compra.ComDuiProve || '',
+    numero: compra.ComNumero || '', duiProveedor: compra.ComDuiProve || '',
     claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase),
     tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
     tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion),
-    clasificacion: recuperarOpcionCompleta(compra.ComClasiRenta, opcionesClasificacion),
+    clasificacion: recuperarOpcionCompleta(compra.ComClasiRenta, opcionesClasificacion), // AHORA SÍ EXISTE
     sector: recuperarOpcionCompleta(compra.ComSecNum, opcionesSector),
     tipoCostoGasto: recuperarOpcionCompleta(compra.ComTipoCostoGasto, opcionesCostoGasto),
     internasGravadas: parseFloat(compra.ComIntGrav || 0).toFixed(2),
@@ -418,20 +413,9 @@ const prepararEdicion = (compra) => {
     otroAtributo: parseFloat(compra.ComOtroAtributo || 0).toFixed(2)
   };
   
-  // --- PARSEO DEL NÚMERO CCF (CORREGIDO PARA LETRA) ---
-  const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; // Captura letra en grupo 2
+  const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
   const match = compra.ComNumero ? compra.ComNumero.match(regex) : null;
-  if (match) {
-      ccfParts.value = { 
-          part1: match[1], 
-          letraSerie: match[2], 
-          part2: match[3], 
-          part3: match[4], 
-          part4: match[5] 
-      };
-  } else {
-      ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
-  }
+  ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
 
   const prov = todosLosProveedores.value.find(p => p.ProvNIT === compra.proveedor_ProvNIT);
   proveedorSeleccionado.value = prov || { ProvNIT: compra.proveedor_ProvNIT, ProvNombre: compra.ComNomProve || 'Histórico' };
@@ -442,26 +426,15 @@ const prepararEdicion = (compra) => {
   } else declaranteSeleccionado.value = null;
 
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
-  modoEdicion.value = true;
-  idEdicion.value = compra.idcompras;
-  mostrandoLista.value = false; 
+  modoEdicion.value = true; idEdicion.value = compra.idcompras; mostrandoLista.value = false; 
 };
 
 const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; };
 const resetForm = () => {
-  formulario.value = { 
-    fecha: new Date().toISOString().split('T')[0], 
-    mesDeclarado: opcionesMeses[new Date().getMonth()],
-    anioDeclarado: new Date().getFullYear(),
-    numero: '', duiProveedor: '',
-    claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
-    tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
-    internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
-    internasExentas: '0.00', internacionalesExentas: '0.00', importacionesNoSujetas: '0.00', iva: '0.00', total: '0.00', otroAtributo: '0.00'
-  };
-  ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; // Reset completo
-  proveedorSeleccionado.value = null;
-  declaranteSeleccionado.value = null;
+  formulario.value.fecha = new Date().toISOString().split('T')[0];
+  formulario.value.numero = ''; formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; formulario.value.iva = '0.00';
+  ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+  proveedorSeleccionado.value = null; declaranteSeleccionado.value = null;
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
 };
 
@@ -474,17 +447,13 @@ const cargarDatos = async () => {
 
 const guardarCompra = async () => {
   actualizarNumeroCompleto(); 
-  
   errores.value.proveedor = !proveedorSeleccionado.value;
   errores.value.declarante = !declaranteSeleccionado.value;
   errores.value.fecha = !formulario.value.fecha;
   errores.value.numero = !formulario.value.numero; 
-  errores.value.internas = formulario.value.internasGravadas === '';
+  errores.value.internas = formulario.value.internasGravadas === '' || parseFloat(formulario.value.internasGravadas) < 0;
 
-  if (errores.value.proveedor || errores.value.declarante || errores.value.fecha || errores.value.numero || errores.value.internas) {
-      alert("Por favor complete los campos obligatorios.");
-      return;
-  }
+  if (Object.values(errores.value).some(v => v)) { alert("Complete los campos obligatorios."); return; }
 
   cargando.value = true;
   const payload = { 
@@ -499,196 +468,221 @@ const guardarCompra = async () => {
       nombreProveedor: proveedorSeleccionado.value.ProvNombre,
       iddeclaNIT: declaranteSeleccionado.value.iddeclaNIT,
       internasGravadas: parseFloat(formulario.value.internasGravadas)||0,
-      internacionalesGravBienes: parseFloat(formulario.value.internacionalesGravBienes)||0,
-      importacionesGravBienes: parseFloat(formulario.value.importacionesGravBienes)||0,
-      importacionesGravServicios: parseFloat(formulario.value.importacionesGravServicios)||0,
       internasExentas: parseFloat(formulario.value.internasExentas)||0,
-      internacionalesExentas: parseFloat(formulario.value.internacionalesExentas)||0,
-      importacionesNoSujetas: parseFloat(formulario.value.importacionesNoSujetas)||0,
       iva: parseFloat(formulario.value.iva)||0,
-      total: parseFloat(formulario.value.total)||0,
-      otroAtributo: parseFloat(formulario.value.otroAtributo)||0
+      total: parseFloat(formulario.value.total)||0
   };
 
   try {
     if (modoEdicion.value) await axios.put(`${API_COMPRAS}/${idEdicion.value}`, payload);
     else await axios.post(API_COMPRAS, payload);
-    mensaje.value = modoEdicion.value ? '¡Actualizado!' : '¡Guardado!';
+    mensaje.value = modoEdicion.value ? '¡Actualizado!' : '¡Guardado con éxito!';
     tipoMensaje.value = 'success';
     await cargarDatos(); 
     setTimeout(() => { mensaje.value = ''; if (modoEdicion.value) cancelarEdicion(); else resetForm(); mostrandoLista.value = true; }, 1500);
-  } catch (error) { tipoMensaje.value = 'error'; mensaje.value = error.response?.data?.message || 'Error'; } 
+  } catch (error) { tipoMensaje.value = 'error'; mensaje.value = error.response?.data?.message || 'Error al guardar'; } 
   finally { cargando.value = false; }
 };
 
-// Dentro de tu lógica de Vue
-const exportarAJSON = async () => {
-  try {
-    // Usamos el NIT del declarante seleccionado o el por defecto
-    const nitExport = declaranteSeleccionado.value?.iddeclaNIT || '06192901600027';
-    
-    const params = {
-      mes: formulario.value.mesDeclarado, 
-      anio: formulario.value.anioDeclarado,
-      nit: nitExport
-    };
+const eliminarCompra = async (id) => { if(confirm('¿Eliminar registro?')) { try { await axios.delete(`${API_COMPRAS}/${id}`); await cargarDatos(); } catch (e) { alert('Error'); } } };
+const formatearFecha = (f) => f ? new Date(f).toLocaleDateString() : '---';
+const obtenerCodigo = (t) => t ? t.split('.')[0] : 'Doc';
 
-    // Usamos BASE_URL dinámico en lugar de IP fija
-    const response = await axios.get(`${BASE_URL}/api/compras/exportar`, { 
-      params,
-      responseType: 'json' 
-    });
-
-    if (response.data.lista_compras.length === 0) {
-      alert("No hay datos para exportar en el periodo seleccionado.");
-      return;
-    }
-
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `RentaLimpio_Compras_${params.mes}_${params.anio}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-
-    tipoMensaje.value = 'success';
-    mensaje.value = '✅ Archivo JSON generado';
-    setTimeout(() => mensaje.value = '', 2000);
-
-  } catch (error) {
-    console.error("Error al exportar:", error);
-    alert("Error al conectar con el servidor. Verifica que el backend esté corriendo.");
-  }
-};
-
-const eliminarCompra = async (id) => { if(confirm('¿Eliminar?')) { try { await axios.delete(`${API_COMPRAS}/${id}`); await cargarDatos(); } catch (e) { alert('Error'); } } };
-const formatearFecha = (f) => f ? (new Date(f).toISOString().split('T')[0]) : '---';
-const obtenerCodigo = (t) => t ? t.split('.')[0].split(' ')[0] : '??';
 onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* Estilos generales existentes */
-.compras-container { padding: 2rem; background: #f0f2f5; min-height: 100vh; }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
-.header-buttons { display: flex; gap: 10px; }
-.btn-toggle { background: #55C2B7; color: white; padding: 10px 20px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.btn-volver { background: #666; color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer; }
-.card-form, .card-lista-full { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 1200px; margin: 0 auto; border-top: 5px solid #55C2B7; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
-.grid-fiscal { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-.grid-montos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-.form-group { display: flex; flex-direction: column; }
-.form-group-duo { display: flex; gap: 10px; }
-.form-group-duo .form-group { flex: 1; }
-label { font-weight: bold; margin-bottom: 5px; color: #555; font-size: 0.85rem; }
-input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
-.select-destacado { border: 2px solid #b2dfdb; background-color: #fafdff; font-weight: 500; font-size: 0.8rem;}
-.required { color: #d32f2f; margin-left: 3px; }
-.input-error { border: 2px solid #d32f2f !important; background-color: #ffebee; }
-.error-borde { border: 2px solid #d32f2f; border-radius: 8px; padding: 10px; background-color: #ffebee; }
-.msg-error { color: #d32f2f; font-size: 0.75rem; margin-top: 3px; font-weight: bold; }
-.seccion-montos { background: #f9f9f9; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #eee; }
-.sub-seccion { margin-bottom: 1rem; border-bottom: 1px dashed #ddd; padding-bottom: 1rem; }
-.sub-label { display: block; font-weight: bold; color: #55C2B7; margin-bottom: 5px; font-size: 0.9rem; }
-.input-monto { font-size: 1rem; font-weight: bold; }
-.input-monto.principal { border-color: #55C2B7; color: #333; }
-.input-monto.secundario { border-color: #ff9800; color: #333; }
-.input-sm { font-size: 0.9rem; padding: 8px; }
-.input-total { font-size: 1.3rem; font-weight: bold; color: #55C2B7; border: 2px solid #55C2B7; width: 160px; text-align: right; }
-.resultado-calculo { margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-.fila-res { display: flex; align-items: center; gap: 10px; }
-.fila-res span { font-weight: bold; color: #666; }
-.fila-res.total span { color: #55C2B7; font-size: 1.1rem; }
-.buscador-wrapper { position: relative; }
-.input-buscador { width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 8px; }
-.lista-sugerencias { position: absolute; background: white; width: 100%; border: 1px solid #ddd; z-index: 10; list-style: none; padding: 0; max-height: 200px; overflow-y: auto; }
-.lista-sugerencias li { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
-.lista-sugerencias li:hover { background: #e0f7fa; }
-.proveedor-seleccionado { background: #e0f7fa; padding: 10px; border: 1px solid #55C2B7; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
-.btn-cambiar { background: none; border: none; color: #d32f2f; text-decoration: underline; cursor: pointer; }
-.no-resultados-container { margin-top: 5px; }
-.no-resultados { color: #666; font-size: 0.9rem; margin-bottom: 5px; }
-.btn-crear-prov { background: #2196f3; color: white; border: none; padding: 8px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.85rem; }
-.tabla-container { overflow-x: auto; margin-top: 1rem; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px; border-bottom: 2px solid #eee; color: #777; font-size: 0.9rem; }
-td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: middle; font-size: 0.9rem; }
-.badges-container { display: flex; gap: 3px; margin-bottom: 2px; flex-wrap: wrap; }
-.badge { font-size: 0.7rem; font-weight: bold; padding: 1px 4px; border-radius: 3px; }
-.badge-tipo { background: #e3f2fd; color: #1565c0; }
-.badge-op { background: #fff3e0; color: #e65100; }
-.montos-mini { font-size: 0.8rem; color: #555; display: flex; flex-direction: column; }
-.monto-total { font-weight: bold; color: #55C2B7; }
-.actions { display: flex; gap: 10px; margin-top: 1.5rem; }
-.btn-guardar { flex: 1; background: #55C2B7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.btn-cancelar { background: #999; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.alert-box { margin-top: 1rem; padding: 10px; text-align: center; border-radius: 5px; font-weight: bold; }
-.alert-box.success { background: #e8f7f5; color: #00695c; }
-.alert-box.error { background: #ffebee; color: #c62828; }
-
-/* --- ESTILOS INPUT CCF (COMPUESTO) --- */
-.input-ccf-container {
-    display: flex;
-    align-items: center;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    padding: 2px;
-    background-color: white;
-    gap: 2px;
-    width: 100%;
-}
-.input-ccf-container.input-error {
-    border: 2px solid #d32f2f;
-    background-color: #ffebee;
-}
-.prefix {
-    font-weight: bold;
-    color: #55C2B7;
-    background: #f0fdfc;
-    padding: 6px 4px;
-    border-radius: 4px;
-    font-size: 0.85rem;
-    user-select: none;
-}
-.input-part {
-    border: none;
-    outline: none;
-    text-align: center;
-    font-family: monospace;
-    font-size: 0.95rem;
-    padding: 6px 2px;
-    background: transparent;
-    color: #333;
-    font-weight: bold;
-}
-.input-part:focus {
-    background-color: #e0f7fa;
-    border-radius: 4px;
-}
-/* Tamaños específicos */
-.part-small { width: 30px; }
-.part-medium { width: 40px; }
-.part-large { flex: 1; text-align: right; letter-spacing: 1px; } 
-.hint-text {
-    font-size: 0.7rem;
-    color: #999;
-    margin-top: 2px;
+/* --- ESTILO MATERIAL DESIGN / VUE CLEAN --- */
+.compras-container {
+  padding: 20px;
+  /* F O N D O   D E S V A N E C I D O   (TINTED BACKGROUND) */
+  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
-/* --- ESTILO FALTANTE: LETRA SERIE (S) --- */
-.part-letter {
-    width: 25px; /* Ancho pequeño */
-    text-align: center;
-    font-weight: bold;
-    color: #e65100; /* Naranja para destacar */
-    background-color: #fff3e0;
-    border-radius: 4px;
-    margin: 0 2px;
+/* Encabezado */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
 }
-.part-letter:focus {
-    background-color: #ffe0b2;
-    outline: none;
+
+.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
+.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
+
+/* Tarjetas */
+.card {
+  background: white;
+  border-radius: 12px; 
+  border: 1px solid rgba(85, 194, 183, 0.15); 
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025); 
+  padding: 24px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+.card-header {
+  border-bottom: 1px solid #f0fdfa; 
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.badge-info { 
+  font-size: 0.75rem; 
+  background: #e0f2fe; 
+  color: #0369a1; 
+  padding: 4px 10px; 
+  border-radius: 20px; 
+  font-weight: 600;
+  display: inline-block;
+  margin-top: 5px;
+}
+
+/* Formularios */
+.form-section { margin-bottom: 30px; }
+.section-title { 
+  font-size: 1rem; 
+  color: #374151; 
+  font-weight: 700; 
+  margin-bottom: 15px; 
+  border-left: 4px solid #55C2B7; 
+  padding-left: 12px; 
+}
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+
+.form-group { margin-bottom: 5px; }
+.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* Inputs Estilo "Vue/Tailwind" */
+.form-control {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1f2937;
+  background-color: #f9fafb; 
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease-in-out;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  background-color: #fff;
+  border-color: #55C2B7;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2);
+}
+
+.input-error .form-control, .has-error .form-control { border-color: #ef4444; background-color: #fef2f2; }
+.error-msg { font-size: 0.75rem; color: #ef4444; margin-top: 4px; font-weight: 600; display: block; }
+.text-danger { color: #ef4444; }
+
+/* Input Group (Año/Mes) */
+.input-group { display: flex; gap: 10px; }
+.year-input { max-width: 120px; }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem;
+  border-radius: 0.5rem; border: none; cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.btn:active { transform: translateY(1px); }
+
+.btn-primary { background-color: #55C2B7; color: white; } 
+.btn-primary:hover { background-color: #45a89d; box-shadow: 0 4px 6px -1px rgba(85, 194, 183, 0.4); }
+
+.btn-success { background-color: #10b981; color: white; }
+.btn-success:hover { background-color: #059669; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.4); }
+
+.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
+.btn-secondary:hover { background-color: #f3f4f6; color: #111827; }
+
+.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; transition: all 0.2s; color: #6b7280; }
+.btn-icon:hover { background-color: #f9fafb; border-color: #d1d5db; color: #111827; transform: scale(1.05); }
+
+/* DTE Mask Custom */
+.dte-mask-container {
+  display: flex; align-items: center;
+  border: 1px solid #d1d5db; border-radius: 0.5rem;
+  background: #f9fafb; overflow: hidden;
+  transition: all 0.2s;
+}
+.dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
+
+.dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
+.dte-sep { padding: 0 5px; color: #9ca3af; font-weight: bold; }
+.dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
+.w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
+.dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
+
+/* Listas de Sugerencias */
+.search-box { position: relative; }
+.suggestions-list {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: white; border: 1px solid #e5e7eb;
+  border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  z-index: 50; max-height: 220px; overflow-y: auto; list-style: none; padding: 0; margin-top: 4px;
+}
+.suggestions-list li { padding: 10px 14px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; justify-content: space-between; align-items: center; }
+.suggestions-list li:hover { background-color: #f0fdfa; color: #0f766e; }
+
+.selected-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: #f0fdfa; border: 1px solid #ccfbf1; border-radius: 0.5rem; }
+.selected-info { display: flex; gap: 12px; align-items: center; }
+.icon { font-size: 1.2rem; background: white; padding: 6px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+.btn-text { background: none; border: none; cursor: pointer; text-decoration: none; font-size: 0.8rem; font-weight: 600; border-bottom: 1px dashed #ef4444; padding: 0; }
+.btn-text:hover { border-bottom-style: solid; }
+
+/* No results */
+.no-results { padding: 10px; font-size: 0.9rem; color: #6b7280; display: flex; gap: 10px; align-items: center; }
+.btn-link { background: none; border: none; color: #55C2B7; font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+/* Tabla */
+.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+.table { width: 100%; border-collapse: collapse; background: white; }
+.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
+.table tr:last-child td { border-bottom: none; }
+.table tr:hover td { background-color: #f9fafb; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+
+/* Montos */
+.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
+.monto-group { flex: 1; min-width: 150px; }
+.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
+.input-wrapper { position: relative; }
+.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
+.monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
+.total-group .monto-label { color: #0d9488; }
+.total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
+
+.advanced-options summary { cursor: pointer; color: #55C2B7; font-size: 0.85rem; font-weight: 600; padding: 12px 0; user-select: none; transition: color 0.2s; }
+.advanced-options summary:hover { color: #0d9488; text-decoration: underline; }
+
+.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
+
+/* Alertas */
+.alert { padding: 12px 16px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
+.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+
+@media (max-width: 768px) {
+  .montos-wrapper { flex-direction: column; }
+  .monto-group { width: 100%; }
+  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { width: 100%; }
 }
 </style>

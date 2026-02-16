@@ -1,35 +1,31 @@
 @import './base.css';
 
+/* 1. RESET GLOBAL PARA APLICACIÓN DE ESCRITORIO */
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden; /* Evitamos que la ventana principal tenga barras de scroll */
+}
+
+/* 2. CONFIGURACIÓN DEL CONTENEDOR PRINCIPAL DE VUE */
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  max-width: none; /* ELIMINAMOS el límite de 1280px */
+  display: block;  /* ELIMINAMOS el display: grid que centraba todo */
   font-weight: normal;
+  background-color: #f3f4f6; /* Fondo base consistente */
 }
 
-a,
-.green {
+/* 3. ESTILOS DE ENLACES (Opcional, para mantener coherencia) */
+a {
   text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
+  color: inherit;
+  transition: 0.3s;
 }
 
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
-}
-
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-
-  #app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 2rem;
-  }
-}
+/* Eliminamos los media queries antiguos que centraban el contenido en pantallas grandes */
