@@ -7,9 +7,13 @@
 
       <nav class="menu-nav">
         <router-link to="/inicio" class="nav-item">🏠 Inicio</router-link>
+
+        <div class="nav-label">HACIENDA / DATA</div>
+        <router-link to="/importar-exportar" class="nav-item">🔄 Centro JSON</router-link>
         
         <div class="nav-label">VENTAS</div>
         <router-link to="/venta-consumidor" class="nav-item">🧾 Consumidor Final</router-link>
+        <router-link to="/ventas-terceros" class="nav-item">🤝 Ventas Terceros</router-link>
         <router-link to="/venta-credito" class="nav-item">🏢 Crédito Fiscal</router-link>
         <router-link to="/clientes" class="nav-item">👥 Clientes</router-link>
 

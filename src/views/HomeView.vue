@@ -39,7 +39,7 @@
           <div class="dropdown-menu">
             <router-link to="/venta-consumidor" class="menu-item">🧾 Consumidor Final</router-link>
             <router-link to="/venta-credito" class="menu-item">🏢 Crédito Fiscal</router-link>
-            <router-link to="/venta-terceros" class="menu-item">🤝 Venta por Terceros</router-link>
+            <router-link to="/ventas-terceros" class="menu-item">🤝 Venta por Terceros</router-link>
             <div class="divider"></div>
             <router-link to="/clientes-menu" class="menu-item">👥 Gestión de Clientes</router-link>
           </div>
@@ -67,6 +67,17 @@
             <router-link to="/percepcion-1-por-declarante" class="menu-item">🔵 Perc. 1% por Declarante</router-link>
             <router-link to="/percepcion-1-al-declarante" class="menu-item">🟢 Perc. 1% al Declarante</router-link>
           </div>
+        </div>
+
+        <div class="nav-group dropdown">
+          <button class="nav-btn">
+            📂 Archivos <span class="arrow">▾</span>
+          </button>
+          <div class="dropdown-menu">
+            <router-link to="/importar-exportar" class="menu-item">
+              🔄 Centro de Import/Export
+            </router-link>
+            </div>
         </div>
 
       </nav>

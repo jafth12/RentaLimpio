@@ -521,6 +521,36 @@ const guardarCompra = async () => {
   finally { cargando.value = false; }
 };
 
+// Dentro de tu lógica de Vue
+const exportarAJSON = async () => {
+  try {
+    // Estos valores deben venir de tus modelos v-model (ej: filtros de búsqueda)
+    const params = {
+      mes: mesSeleccionado.value, 
+      anio: anioSeleccionado.value,
+      nit: '06192901600027' // NIT del declarante
+    };
+
+    const response = await axios.get('http://190.62.2.18:3000/api/compras/exportar', { 
+      params,
+      responseType: 'json' 
+    });
+
+    // Crear el archivo para descargar
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `Reporte_Compras_${params.mes}_${params.anio}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+
+  } catch (error) {
+    console.error("Error al exportar:", error);
+    alert("No se pudo generar el archivo. Revisa que existan datos para ese mes/año.");
+  }
+};
+
 const eliminarCompra = async (id) => { if(confirm('¿Eliminar?')) { try { await axios.delete(`${API_COMPRAS}/${id}`); await cargarDatos(); } catch (e) { alert('Error'); } } };
 const formatearFecha = (f) => f ? (new Date(f).toISOString().split('T')[0]) : '---';
 const obtenerCodigo = (t) => t ? t.split('.')[0].split(' ')[0] : '??';

@@ -14,6 +14,7 @@ import declarantesRoutes from './src/routes/declarantes.routes.js';
 // MÓDULOS DE VENTAS
 import ventasCFRoutes from './src/routes/ventasCF.routes.js'; 
 import ventasCCFRoutes from './src/routes/ventasCreditoFiscal.routes.js'
+import ventasTercerosRoutes from './src/routes/ventasTerceros.routes.js';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use('/api', sujetosRoutes);
 app.use('/api', ventasCCFRoutes);
 app.use('/api', declarantesRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api', ventasTercerosRoutes);
 
 app.get('/', (req, res) => {
     res.send('<h1>¡Sistema de Renta Activo! 🇸🇻</h1>');

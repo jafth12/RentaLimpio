@@ -19,10 +19,11 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: [
+    allowedHosts: true
+    /*allowedHosts: [
       '190.62.2.18',
       '192.168.1.7',
       'localhost'
-    ]
+    ]*/
   }
 })

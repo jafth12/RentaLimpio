@@ -11,6 +11,8 @@ import ProveedoresView from '../views/ProveedoresView.vue'
 import VentasConsumidorView from '../views/VentasConsumidorView.vue'
 import VentasCreditoFiscalView from '../views/VentasCreditoFiscalView.vue'
 import AdminUsuariosView from '../views/AdminUsuariosView.vue'
+import VentasTercerosView from '../views/VentasTercerosView.vue'
+import ImportExportView from '../views/ImportExportView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -67,11 +69,21 @@ const router = createRouter({
             component: AdminUsuariosView,
             meta: { requiresAuth: true }
         },
+        {
+            path: '/venta-terceros',
+            name: 'ventas-terceros',
+            component: VentasTercerosView
+        },
+        {
+          path: '/importar-exportar',
+          name: 'importar-exportar',
+          component: ImportExportView,
+          meta: { requiresAuth: true }
+         },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
         // Se eliminaron las rutas que ya tienen módulos activos arriba
 
-        { path: '/venta-terceros', name: 'Venta por Terceros', component: EnConstruccion },
         { path: '/clientes-menu', name: 'Gestion de Clientes', component: EnConstruccion },
 
         { path: '/retencion-1-declarante', name: 'Retencion 1% al Declarante', component: EnConstruccion },
