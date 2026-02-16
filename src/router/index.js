@@ -14,6 +14,7 @@ import AdminUsuariosView from '../views/AdminUsuariosView.vue'
 import VentasTercerosView from '../views/VentasTercerosView.vue'
 import ImportExportView from '../views/ImportExportView.vue';
 import JsonReaderView from '../views/JsonReaderView.vue';
+import ClientesView from '../views/ClientesView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -86,11 +87,15 @@ const router = createRouter({
              name: 'lector-json',
             component: JsonReaderView
         },
+         { 
+            path: '/clientes-menu', 
+            name: 'Gestion de Clientes',
+            component: ClientesView, 
+            meta:{ requiresAuth: true } 
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
         // Se eliminaron las rutas que ya tienen módulos activos arriba
-
-        { path: '/clientes-menu', name: 'Gestion de Clientes', component: EnConstruccion },
 
         { path: '/retencion-1-declarante', name: 'Retencion 1% al Declarante', component: EnConstruccion },
         { path: '/retencion-13-terceros', name: 'Retencion 13% a Terceros', component: EnConstruccion },

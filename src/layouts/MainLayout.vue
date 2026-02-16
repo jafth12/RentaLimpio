@@ -15,7 +15,7 @@
         <router-link to="/venta-consumidor" class="nav-item">🧾 Consumidor Final</router-link>
         <router-link to="/ventas-terceros" class="nav-item">🤝 Ventas Terceros</router-link>
         <router-link to="/venta-credito" class="nav-item">🏢 Crédito Fiscal</router-link>
-        <router-link to="/clientes" class="nav-item">👥 Clientes</router-link>
+        <router-link to="/clientes-menu" class="nav-item">👥 Clientes</router-link>
 
         <div class="nav-label">COMPRAS</div>
         <router-link to="/compras" class="nav-item">🛒 Compras</router-link>

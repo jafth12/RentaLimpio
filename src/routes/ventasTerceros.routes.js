@@ -6,7 +6,7 @@ const router = Router();
 
 router.get('/ventas-terceros', getVentas);
 router.post('/ventas-terceros', createVenta);
-router.put('/ventas-terceros:id', updateVenta);
-router.delete('/ventas-terceros:id', requireAdmin, deleteVenta);
+router.put('/ventas-terceros/:id', updateVenta);
+router.delete('/ventas-terceros/:id', requireAdmin, deleteVenta);
 
 export default router;
