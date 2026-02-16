@@ -90,20 +90,18 @@ import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const BASE_URL = 'http://localhost:3000';
+const hostname = window.location.hostname; // Usamos IP dinámica para evitar error de red
+const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
 const datosProcesados = ref(null);
 const cargando = ref(false);
 const payloadFinal = ref(null);
 
-// Función auxiliar para limpiar NIT
 const limpiarNit = (texto) => texto ? texto.toString().replace(/[^0-9]/g, '') : '';
 
 // --- NORMALIZADOR DE BACKUPS ---
-// Esta función arregla los nombres de claves si vienen de un Backup antiguo o diferente
 const normalizarPayload = (json) => {
-  // Aseguramos estructura base
   const normalizado = {
     encabezado: json.encabezado || { 
       nit_declarante: miNit.value, 
@@ -118,18 +116,14 @@ const normalizarPayload = (json) => {
   };
 
   if (json.modulos) {
-    // Mapeo directo y corrección de nombres
     normalizado.modulos.compras = json.modulos.compras || [];
     normalizado.modulos.ventas_credito_fiscal = json.modulos.ventas_credito_fiscal || [];
     normalizado.modulos.sujetos_excluidos = json.modulos.sujetos_excluidos || [];
-    
-    // CORRECCIÓN CRÍTICA: El exportador usa "ventas_consumidor_final", el importador usa "ventas_consumidor"
     normalizado.modulos.ventas_consumidor = 
       json.modulos.ventas_consumidor || 
       json.modulos.ventas_consumidor_final || 
       [];
   }
-
   return normalizado;
 };
 
@@ -200,13 +194,9 @@ const cargarArchivo = (event) => {
     try {
       const jsonRaw = JSON.parse(e.target.result);
       
-      // CASO A: Es un Backup generado por el sistema
       if (jsonRaw.modulos) {
         payloadFinal.value = normalizarPayload(jsonRaw);
-      } 
-      // CASO B: Es un archivo de Hacienda (DTE)
-      else {
-        // Inicializar estructura vacía
+      } else {
         const estructura = normalizarPayload({}); 
         const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
         
@@ -219,30 +209,43 @@ const cargarArchivo = (event) => {
         });
         payloadFinal.value = estructura;
       }
-
       datosProcesados.value = true;
-
     } catch (error) {
-      console.error(error);
       alert("Error: El archivo no es un JSON válido.");
     }
   };
   reader.readAsText(file);
 };
 
-// --- ENVIAR ---
+// --- ENVIAR (AQUÍ ESTÁ LA CORRECCIÓN) ---
 const enviarAlBackend = async () => {
   cargando.value = true;
   try {
-    const res = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
-    const det = res.data.detalle;
-    alert(`✅ Importación Exitosa:\n\n` +
-          `Compras: ${det.compras.insertadas}\n` +
-          `Ventas CF: ${det.ventas_credito_fiscal.insertadas}\n` +
-          `Consumidor: ${det.ventas_consumidor.insertadas}`);
+    const response = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
+    
+    // El backend ahora devuelve una estructura simple (números), no objetos complejos
+    const reporte = response.data.detalle || {};
+    
+    // Usamos ?. para evitar errores si algo viene undefined
+    const compras = reporte.compras || 0;
+    const ventasCCF = reporte.ventas_ccf || reporte.ventas_credito_fiscal || 0;
+    const ventasCF = reporte.ventas_cf || reporte.ventas_consumidor || 0;
+    const errores = reporte.errores || 0;
+
+    alert(`
+      ✅ PROCESO FINALIZADO
+      
+      📥 Compras Guardadas: ${compras}
+      📥 Ventas CCF Guardadas: ${ventasCCF}
+      📥 Ventas Consumidor: ${ventasCF}
+      
+      ⚠️ Errores/Omitidos: ${errores}
+    `);
+    
     limpiar();
   } catch (error) {
-    alert("Error: " + (error.response?.data?.message || error.message));
+    const msg = error.response?.data?.message || error.message;
+    alert("⛔ Ocurrió un error: " + msg);
   } finally {
     cargando.value = false;
   }
@@ -255,7 +258,6 @@ const limpiar = () => {
 </script>
 
 <style scoped>
-/* Estilos Limpios y Modernos */
 .reader-container { max-width: 900px; margin: 0 auto; padding: 20px; font-family: 'Segoe UI', sans-serif; }
 .header-box { text-align: center; margin-bottom: 30px; }
 .config-card { background: #e3f2fd; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #90caf9; margin-bottom: 20px; }
@@ -264,12 +266,10 @@ const limpiar = () => {
 .drop-zone { border: 3px dashed #ccc; padding: 50px; border-radius: 15px; text-align: center; cursor: pointer; width: 100%; background: #fafafa; }
 .drop-zone:hover { border-color: #2196f3; background: #e3f2fd; }
 .icon { font-size: 3rem; display: block; margin-bottom: 10px; }
-
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin: 20px 0; }
 .stat-card { padding: 15px; border-radius: 10px; color: white; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 .number { font-size: 2.2rem; font-weight: bold; margin: 5px 0; }
 .blue { background: #2196f3; } .green { background: #4caf50; } .orange { background: #ff9800; } .purple { background: #9c27b0; }
-
 .table-container { margin-top: 20px; overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 15px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; }
