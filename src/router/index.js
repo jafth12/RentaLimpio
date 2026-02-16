@@ -13,6 +13,7 @@ import VentasCreditoFiscalView from '../views/VentasCreditoFiscalView.vue'
 import AdminUsuariosView from '../views/AdminUsuariosView.vue'
 import VentasTercerosView from '../views/VentasTercerosView.vue'
 import ImportExportView from '../views/ImportExportView.vue';
+import JsonReaderView from '../views/JsonReaderView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,7 +71,7 @@ const router = createRouter({
             meta: { requiresAuth: true }
         },
         {
-            path: '/venta-terceros',
+            path: '/ventas-terceros',
             name: 'ventas-terceros',
             component: VentasTercerosView
         },
@@ -80,6 +81,11 @@ const router = createRouter({
           component: ImportExportView,
           meta: { requiresAuth: true }
          },
+         {
+             path: '/lector-json',
+             name: 'lector-json',
+            component: JsonReaderView
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
         // Se eliminaron las rutas que ya tienen módulos activos arriba

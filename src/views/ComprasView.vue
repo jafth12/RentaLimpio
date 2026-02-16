@@ -524,30 +524,41 @@ const guardarCompra = async () => {
 // Dentro de tu lógica de Vue
 const exportarAJSON = async () => {
   try {
-    // Estos valores deben venir de tus modelos v-model (ej: filtros de búsqueda)
+    // Usamos el NIT del declarante seleccionado o el por defecto
+    const nitExport = declaranteSeleccionado.value?.iddeclaNIT || '06192901600027';
+    
     const params = {
-      mes: mesSeleccionado.value, 
-      anio: anioSeleccionado.value,
-      nit: '06192901600027' // NIT del declarante
+      mes: formulario.value.mesDeclarado, 
+      anio: formulario.value.anioDeclarado,
+      nit: nitExport
     };
 
-    const response = await axios.get('http://190.62.2.18:3000/api/compras/exportar', { 
+    // Usamos BASE_URL dinámico en lugar de IP fija
+    const response = await axios.get(`${BASE_URL}/api/compras/exportar`, { 
       params,
       responseType: 'json' 
     });
 
-    // Crear el archivo para descargar
+    if (response.data.lista_compras.length === 0) {
+      alert("No hay datos para exportar en el periodo seleccionado.");
+      return;
+    }
+
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(response.data, null, 2));
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `Reporte_Compras_${params.mes}_${params.anio}.json`);
+    downloadAnchorNode.setAttribute("download", `RentaLimpio_Compras_${params.mes}_${params.anio}.json`);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
 
+    tipoMensaje.value = 'success';
+    mensaje.value = '✅ Archivo JSON generado';
+    setTimeout(() => mensaje.value = '', 2000);
+
   } catch (error) {
     console.error("Error al exportar:", error);
-    alert("No se pudo generar el archivo. Revisa que existan datos para ese mes/año.");
+    alert("Error al conectar con el servidor. Verifica que el backend esté corriendo.");
   }
 };
 
