@@ -185,6 +185,12 @@ const formulario = ref({
     telefono: '', email: ''
 });
 
+const datosParaEnviar = {
+    ...formulario.value,
+    nombre: formulario.value.nombre.toUpperCase(),
+    nit: formulario.value.nit.replace(/-/g, '').trim(),
+    registro: formulario.value.nrc // Mapeamos nrc a registro para el controller
+};
 const listaClientes = ref([]);
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
@@ -221,33 +227,40 @@ const cargarClientes = async () => {
 };
 
 const guardarCliente = async () => {
+    // 1. Validación de Auditoría Fiscal
+    if (formulario.value.categoria !== 'Consumidor Final') {
+        if (!formulario.value.nrc || !formulario.value.giro) {
+            tipoMensaje.value = 'error';
+            mensaje.value = '⚠️ ERROR DE AUDITORÍA: NRC y Giro son obligatorios para Contribuyentes.';
+            return;
+        }
+    }
+
+    // 2. Preparación de datos (Justo al momento de enviar)
+    const payload = {
+        ...formulario.value,
+        nombre: formulario.value.nombre.toUpperCase(), // Estándar contable
+        nit: formulario.value.nit.replace(/-/g, '').trim(), // Limpieza para la DB
+        registro: formulario.value.nrc // Mapeo correcto para el controller que arreglamos
+    };
+
     cargando.value = true;
     try {
         if(modoEdicion.value) {
-            // await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
-            // Simulación update
-            const index = listaClientes.value.findIndex(c => c.id === idEdicion.value);
-            if (index !== -1) listaClientes.value[index] = { ...formulario.value, id: idEdicion.value };
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Cliente actualizado!';
+            await axios.put(`${API_URL}/${idEdicion.value}`, payload);
+            mensaje.value = '¡Ficha de cliente actualizada y auditada!';
         } else {
-            // await axios.post(API_URL, formulario.value);
-            // Simulación insert
-            listaClientes.value.unshift({ ...formulario.value, id: Date.now() });
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Cliente registrado con éxito!';
+            await axios.post(API_URL, payload);
+            mensaje.value = '¡Cliente registrado con éxito fiscal!';
         }
         
+        tipoMensaje.value = 'success';
+        await cargarClientes(); // Refrescamos la lista de la PowerEdge
         resetForm();
-        setTimeout(() => { 
-            mensaje.value = ''; 
-            mostrandoLista.value = true; 
-        }, 1500);
+        setTimeout(() => { mostrandoLista.value = true; }, 1500);
     } catch (error) {
         tipoMensaje.value = 'error';
-        mensaje.value = 'Error al guardar cliente.';
+        mensaje.value = error.response?.data?.message || 'Error al conectar con el servidor de datos.';
     } finally {
         cargando.value = false;
     }

@@ -12,37 +12,37 @@ export const getVentas = async (req, res) => {
 
 // Crear nueva venta
 export const createVenta = async (req, res) => {
-    const {
-        VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc,
-        VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc,
-        VtaGraTerMontoOper, VtaGraTerIVAOper,
-        VtaGraTerSerieCompLiq, VtaGraTerNumCompLiq, VtaGraTerFechaCompLiq,
-        VtaGraTerAnexo
-    } = req.body;
+    const data = req.body;
 
-    // Validación básica (Igual que en tu ejemplo de sujetos)
-    if (!VtaGraTerFecha || !VtaGraTerNit || !VtaGraTerMontoOper) {
-        return res.status(400).json({ message: 'Faltan datos obligatorios (Fecha, Nit o Monto)'});
+    // Validación de Auditoría: No permitimos registros sin identidad
+    if (!data.iddeclaNIT || !data.VtaGraTerFecha || !data.VtaGraTerNit) {
+        return res.status(400).json({ message: 'Auditoría: ID Declarante, Fecha y NIT son obligatorios.'});
     }
 
     try {
+        // Aseguramos que el dinero llegue como número para la PowerEdge
+        const monto = parseFloat(data.VtaGraTerMontoOper) || 0;
+        const iva = data.VtaGraTerIVAOper ? parseFloat(data.VtaGraTerIVAOper) : (monto * 0.13);
+
         const [result] = await pool.query(
             `INSERT INTO vtagravterdomici 
-            (VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc, 
+            (iddeclaNIT, VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc, 
              VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc, 
              VtaGraTerMontoOper, VtaGraTerIVAOper, 
-             VtaGraTerSerieCompLiq, VtaGraTerNumCompLiq, VtaGraTerFechaCompLiq, VtaGraTerAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VtaGraTerSerieCompLiq, VtaGraTerResolCompLiq, VtaGraTerNumCompLiq, 
+             VtaGraTerFechaCompLiq, VtaGraTerDUI, VtaGraTerAnexo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc,
-                VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc,
-                VtaGraTerMontoOper, VtaGraTerIVAOper,
-                VtaGraTerSerieCompLiq, VtaGraTerNumCompLiq, VtaGraTerFechaCompLiq, VtaGraTerAnexo
+                data.iddeclaNIT, data.VtaGraTerNit, data.VtaGraTerNom, data.VtaGraTerFecha, 
+                data.LisVtaGraTerTipoDoc || '03', data.VtaGraTerNumSerie, data.VtaGraTerNumResolu, 
+                data.VtaGraTerNumDoc, monto, iva,
+                data.VtaGraTerSerieCompLiq, data.VtaGraTerResolCompLiq, data.VtaGraTerNumCompLiq, 
+                data.VtaGraTerFechaCompLiq, data.VtaGraTerDUI, data.VtaGraTerAnexo || '3'
             ]
         );
-        res.status(201).json({ message: 'Venta a Terceros guardada con éxito', id: result.insertId });
+        res.status(201).json({ message: 'Venta a Terceros Certificada', id: result.insertId });
     } catch (error) {
-        res.status(500).json({ message: 'Error al guardar', error: error.message });
+        res.status(500).json({ message: 'Falla en la Integridad de Datos', error: error.message });
     }
 };
 

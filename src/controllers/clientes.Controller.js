@@ -13,54 +13,39 @@ export const getClientes = async (req, res) => {
 
 // 2. CREAR UN CLIENTE
 export const createCliente = async (req, res) => {
-    // Extraemos los datos y asignamos valores por defecto ('') si vienen vacíos
-    const { 
-        nit, 
-        nombre, 
-        direccion = '', 
-        departamento = '', 
-        giro = '', 
-        registro = '', 
-        tel1 = '', 
-        tel2 = '', 
-        correo = '', 
-        observacion = '' 
-    } = req.body;
+    let { nit, nombre, direccion, departamento, giro, registro, tel1, tel2, correo, observacion } = req.body;
 
-    // Validación mínima obligatoria
-    if (!nit || !nombre) {
-        return res.status(400).json({ message: 'El NIT y el Nombre del cliente son obligatorios.' });
+    // 1. Estandarización de Auditoría: Limpiamos el NIT de guiones/espacios
+    const nitLimpio = nit ? nit.replace(/-/g, '').trim() : null;
+
+    if (!nitLimpio || !nombre) {
+        return res.status(400).json({ message: 'Error de Auditoría: NIT y Nombre son obligatorios.' });
     }
 
     try {
-        // Verificar si ya existe
-        const [existente] = await pool.query('SELECT ClienNIT FROM clientes WHERE ClienNIT = ?', [nit]);
+        // Verificar duplicidad con el NIT estandarizado
+        const [existente] = await pool.query('SELECT ClienNIT FROM clientes WHERE ClienNIT = ?', [nitLimpio]);
         if (existente.length > 0) {
-            return res.status(400).json({ message: 'El NIT ya está registrado en clientes.' });
+            return res.status(400).json({ message: 'Este NIT ya consta en nuestros registros contables.' });
         }
 
-        const [result] = await pool.query(
+        await pool.query(
             `INSERT INTO clientes 
             (ClienNIT, ClienNom, ClienDirec, ClienDepto, ClienGiro, ClienNumReg, ClienTel1, ClienTel2, ClienCorreo, ClienObserv) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-                nit, 
-                nombre, 
-                direccion || '', 
-                departamento || '', 
-                giro || '', 
-                registro || '', 
-                tel1 || '', 
-                tel2 || '', 
-                correo || '', 
-                observacion || ''
-            ]
+            [nitLimpio, nombre.toUpperCase(), direccion || '', departamento || '', giro || '', registro || '', tel1 || '', tel2 || '', correo || '', observacion || '']
         );
 
-        res.json({ message: 'Cliente registrado exitosamente', id: result.insertId });
+        // Informamos si el registro es apto para operaciones de Crédito Fiscal
+        const esAptoCCF = (registro && giro) ? true : false;
+
+        res.json({ 
+            message: 'Cliente registrado exitosamente', 
+            nit: nitLimpio,
+            aptoParaCCF: esAptoCCF 
+        });
     } catch (error) {
-        console.error('❌ Error al crear cliente:', error);
-        res.status(500).json({ message: 'Error al guardar cliente', error: error.message });
+        res.status(500).json({ message: 'Falla de integridad en el servidor', error: error.message });
     }
 };
 

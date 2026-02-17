@@ -18,26 +18,48 @@ export const createCompra = async (req, res) => {
     const data = req.body;
     const mesFinal = data.mesDeclarado || obtenerMesDesdeFecha(data.fecha);
     const anioFinal = data.anioDeclarado || data.fecha.split('-')[0];
+    
     try {
         const [result] = await pool.query(
-            `INSERT INTO compras (ComFecha, ComNumero, proveedor_ProvNIT, ComNomProve, iddeclaNIT, ComMesDeclarado, ComAnioDeclarado, ComIntGrav, ComCredFiscal, ComTotal) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [data.fecha, data.numero, data.nitProveedor, data.nombreProveedor, data.iddeclaNIT, mesFinal, anioFinal, data.internasGravadas, data.iva, data.total]
+            `INSERT INTO compras (
+                ComFecha, ComClase, ComTipo, ComNumero, proveedor_ProvNIT, 
+                ComNomProve, iddeclaNIT, ComIntExe, ComIntGrav, ComCredFiscal, 
+                ComTotal, ComTipoOpeRenta, ComClasiRenta, ComSecNum, 
+                ComTipoCostoGasto, ComMesDeclarado, ComAnioDeclarado, ComOtroAtributo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                data.fecha, data.claseDocumento, data.tipoDocumento, data.numero, data.nitProveedor,
+                data.nombreProveedor, data.iddeclaNIT, data.internasExentas || 0, data.internasGravadas || 0, data.iva || 0,
+                data.total || 0, data.tipoOperacion, data.clasificacion, data.sector,
+                data.tipoCostoGasto, mesFinal, anioFinal, data.otroAtributo || 0
+            ]
         );
-        res.status(201).json({ message: 'Guardado', id: result.insertId });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        res.status(201).json({ message: 'Registro Contable Guardado Correctamente', id: result.insertId });
+    } catch (error) { res.status(500).json({ error: "Falla de Auditoría: " + error.message }); }
 };
 
-// ESTA FUNCIÓN FALTABA (SEGÚN TU LOG)
 export const updateCompra = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
     try {
-        await pool.query(`UPDATE compras SET ComFecha=?, ComNumero=?, ComIntGrav=?, ComTotal=? WHERE idcompras=?`, [data.fecha, data.numero, data.internasGravadas, data.total, id]);
-        res.json({ message: 'Actualizado' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        await pool.query(
+            `UPDATE compras SET 
+             ComFecha=?, ComClase=?, ComTipo=?, ComNumero=?, ComIntExe=?, 
+             ComIntGrav=?, ComCredFiscal=?, ComTotal=?, ComTipoOpeRenta=?, 
+              ComClasiRenta=?, ComSecNum=?, ComTipoCostoGasto=?, ComOtroAtributo=?,
+             ComNomProve=?, proveedor_ProvNIT=?, iddeclaNIT=?
+             WHERE idcompras=?`, 
+        [
+        data.fecha, data.claseDocumento, data.tipoDocumento, data.numero, data.internasExentas,
+        data.internasGravadas, data.iva, data.total, data.tipoOperacion,
+        data.clasificacion, data.sector, data.tipoCostoGasto, data.otroAtributo,
+        data.nombreProveedor, data.nitProveedor, data.iddeclaNIT, id
+        ]
+);
+        res.json({ message: 'Registro Actualizado y Auditado' });
+    } catch (error) { res.status(500).json({ error: "Error Crítico al Actualizar: " + error.message }); }
 };
 
-// ESTA FUNCIÓN FALTABA (SEGÚN TU LOG)
 export const deleteCompra = async (req, res) => {
     const { id } = req.params;
     try {
