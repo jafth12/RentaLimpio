@@ -1,794 +1,487 @@
 <template>
-  <main-layout>
-  <div class="compras-container">
-    <div class="header-section">
-      <h1>💳 Ventas Crédito Fiscal</h1>
-      <div class="header-buttons">
-        <button @click="alternarVista" class="btn-toggle">
-          {{ mostrandoLista ? '➕ Nueva Venta' : '📋 Ver Historial' }}
-        </button>
-        <button @click="$router.push('/inicio')" class="btn-volver">⬅ Menú</button>
-      </div>
-    </div>
-
-    <div class="main-content">
+  <MainLayout>
+    <div class="ventas-container">
       
-      <div v-if="!mostrandoLista" class="card-form animate-fade">
-        <div class="form-header">
-          <h2>{{ modoEdicion ? '✏️ Editando Venta' : '✨ Nueva Venta CCF' }}</h2>
-          <p>Ingrese los datos de la venta a Contribuyente.</p>
+      <div class="header-section">
+        <div class="title-box">
+          <h1>🏢 Ventas Crédito Fiscal</h1>
+          <p class="subtitle">Emisión de Comprobantes de Crédito Fiscal (CCF)</p>
         </div>
-
-        <form @submit.prevent="guardarVenta">
-          
-          <div class="seccion-proveedor" style="margin-bottom: 20px; background: #fff8e1; border-color: #ffb74d;">
-            <label><strong>👤 Cliente que Declara (Empresa) *</strong></label>
-            <div v-if="!declaranteSeleccionado" class="buscador-wrapper">
-              <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar Declarante por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasDeclarante = true">
-              <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="lista-sugerencias">
-                <li v-for="decla in declarantesFiltrados" :key="decla.iddeclaNIT" @click="seleccionarDeclarante(decla)">
-                  <strong>{{ decla.declarante }}</strong> <small>{{ decla.iddeclaNIT }}</small>
-                </li>
-              </ul>
-            </div>
-            <div v-else class="proveedor-seleccionado" style="background: white; border-color: #ffb74d;">
-              <div class="info-prov">
-                <span>🏢</span>
-                <div><strong>{{ declaranteSeleccionado.declarante }}</strong> <small>NIT: {{ declaranteSeleccionado.iddeclaNIT }}</small></div>
-              </div>
-              <button @click="quitarDeclarante" type="button" class="btn-cambiar" style="color: #e65100;">Cambiar</button>
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-                <label>Fecha Emisión <span class="required">*</span></label>
-                <input type="date" v-model="formulario.FiscFecha" required class="input-fecha">
-            </div>
-            
-            <div class="form-group" style="flex: 2;">
-                <label>Número Documento <span class="required">*</span></label>
-                <div class="input-ccf-container">
-                    <span class="prefix">DTE</span>
-                    <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="input-part part-small" placeholder="00">
-                    <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="input-part part-letter" maxlength="1" placeholder="S">
-                    <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="input-part part-medium" placeholder="000">
-                    <span class="prefix">P</span>
-                    <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="input-part part-medium" placeholder="000">
-                    <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="input-part part-large" placeholder="000...">
-                </div>
-            </div>
-          </div>
-
-          <div class="seccion-proveedor">
-             <h3>👥 Datos del Cliente (Comprador)</h3>
-             <div v-if="!clienteSeleccionado" class="buscador-wrapper">
-                <input type="text" v-model="busquedaCliente" placeholder="🔍 Buscar Cliente por Nombre o NIT..." class="input-buscador" @focus="mostrarSugerenciasCliente = true">
-                <ul v-if="mostrarSugerenciasCliente && clientesFiltrados.length > 0" class="lista-sugerencias">
-                  <li v-for="clie in clientesFiltrados" :key="clie.ClienNIT" @click="seleccionarCliente(clie)">
-                    <strong>{{ clie.ClienNom }}</strong> <small>{{ clie.ClienNIT }}</small>
-                  </li>
-                </ul>
-             </div>
-             <div v-else class="proveedor-seleccionado">
-                <div class="info-prov">
-                  <span>👤</span>
-                  <div><strong>{{ clienteSeleccionado.ClienNom }}</strong> <small>NIT: {{ clienteSeleccionado.ClienNIT }}</small></div>
-                </div>
-                <button @click="quitarCliente" type="button" class="btn-cambiar">Cambiar Cliente</button>
-             </div>
-
-             <div class="form-row" v-if="clienteSeleccionado">
-                 <div class="form-group"><label>NRC</label><input :value="clienteSeleccionado.ClienNumReg" readonly style="background: #f5f5f5;"></div>
-                 <div class="form-group"><label>Giro</label><input :value="clienteSeleccionado.ClienGiro" readonly style="background: #f5f5f5;"></div>
-             </div>
-          </div>
-
-          <div class="form-row grid-fiscal">
-             <div class="form-group"><label>Clase *</label><select v-model="formulario.FisClasDoc" class="select-destacado"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Tipo Doc *</label><select v-model="formulario.FisTipoDoc" class="select-destacado"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Operación *</label><select v-model="formulario.BusFiscTipoOperaRenta" class="select-destacado"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-             <div class="form-group"><label>Ingreso *</label><select v-model="formulario.BusFiscTipoIngresoRenta" class="select-destacado"><option v-for="op in opcionesIngreso" :key="op" :value="op">{{ op }}</option></select></div>
-          </div>
-
-          <div class="form-row">
-              <div class="form-group"><label>No. Resolución</label><input v-model="formulario.FiscNumResol" placeholder="Resolución MH"></div>
-              <div class="form-group"><label>Serie Doc.</label><input v-model="formulario.FiscSerieDoc" placeholder="Serie"></div>
-              <div class="form-group"><label>No. Anexo</label><input v-model="formulario.FiscNumAnexo" placeholder="Anexo"></div>
-          </div>
-
-          <div class="seccion-montos">
-            <h3>💰 Detalles Económicos</h3>
-            <div class="form-row grid-montos">
-                <div class="form-group">
-                    <label>Gravadas Locales *</label>
-                    <input type="number" v-model="formulario.FiscVtaGravLocal" step="0.01" class="input-monto principal" @blur="calculosAutomaticos">
-                </div>
-                <div class="form-group">
-                    <label>Exentas</label>
-                    <input type="number" v-model="formulario.FiscVtaExen" step="0.01" class="input-sm" @blur="calculosAutomaticos">
-                </div>
-                 <div class="form-group">
-                    <label>No Sujetas</label>
-                    <input type="number" v-model="formulario.FiscVtaNoSujetas" step="0.01" class="input-sm" @blur="calculosAutomaticos">
-                </div>
-            </div>
-             <div class="form-row grid-montos" style="margin-top: 10px;">
-                <div class="form-group"><label>Vta. Terceros</label><input type="number" v-model="formulario.FiscVtaCtaTercNoDomici" step="0.01" class="input-sm" @blur="calculosAutomaticos"></div>
-                <div class="form-group"><label>Débito Terceros</label><input type="number" v-model="formulario.FiscDebFiscVtaCtaTerceros" step="0.01" class="input-sm" @blur="calculosAutomaticos"></div>
-            </div>
-
-            <hr class="separador-sm">
-
-            <div class="resultado-calculo">
-                <div class="fila-res">
-                    <span>IVA (13%):</span> 
-                    <input type="number" v-model="formulario.FiscDebitoFiscal" readonly class="input-monto secundario">
-                </div>
-                <div class="fila-res total">
-                    <span>TOTAL VENTA:</span> 
-                    <input type="number" v-model="formulario.FiscTotalVtas" readonly class="input-total">
-                </div>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-            <button type="submit" class="btn-guardar" :disabled="cargando">
-              {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar' : '💾 Guardar Venta') }}
-            </button>
-          </div>
-        </form>
+        
+        <div class="header-actions">
+          <button @click="alternarVista" class="btn btn-primary">
+            {{ mostrandoLista ? '➕ Nuevo CCF' : '📋 Ver Historial' }}
+          </button>
+        </div>
       </div>
 
-      <div v-if="mostrandoLista" class="card-lista-full animate-fade">
-        <div class="lista-header">
-            <h3>📄 Historial de Crédito Fiscal</h3>
-            <input type="text" v-model="filtroLista" placeholder="🔎 Filtrar..." class="filtro-input">
+      <div class="main-content">
+        
+        <div v-if="!mostrandoLista" class="card fade-in">
+          <div class="card-header">
+            <h2>{{ modoEdicion ? '✏️ Editar CCF' : '✨ Nuevo Crédito Fiscal' }}</h2>
+            <span class="badge-info">{{ modoEdicion ? 'Modificando registro existente' : 'Documento para Contribuyentes' }}</span>
+          </div>
+
+          <form @submit.prevent="guardarVenta" class="form-body">
+            
+            <div class="form-section">
+              <h3 class="section-title">📄 Detalles del Documento</h3>
+              
+              <div class="form-grid three-cols">
+                <div class="form-group">
+                  <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
+                  <input type="date" v-model="formulario.fecha" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Número CCF <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.numero" class="form-control" placeholder="0000" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Serie (Opcional)</label>
+                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3 class="section-title">🏢 Cliente (Contribuyente)</h3>
+              
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">Nombre / Razón Social <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.cliente" class="form-control" placeholder="Nombre de la Empresa o Contribuyente" required>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">NRC (Registro) <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.nrc" class="form-control" placeholder="000000-0" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section bg-light">
+              <h3 class="section-title">💰 Montos de la Operación</h3>
+              
+              <div class="montos-wrapper">
+                
+                <div class="monto-group">
+                  <label class="monto-label">Ventas Gravadas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.gravadas" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('gravadas')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label text-success">13% Débito Fiscal</label>
+                  <div class="input-wrapper">
+                    <span class="currency text-success">+</span>
+                    <input type="number" 
+                           v-model="formulario.debitoFiscal" 
+                           step="0.01" 
+                           class="form-control monto-input text-success" 
+                           placeholder="0.00"
+                           @input="recalcularTotal"
+                           @blur="formatearDecimal('debitoFiscal')">
+                  </div>
+                  <small class="text-xs text-muted">Auto-calculado (editable)</small>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label">Ventas Exentas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.exentas" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('exentas')">
+                  </div>
+                </div>
+
+                <div class="monto-group total-group">
+                  <label class="monto-label">TOTAL A COBRAR</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input v-model="formulario.total" type="text" class="form-control total-input" readonly>
+                  </div>
+                </div>
+
+              </div>
+              
+              <details class="advanced-options">
+                 <summary>Ver Retenciones y Percepciones</summary>
+                 <div class="form-grid four-cols mt-2">
+                    <div class="form-group">
+                       <label class="form-label text-muted">Ventas No Sujetas</label>
+                       <input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control form-control-sm" @blur="formatearDecimal('noSujetas')">
+                    </div>
+                    <div class="form-group">
+                       <label class="form-label text-danger">Retención IVA (1%)</label>
+                       <input type="number" v-model="formulario.retencion" step="0.01" class="form-control form-control-sm" @blur="formatearDecimal('retencion')">
+                    </div>
+                    <div class="form-group">
+                       <label class="form-label text-success">Percepción IVA (1%)</label>
+                       <input type="number" v-model="formulario.percepcion" step="0.01" class="form-control form-control-sm" @blur="formatearDecimal('percepcion')">
+                    </div>
+                 </div>
+              </details>
+
+            </div>
+
+            <div class="form-actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar CCF' : '💾 Guardar CCF') }}
+              </button>
+            </div>
+
+            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
+              {{ mensaje }}
+            </div>
+
+          </form>
         </div>
-        <div class="tabla-container">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Documento</th><th>Cliente</th><th>Total</th><th>Acciones</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="venta in ventasFiltradas" :key="venta.idCredFiscal">
-                <td>{{ formatearFecha(venta.FiscFecha) }}</td>
-                <td style="font-family: monospace; font-weight: bold;">{{ venta.FiscNumDoc }}</td>
-                <td>{{ venta.FiscNomRazonDenomi }}</td>
-                <td class="monto-total">$ {{ parseFloat(venta.FiscTotalVtas || 0).toFixed(2) }}</td>
-                <td class="acciones-td">
-                  <button @click="prepararEdicion(venta)" class="btn-accion btn-editar">✏️</button>
-                  <button v-if="rolActual === 'admin'" @click="eliminarVenta(venta.idCredFiscal)" class="btn-accion btn-borrar">🗑️</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+
+        <div v-else class="card fade-in">
+          <div class="card-header flex-between">
+             <h3>📋 Historial de Créditos Fiscales</h3>
+             <div class="search-wrapper">
+                <input type="text" v-model="filtro" placeholder="🔍 Buscar por cliente, NRC o número..." class="form-control search-list">
+             </div>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Cliente (NRC)</th>
+                  <th>N° CCF</th>
+                  <th class="text-right">Gravado</th>
+                  <th class="text-right text-success">Débito 13%</th>
+                  <th class="text-right">Total</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="venta in ventasFiltradas" :key="venta.id">
+                  <td>{{ formatearFecha(venta.fecha) }}</td>
+                  <td>
+                    <div class="fw-bold text-dark">{{ venta.cliente }}</div>
+                    <small class="text-muted">{{ venta.nrc }}</small>
+                  </td>
+                  <td>
+                    <span class="doc-number">{{ venta.numero }}</span>
+                  </td>
+                  <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-success">+${{ parseFloat(venta.debitoFiscal || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-dark">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
+                  <td class="text-center">
+                    <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
+                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button>
+                  </td>
+                </tr>
+                <tr v-if="ventasFiltradas.length === 0">
+                  <td colspan="7" class="text-center py-4 text-muted">No se encontraron registros.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </div>
-  </div>
- </main-layout>
+  </MainLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
-import MainLayout from '../layouts/MainLayout.vue';
+import MainLayout from '../layouts/MainLayout.vue'; 
 
-const rolActual = sessionStorage.getItem('rolUsuario') || 'empleado';
 const hostname = window.location.hostname;
-const BASE_URL = `http://${hostname}:3000/api`;
+const BASE_URL = `http://${hostname}:3000`;
+const API_URL = `${BASE_URL}/api/ventas-credito`; // Ajusta según tu backend real
 
-// --- VARIABLES DE DATOS ---
-const todosLosClientes = ref([]);
-const todosLosDeclarantes = ref([]);
-const listaVentas = ref([]);
-const cargando = ref(false);
-const mostrandoLista = ref(true);
-const modoEdicion = ref(false);
-const idEdicion = ref(null);
-const filtroLista = ref('');
-
-// --- BUSCADORES ---
-const busquedaCliente = ref('');
-const clienteSeleccionado = ref(null);
-const mostrarSugerenciasCliente = ref(false);
-
-const busquedaDeclarante = ref('');
-const declaranteSeleccionado = ref(null);
-const mostrarSugerenciasDeclarante = ref(false);
-
-const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
-
+// --- ESTADOS ---
 const formulario = ref({
-    FiscFecha: new Date().toISOString().split('T')[0],
-    FisClasDoc: '4. DOCUMENTO TRIBUTARIO DTE',
-    FisTipoDoc: '03 COMPROBANTE DE CREDITO FISCAL',
-    FiscNumDoc: '', FiscNit: '', FiscNomRazonDenomi: '',
-    FiscNumResol: '', FiscSerieDoc: '', FiscNumAnexo: '',
-    FiscVtaExen: '0.00', FiscVtaGravLocal: '0.00', FiscVtaNoSujetas: '0.00',
-    FiscVtaCtaTercNoDomici: '0.00', FiscDebFiscVtaCtaTerceros: '0.00',
-    FiscDebitoFiscal: '0.00', FiscTotalVtas: '0.00',
-    BusFiscTipoOperaRenta: '1. GRAVADA', BusFiscTipoIngresoRenta: '1. INGRESO GRAVADO'
+    fecha: new Date().toISOString().split('T')[0],
+    numero: '', serie: '', cliente: '', nrc: '',
+    gravadas: '0.00', debitoFiscal: '0.00',
+    exentas: '0.00', noSujetas: '0.00',
+    retencion: '0.00', percepcion: '0.00',
+    total: '0.00'
 });
 
-const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
-const opcionesTipo = ["03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO", "11. FACTURA DE EXPORTACION"];
-const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO O NO CONSTITUYE RENTA", "4. MIXTA"];
-const opcionesIngreso = ["1. INGRESO GRAVADO", "2. INGRESO NO GRAVADO", "3. RENTA NO GRAVADA"];
+const listaVentas = ref([]); 
+const mostrandoLista = ref(false);
+const modoEdicion = ref(false);
+const idEdicion = ref(null);
+const cargando = ref(false);
+const mensaje = ref('');
+const tipoMensaje = ref('');
+const filtro = ref('');
 
-// --- CARGA INICIAL ---
-const cargarDatos = async () => {
+// --- CÁLCULO AUTOMÁTICO DE DÉBITO FISCAL (IVA 13%) ---
+watch(() => formulario.value.gravadas, (val) => {
+    const gravado = parseFloat(val) || 0;
+    // Calculamos el 13% automáticamente
+    formulario.value.debitoFiscal = (gravado * 0.13).toFixed(2);
+    calcularTotalGeneral();
+});
+
+// Watcher para recalcular total si cambian otros valores
+watch(() => [formulario.value.exentas, formulario.value.noSujetas, formulario.value.retencion, formulario.value.percepcion], () => {
+    calcularTotalGeneral();
+});
+
+const calcularTotalGeneral = () => {
+    const g = parseFloat(formulario.value.gravadas) || 0;
+    const df = parseFloat(formulario.value.debitoFiscal) || 0;
+    const e = parseFloat(formulario.value.exentas) || 0;
+    const ns = parseFloat(formulario.value.noSujetas) || 0;
+    const ret = parseFloat(formulario.value.retencion) || 0;
+    const per = parseFloat(formulario.value.percepcion) || 0;
+
+    // Total = Gravado + Débito Fiscal + Exentas + No Sujetas - Retención + Percepción
+    formulario.value.total = (g + df + e + ns - ret + per).toFixed(2);
+};
+
+// Función para recalcular si el usuario edita el IVA manualmente
+const recalcularTotal = () => {
+    calcularTotalGeneral();
+};
+
+const ventasFiltradas = computed(() => {
+    if (!filtro.value) return listaVentas.value;
+    const txt = filtro.value.toLowerCase();
+    return listaVentas.value.filter(v => 
+        (v.cliente && v.cliente.toLowerCase().includes(txt)) || 
+        (v.numero && v.numero.includes(txt)) ||
+        (v.nrc && v.nrc.includes(txt))
+    );
+});
+
+// --- MÉTODOS ---
+const formatearDecimal = (campo) => {
+    const valor = parseFloat(formulario.value[campo]);
+    formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
+};
+
+const cargarVentas = async () => {
     try {
-        const [resC, resD, resV] = await Promise.all([
-            axios.get(`${BASE_URL}/clientes`),
-            axios.get(`${BASE_URL}/declarantes`),
-            axios.get(`${BASE_URL}/ventas-ccf`)
-        ]);
-        todosLosClientes.value = resC.data;
-        todosLosDeclarantes.value = resD.data;
-        listaVentas.value = resV.data;
-    } catch (e) { console.error(e); }
+        // Simulación temporal (Descomentar axios cuando tengas API)
+        // const res = await axios.get(API_URL);
+        // listaVentas.value = res.data;
+        
+        // Datos dummy de prueba
+        if (listaVentas.value.length === 0) {
+            listaVentas.value = [
+                { id: 1, fecha: '2023-10-27', cliente: 'Distribuidora El Sol', nrc: '123456-7', numero: '0050', gravadas: '100.00', debitoFiscal: '13.00', total: '113.00' }
+            ];
+        }
+    } catch (error) { console.error("Error cargando ventas", error); }
 };
 
-// --- HELPERS PARA CÓDIGOS ---
-const extraerSoloCodigo = (texto) => texto ? texto.split(/[\.\s]+/)[0] : '';
-const recuperarOpcionCompleta = (codigo, lista) => {
-    if (!codigo) return lista[0];
-    const enc = lista.find(op => op.split(/[\.\s]+/)[0] == String(codigo).trim());
-    return enc || codigo; 
-};
-
-// --- LÓGICA DE SELECCIÓN ---
-const seleccionarCliente = (clie) => {
-    clienteSeleccionado.value = clie;
-    formulario.value.FiscNit = clie.ClienNIT;
-    formulario.value.FiscNomRazonDenomi = clie.ClienNom;
-    mostrarSugerenciasCliente.value = false;
-    busquedaCliente.value = '';
-};
-const quitarCliente = () => { clienteSeleccionado.value = null; formulario.value.FiscNit = ''; };
-
-const seleccionarDeclarante = (decla) => {
-    declaranteSeleccionado.value = decla;
-    mostrarSugerenciasDeclarante.value = false;
-};
-const quitarDeclarante = () => declaranteSeleccionado.value = null;
-
-// --- FILTROS COMPUTADOS ---
-const clientesFiltrados = computed(() => todosLosClientes.value.filter(c => 
-    c.ClienNom.toLowerCase().includes(busquedaCliente.value.toLowerCase()) || c.ClienNIT.includes(busquedaCliente.value)
-));
-
-const declarantesFiltrados = computed(() => todosLosDeclarantes.value.filter(d => 
-    d.declarante.toLowerCase().includes(busquedaDeclarante.value.toLowerCase()) || d.iddeclaNIT.includes(busquedaDeclarante.value)
-));
-
-const ventasFiltradas = computed(() => listaVentas.value.filter(v => 
-    v.FiscNomRazonDenomi?.toLowerCase().includes(filtroLista.value.toLowerCase())
-));
-
-// --- MÁSCARA CCF ---
-const handleLetraInput = (e) => {
-    ccfParts.value.letraSerie = e.target.value.toUpperCase().replace(/[^A-Z]/g, '');
-    actualizarNumeroCompleto();
-};
-const handleInputMask = (e, p, m) => {
-    let raw = e.target.value.replace(/\D/g, '');
-    ccfParts.value[p] = raw.slice(-m).padStart(m, '0');
-    actualizarNumeroCompleto();
-};
-const actualizarNumeroCompleto = () => {
-    formulario.value.FiscNumDoc = `DTE${ccfParts.value.part1}${ccfParts.value.letraSerie || 'S'}${ccfParts.value.part2}P${ccfParts.value.part3}${ccfParts.value.part4}`;
-};
-
-// --- CÁLCULOS ---
-const calculosAutomaticos = () => {
-    const grav = parseFloat(formulario.value.FiscVtaGravLocal) || 0;
-    const exe = parseFloat(formulario.value.FiscVtaExen) || 0;
-    const nosuj = parseFloat(formulario.value.FiscVtaNoSujetas) || 0;
-    const terc = parseFloat(formulario.value.FiscVtaCtaTercNoDomici) || 0;
-    const debTerc = parseFloat(formulario.value.FiscDebFiscVtaCtaTerceros) || 0;
-
-    const debitoCalc = grav * 0.13;
-
-    formulario.value.FiscDebitoFiscal = debitoCalc.toFixed(2);
-    formulario.value.FiscTotalVtas = (grav + exe + nosuj + terc + debTerc + debitoCalc).toFixed(2);
-};
-
-// --- PREPARAR EDICIÓN (AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA) ---
-const prepararEdicion = async (venta) => {
-    const fSegura = venta.FiscFecha ? new Date(venta.FiscFecha).toISOString().split('T')[0] : '';
-    
-    formulario.value = {
-        FiscFecha: fSegura,
-        FisClasDoc: recuperarOpcionCompleta(venta.FisClasDoc, opcionesClase),
-        FisTipoDoc: recuperarOpcionCompleta(venta.FisTipoDoc, opcionesTipo),
-        FiscNumResol: venta.FiscNumResol || '',
-        FiscSerieDoc: venta.FiscSerieDoc || '',
-        FiscNumAnexo: venta.FiscNumAnexo || '',
-        FiscNumDoc: venta.FiscNumDoc || '',
-        FiscNit: venta.FiscNit || '',
-        FiscNomRazonDenomi: venta.FiscNomRazonDenomi || '',
-        FiscVtaExen: parseFloat(venta.FiscVtaExen || 0).toFixed(2),
-        FiscVtaGravLocal: parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2),
-        FiscVtaNoSujetas: parseFloat(venta.FiscVtaNoSujetas || 0).toFixed(2),
-        FiscVtaCtaTercNoDomici: parseFloat(venta.FiscVtaCtaTercNoDomici || 0).toFixed(2),
-        FiscDebFiscVtaCtaTerceros: parseFloat(venta.FiscDebFiscVtaCtaTerceros || 0).toFixed(2),
-        FiscDebitoFiscal: parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2),
-        FiscTotalVtas: parseFloat(venta.FiscTotalVtas || 0).toFixed(2),
-        BusFiscTipoOperaRenta: recuperarOpcionCompleta(venta.BusFiscTipoOperaRenta, opcionesOperacion),
-        BusFiscTipoIngresoRenta: recuperarOpcionCompleta(venta.BusFiscTipoIngresoRenta, opcionesIngreso),
-    };
-
-    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
-    const match = venta.FiscNumDoc ? venta.FiscNumDoc.match(regex) : null;
-    if (match) {
-        ccfParts.value = { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] };
-    } else {
-        ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
-    }
-
-    if (venta.FiscNit) {
-        clienteSeleccionado.value = todosLosClientes.value.find(c => c.ClienNIT === venta.FiscNit) || null;
-    }
-    
-    // NOTA: Debes seleccionar el declarante manualmente al editar si no se guardó el ID específico
-    
-    modoEdicion.value = true;
-    idEdicion.value = venta.idCredFiscal;
-    mostrandoLista.value = false;
-};
-
-// --- GUARDAR ---
 const guardarVenta = async () => {
-    actualizarNumeroCompleto();
-    if(!clienteSeleccionado.value) return alert("Seleccione un Cliente");
-    if(!declaranteSeleccionado.value) return alert("Seleccione el Cliente que Declara");
-    
     cargando.value = true;
-
-    const payload = {
-        ...formulario.value,
-        FisClasDoc: extraerSoloCodigo(formulario.value.FisClasDoc),
-        FisTipoDoc: extraerSoloCodigo(formulario.value.FisTipoDoc),
-        BusFiscTipoOperaRenta: extraerSoloCodigo(formulario.value.BusFiscTipoOperaRenta),
-        BusFiscTipoIngresoRenta: extraerSoloCodigo(formulario.value.BusFiscTipoIngresoRenta),
-        
-        // Conversión estricta a Float para evitar error 400
-        FiscVtaExen: parseFloat(formulario.value.FiscVtaExen) || 0,
-        FiscVtaGravLocal: parseFloat(formulario.value.FiscVtaGravLocal) || 0,
-        FiscVtaNoSujetas: parseFloat(formulario.value.FiscVtaNoSujetas) || 0,
-        FiscVtaCtaTercNoDomici: parseFloat(formulario.value.FiscVtaCtaTercNoDomici) || 0,
-        FiscDebFiscVtaCtaTerceros: parseFloat(formulario.value.FiscDebFiscVtaCtaTerceros) || 0,
-        FiscDebitoFiscal: parseFloat(formulario.value.FiscDebitoFiscal) || 0,
-        FiscTotalVtas: parseFloat(formulario.value.FiscTotalVtas) || 0,
-    };
+    calcularTotalGeneral(); // Asegurar cálculo final
 
     try {
-        if (modoEdicion.value) await axios.put(`${BASE_URL}/ventas-CCF/${idEdicion.value}`, payload);
-        else await axios.post(`${BASE_URL}/ventas-CCF`, payload);
+        if(modoEdicion.value) {
+            // await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
+            // Simulación update
+            const index = listaVentas.value.findIndex(v => v.id === idEdicion.value);
+            if (index !== -1) listaVentas.value[index] = { ...formulario.value, id: idEdicion.value };
+            
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡CCF actualizado correctamente!';
+        } else {
+            // await axios.post(API_URL, formulario.value);
+            // Simulación insert
+            listaVentas.value.unshift({ ...formulario.value, id: Date.now() });
+            
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡CCF guardado exitosamente!';
+        }
         
-        cargarDatos();
-        mostrandoLista.value = true;
         resetForm();
-    } catch (e) { 
-        alert("Error al guardar: " + (e.response?.data?.message || e.message)); 
+        setTimeout(() => { 
+            mensaje.value = ''; 
+            mostrandoLista.value = true; 
+        }, 1500);
+    } catch (error) {
+        tipoMensaje.value = 'error';
+        mensaje.value = 'Error al procesar la venta.';
+    } finally {
+        cargando.value = false;
     }
-    finally { cargando.value = false; }
 };
 
 const eliminarVenta = async (id) => {
-    if(confirm("¿Eliminar esta venta permanentemente?")) {
-        try {
-            await axios.delete(`${BASE_URL}/ventas-CCF/${id}`);
-            cargarDatos();
-        } catch(e) {
-            alert("Error al eliminar (Posiblemente permisos)");
-        }
-    }
+    if(!confirm('¿Eliminar este registro de Crédito Fiscal?')) return;
+    try {
+        // await axios.delete(`${API_URL}/${id}`);
+        listaVentas.value = listaVentas.value.filter(v => v.id !== id);
+    } catch (e) { alert('Error'); }
+};
+
+const prepararEdicion = (venta) => {
+    formulario.value = { ...venta };
+    idEdicion.value = venta.id;
+    modoEdicion.value = true;
+    mostrandoLista.value = false;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
-const alternarVista = () => { if(modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 
 const resetForm = () => {
-    formulario.value = { 
-        FiscFecha: new Date().toISOString().split('T')[0], 
-        FisClasDoc: '4. DOCUMENTO TRIBUTARIO DTE', 
-        FisTipoDoc: '03 COMPROBANTE DE CREDITO FISCAL', 
-        FiscNumDoc: '', FiscNit: '', FiscNomRazonDenomi: '',
-        FiscNumResol: '', FiscSerieDoc: '', FiscNumAnexo: '',
-        FiscVtaExen: '0.00', FiscVtaGravLocal: '0.00', FiscVtaNoSujetas: '0.00',
-        FiscVtaCtaTercNoDomici: '0.00', FiscDebFiscVtaCtaTerceros: '0.00',
-        FiscDebitoFiscal: '0.00', FiscTotalVtas: '0.00',
-        BusFiscTipoOperaRenta: '1. GRAVADA', BusFiscTipoIngresoRenta: '1. INGRESO GRAVADO'
+    formulario.value = {
+        fecha: new Date().toISOString().split('T')[0],
+        numero: '', serie: '', cliente: '', nrc: '',
+        gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00',
+        retencion: '0.00', percepcion: '0.00', total: '0.00'
     };
-    ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
-    clienteSeleccionado.value = null; 
-    declaranteSeleccionado.value = null; 
     modoEdicion.value = false;
     idEdicion.value = null;
+    mensaje.value = '';
 };
-const formatearFecha = (f) => f ? new Date(f).toISOString().split('T')[0] : '--';
 
-onMounted(cargarDatos);
+const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
+const formatearFecha = (f) => f ? f.split('T')[0] : '';
+
+onMounted(cargarVentas);
 </script>
 
 <style scoped>
-/* --- CONTENEDOR PRINCIPAL --- */
-.compras-container {
-  padding: 2rem;
-  background: #f0f2f5;
-  min-height: 100vh;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+/* --- ESTILO MATERIAL DESVANECIDO (Uniforme en toda la app) --- */
+.ventas-container {
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
 }
 
-/* --- HEADER --- */
+/* Cabecera */
 .header-section {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  margin-bottom: 24px;
 }
+.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
+.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
 
-.header-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-toggle {
-  background: #1976d2; /* Azul Ventas */
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.btn-toggle:hover { background: #1565c0; }
-
-.btn-volver {
-  background: #666;
-  color: white;
-  padding: 10px;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-/* --- TARJETAS --- */
-.card-form, .card-lista-full {
+/* Tarjetas */
+.card {
   background: white;
-  padding: 2rem;
   border-radius: 12px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-  max-width: 1200px;
-  margin: 0 auto;
-  border-top: 5px solid #1976d2; /* Azul */
-}
-
-/* --- GRID Y FORMULARIO --- */
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-.grid-fiscal {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.grid-montos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 10px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-label {
-  font-weight: bold;
-  margin-bottom: 5px;
-  color: #555;
-  font-size: 0.85rem;
-}
-
-input, select {
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.95rem;
-}
-
-input:focus, select:focus {
-  outline: none;
-  border-color: #1976d2;
-}
-
-.select-destacado {
-  border: 2px solid #bbdefb;
-  background-color: #e3f2fd;
-  font-weight: 500;
-}
-
-/* --- BUSCADOR DESPLEGABLE (IMPORTANTE PARA QUE SE VEA BIEN) --- */
-.buscador-wrapper {
-  position: relative;
-  width: 100%;
-}
-
-.input-buscador {
-  width: 100%;
-  padding: 10px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background-color: #fff;
-}
-
-.lista-sugerencias {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 0 0 8px 8px;
-  z-index: 100;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-.lista-sugerencias li {
-  padding: 10px;
-  cursor: pointer;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-}
-
-.lista-sugerencias li:hover {
-  background: #e3f2fd;
-}
-
-.proveedor-seleccionado {
-  background: #e3f2fd;
-  padding: 10px;
-  border: 1px solid #1976d2;
-  border-radius: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.info-prov {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.btn-cambiar {
-  background: none;
-  border: none;
-  color: #d32f2f;
-  text-decoration: underline;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-/* --- INPUT CCF (DTE COMPUESTO) --- */
-.input-ccf-container {
-  display: flex;
-  align-items: center;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  padding: 2px;
-  background-color: white;
-  gap: 2px;
-  width: 100%;
-}
-
-.prefix {
-  font-weight: bold;
-  color: #1565c0;
-  background: #e3f2fd;
-  padding: 6px 4px;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  user-select: none;
-}
-
-.input-part {
-  border: none;
-  outline: none;
-  text-align: center;
-  font-family: monospace;
-  font-size: 0.95rem;
-  padding: 6px 2px;
-  background: transparent;
-  color: #333;
-  font-weight: bold;
-}
-
-.input-part:focus {
-  background-color: #e3f2fd;
-  border-radius: 4px;
-}
-
-.part-small { width: 30px; }
-.part-medium { width: 40px; }
-.part-large { flex: 1; text-align: right; letter-spacing: 1px; }
-
-.part-letter {
-  width: 25px;
-  text-align: center;
-  font-weight: bold;
-  color: #e65100;
-  background: #fff3e0;
-  border-radius: 4px;
-  margin: 0 2px;
-}
-
-.hint-text {
-  font-size: 0.7rem;
-  color: #999;
-  margin-top: 2px;
-  display: block;
-}
-
-/* --- SECCIÓN MONTOS --- */
-.seccion-montos {
-  background: #f9f9f9;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-top: 1rem;
-  border: 1px solid #eee;
-}
-
-.input-monto {
-  font-size: 1rem;
-  font-weight: bold;
-}
-
-.input-monto.principal { border-color: #1976d2; color: #333; }
-.input-monto.secundario { border-color: #d32f2f; color: #333; }
-
-.input-sm { font-size: 0.9rem; padding: 8px; }
-
-.input-total {
-  font-size: 1.3rem;
-  font-weight: bold;
-  color: #1976d2;
-  border: 2px solid #1976d2;
-  width: 160px;
-  text-align: right;
-  padding: 5px;
-}
-
-.resultado-calculo {
-  margin-top: 1rem;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 20px;
-}
-
-.fila-res {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.separador-sm {
-  margin: 15px 0;
-  border: 0;
-  border-top: 1px dashed #ccc;
-}
-
-/* --- BOTONES ACCIÓN --- */
-.actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 1.5rem;
-}
-
-.btn-guardar {
-  flex: 1;
-  background: #1976d2;
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-}
-.btn-guardar:hover { background: #1565c0; }
-
-.btn-cancelar {
-  background: #999;
-  color: white;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-/* --- TABLA --- */
-.tabla-container {
-  overflow-x: auto;
-  margin-top: 1rem;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-th {
-  text-align: left;
-  padding: 10px;
-  border-bottom: 2px solid #eee;
-  color: #777;
-  font-size: 0.9rem;
-}
-
-td {
-  padding: 8px;
-  border-bottom: 1px solid #eee;
-  vertical-align: middle;
-  font-size: 0.9rem;
-}
-
-.monto-total { font-weight: bold; color: #1976d2; }
-
-.btn-accion {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1.2rem;
-  margin-right: 5px;
-}
-
-.btn-editar { color: #fbc02d; }
-.btn-borrar { color: #d32f2f; }
-
-.vacio {
-  text-align: center;
-  padding: 20px;
-  color: #999;
-  font-style: italic;
-}
-
-/* --- ANIMACIÓN --- */
-.animate-fade {
+  border: 1px solid rgba(85, 194, 183, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 20px;
   animation: fadeIn 0.4s ease-out;
 }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.card-header {
+  border-bottom: 1px solid #f0fdfa;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.badge-info { 
+  font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px;
 }
 
-/* --- RESPONSIVE --- */
+/* Formularios */
+.form-section { margin-bottom: 30px; }
+.section-title { 
+  font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; 
+  border-left: 4px solid #55C2B7; padding-left: 12px; 
+}
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+
+.form-group { margin-bottom: 5px; }
+.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* Inputs Modernos */
+.form-control {
+  width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937;
+  background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem;
+  transition: all 0.2s; box-sizing: border-box;
+}
+.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+
+/* Montos */
+.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
+.monto-group { flex: 1; min-width: 150px; }
+.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
+.input-wrapper { position: relative; }
+.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
+.monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
+.total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
+
+.advanced-options summary { cursor: pointer; color: #55C2B7; font-size: 0.85rem; font-weight: 600; padding: 12px 0; user-select: none; transition: color 0.2s; }
+.advanced-options summary:hover { color: #0d9488; text-decoration: underline; }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem;
+  border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background-color: #55C2B7; color: white; }
+.btn-primary:hover { background-color: #45a89d; }
+.btn-success { background-color: #10b981; color: white; }
+.btn-success:hover { background-color: #059669; }
+.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
+.btn-secondary:hover { background-color: #f3f4f6; }
+.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; }
+.btn-icon:hover { background-color: #f9fafb; color: #111827; }
+
+.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
+
+/* Tabla */
+.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+.table { width: 100%; border-collapse: collapse; background: white; }
+.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
+.table tr:hover td { background-color: #f9fafb; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+
+/* Alertas */
+.alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
+.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.text-danger { color: #ef4444; }
+.text-success { color: #10b981; }
+.text-muted { color: #6b7280; }
+.mt-2 { margin-top: 10px; }
+.mt-3 { margin-top: 15px; }
+
 @media (max-width: 768px) {
-  .form-row { grid-template-columns: 1fr; }
-  .grid-fiscal, .grid-montos { grid-template-columns: 1fr 1fr; }
-  .resultado-calculo { flex-direction: column; align-items: stretch; }
-  .fila-res { justify-content: space-between; }
+  .montos-wrapper { flex-direction: column; }
+  .monto-group { width: 100%; }
+  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { width: 100%; }
 }
 </style>

@@ -1,333 +1,452 @@
 <template>
-  <main-layout>
-  <div class="ventas-container">
-    <div class="header-section">
-      <h1>🧾 Ventas Consumidor Final</h1>
-      <div class="header-buttons">
-        <button @click="alternarVista" class="btn-toggle">
-          {{ mostrandoLista ? '➕ Nuevo Día' : '📋 Ver Historial' }}
-        </button>
-        <button @click="$router.push('/inicio')" class="btn-volver">⬅ Menú</button>
-      </div>
-    </div>
-
-    <div class="main-content">
+  <MainLayout>
+    <div class="ventas-container">
       
-      <div v-if="!mostrandoLista" class="card-form">
-        <div class="form-header">
-          <h2>{{ modoEdicion ? '✏️ Editando Registro' : '✨ Registro Diario' }}</h2>
-          <p>Ingrese los datos correspondientes al día de venta.</p>
+      <div class="header-section">
+        <div class="title-box">
+          <h1>🧾 Ventas Consumidor Final</h1>
+          <p class="subtitle">Emisión de facturas para clientes finales</p>
+        </div>
+        
+        <div class="header-actions">
+          <button @click="alternarVista" class="btn btn-primary">
+            {{ mostrandoLista ? '➕ Nueva Venta' : '📋 Ver Historial' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="main-content">
+        
+        <div v-if="!mostrandoLista" class="card fade-in">
+          <div class="card-header">
+            <h2>{{ modoEdicion ? '✏️ Editar Factura' : '✨ Nueva Venta' }}</h2>
+            <span class="badge-info">{{ modoEdicion ? 'Modificando registro existente' : 'Documento F-07 o equivalente' }}</span>
+          </div>
+
+          <form @submit.prevent="guardarVenta" class="form-body">
+            
+            <div class="form-section">
+              <h3 class="section-title">📄 Detalles del Documento</h3>
+              
+              <div class="form-grid three-cols">
+                <div class="form-group">
+                  <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
+                  <input type="date" v-model="formulario.fecha" class="form-control" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Número Documento <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.numero" class="form-control" placeholder="0000" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Serie (Opcional)</label>
+                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3 class="section-title">👤 Cliente</h3>
+              
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">Nombre Cliente <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.cliente" class="form-control" placeholder="Cliente General o Nombre Específico" required>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">DUI / NIT (Opcional)</label>
+                  <input type="text" v-model="formulario.documentoCliente" class="form-control" placeholder="00000000-0">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section bg-light">
+              <h3 class="section-title">💰 Montos de la Operación</h3>
+              
+              <div class="montos-wrapper">
+                
+                <div class="monto-group">
+                  <label class="monto-label">Ventas Gravadas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.gravadas" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('gravadas')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label">Ventas Exentas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.exentas" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('exentas')">
+                  </div>
+                </div>
+
+                <div class="monto-group">
+                  <label class="monto-label">Ventas No Sujetas</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input type="number" 
+                           v-model="formulario.noSujetas" 
+                           step="0.01" 
+                           class="form-control monto-input" 
+                           placeholder="0.00"
+                           @blur="formatearDecimal('noSujetas')">
+                  </div>
+                </div>
+
+                <div class="monto-group total-group">
+                  <label class="monto-label">TOTAL VENTA</label>
+                  <div class="input-wrapper">
+                    <span class="currency">$</span>
+                    <input :value="totalCalculado" type="text" class="form-control total-input" readonly>
+                  </div>
+                </div>
+
+              </div>
+              
+              <div class="form-grid four-cols mt-3">
+                 <div class="form-group">
+                    <label class="form-label text-muted">Retención Renta (Opcional)</label>
+                    <input type="number" v-model="formulario.retencion" step="0.01" class="form-control form-control-sm" placeholder="0.00">
+                 </div>
+              </div>
+
+            </div>
+
+            <div class="form-actions">
+              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
+                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Venta' : '💾 Guardar Venta') }}
+              </button>
+            </div>
+
+            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
+              {{ mensaje }}
+            </div>
+
+          </form>
         </div>
 
-        <form @submit.prevent="guardarVenta">
-          
-          <div class="seccion-grupo">
-            <h3>📅 Datos del Documento</h3>
-            <div class="form-row grid-3">
-               <div class="form-group"><label>Fecha *</label><input type="date" v-model="formulario.fecha" required></div>
-               <div class="form-group"><label>Clase Doc</label><select v-model="formulario.claseDoc"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
-               <div class="form-group"><label>Tipo Doc</label><select v-model="formulario.tipoDoc"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
-            </div>
-            <div class="form-row grid-3">
-               <div class="form-group"><label>N° Resolución</label><input type="text" v-model="formulario.resolucion"></div>
-               <div class="form-group"><label>Serie Doc</label><input type="text" v-model="formulario.serie"></div>
-               <div class="form-group"><label>N° Máquina</label><input type="text" v-model="formulario.maqRegistro"></div>
-            </div>
-          </div>
-
-          <div class="seccion-grupo">
-            <h3>🔢 Control de Correlativos</h3>
-            <div class="form-row grid-4">
-               <div class="form-group"><label>Control Int. DEL</label><input type="text" v-model="formulario.controlDel"></div>
-               <div class="form-group"><label>Control Int. AL</label><input type="text" v-model="formulario.controlAl"></div>
-               <div class="form-group"><label>Doc. DEL *</label><input type="text" v-model="formulario.docDel" required></div>
-               <div class="form-group"><label>Doc. AL *</label><input type="text" v-model="formulario.docAl" required></div>
-            </div>
-          </div>
-
-          <hr class="separador">
-
-          <div class="seccion-montos">
-            <h3>💵 Detalle de Ventas</h3>
-            
-            <div class="form-row grid-3">
-                <div class="form-group">
-                  <label>Ventas Exentas</label>
-                  <input type="number" v-model="formulario.exentas" step="0.01" class="input-sm" @blur="formatearDecimal('exentas')">
-                </div>
-                <div class="form-group">
-                  <label>Int. Exentas No Suj. Prop.</label>
-                  <input type="number" v-model="formulario.exentasNoSujetasProp" step="0.01" class="input-sm" @blur="formatearDecimal('exentasNoSujetasProp')">
-                </div>
-                <div class="form-group">
-                  <label>Ventas No Sujetas</label>
-                  <input type="number" v-model="formulario.noSujetas" step="0.01" class="input-sm" @blur="formatearDecimal('noSujetas')">
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                  <label>Ventas Gravadas Locales *</label>
-                  <input type="number" v-model="formulario.gravadas" step="0.01" class="input-monto principal" required @blur="formatearDecimal('gravadas')">
-                </div>
-            </div>
-
-            <h4 class="subtitulo-seccion">🌍 Exportaciones y Otros</h4>
-            <div class="form-row grid-3">
-                <div class="form-group"><label>Exp. Centroamérica</label><input type="number" v-model="formulario.expCentroAmerica" step="0.01" class="input-sm" @blur="formatearDecimal('expCentroAmerica')"></div>
-                <div class="form-group"><label>Exp. Fuera CA</label><input type="number" v-model="formulario.expFueraCentroAmerica" step="0.01" class="input-sm" @blur="formatearDecimal('expFueraCentroAmerica')"></div>
-                <div class="form-group"><label>Exp. Servicios</label><input type="number" v-model="formulario.expServicios" step="0.01" class="input-sm" @blur="formatearDecimal('expServicios')"></div>
-            </div>
-            <div class="form-row grid-2">
-                <div class="form-group"><label>Vtas. Zonas Francas / DPA</label><input type="number" v-model="formulario.ventasZonaFranca" step="0.01" class="input-sm" @blur="formatearDecimal('ventasZonaFranca')"></div>
-                <div class="form-group"><label>Vtas. Terceros No Domic.</label><input type="number" v-model="formulario.ventasTerceros" step="0.01" class="input-sm" @blur="formatearDecimal('ventasTerceros')"></div>
-            </div>
-            
-            <div class="resultado-calculo">
-                <div class="fila-res total">
-                    <span>TOTAL VENTAS:</span> 
-                    <input type="number" v-model="formulario.total" step="0.01" class="input-total" readonly>
-                </div>
-            </div>
-          </div>
-
-          <div class="seccion-grupo">
-             <div class="form-row grid-3">
-                <div class="form-group"><label>Tipo Operación</label><select v-model="formulario.tipoOpera"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
-                <div class="form-group"><label>Tipo Ingreso</label><select v-model="formulario.tipoIngreso"><option v-for="op in opcionesIngreso" :key="op" :value="op">{{ op }}</option></select></div>
-                <div class="form-group"><label>Anexo</label><input type="text" v-model="formulario.anexo"></div>
+        <div v-else class="card fade-in">
+          <div class="card-header flex-between">
+             <h3>📋 Historial de Ventas</h3>
+             <div class="search-wrapper">
+                <input type="text" v-model="filtro" placeholder="🔍 Buscar por cliente o número..." class="form-control search-list">
              </div>
           </div>
-
-          <div class="actions">
-            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn-cancelar">Cancelar</button>
-            <button type="submit" class="btn-guardar" :disabled="cargando">
-              {{ cargando ? 'Guardando...' : (modoEdicion ? '🔄 Actualizar' : '💾 Guardar Día') }}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div v-if="mostrandoLista" class="card-lista-full">
-        <h3>📄 Libro de Ventas (Diario)</h3>
-        <div class="tabla-container">
-          <table>
-            <thead>
-              <tr>
+          
+          <div class="table-responsive">
+            <table class="table">
+              <thead>
+                <tr>
                   <th>Fecha</th>
-                  <th>Del / Al</th>
-                  <th>Exentas</th>
-                  <th>Gravadas</th>
-                  <th>Total</th>
-                  <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in listaVentas" :key="item.idconsfinal">
-                <td>{{ formatearFecha(item.ConsFecha) }}</td>
-                <td>{{ item.ConsNumDocDEL }} - {{ item.ConsNumDocAL }}</td>
-                <td>$ {{ parseFloat(item.ConsVtaExentas || 0).toFixed(2) }}</td>
-                <td class="monto-gravado">$ {{ parseFloat(item.ConsVtaGravLocales || 0).toFixed(2) }}</td>
-                <td class="monto-total">$ {{ parseFloat(item.ConsTotalVta || 0).toFixed(2) }}</td>
-                <td class="acciones-td">
-                  <button @click="prepararEdicion(item)" class="btn-accion btn-editar">✏️</button>
-                  <button @click="eliminarVenta(item.idconsfinal)" class="btn-accion btn-borrar">🗑️</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <th>Cliente</th>
+                  <th>N° Doc</th>
+                  <th class="text-right">Gravadas</th>
+                  <th class="text-right">Total</th>
+                  <th class="text-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="venta in ventasFiltradas" :key="venta.id">
+                  <td>{{ formatearFecha(venta.fecha) }}</td>
+                  <td>
+                    <div class="fw-bold text-dark">{{ venta.cliente }}</div>
+                  </td>
+                  <td>
+                    <span class="doc-number">{{ venta.numero }}</span>
+                  </td>
+                  <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-success">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
+                  <td class="text-center">
+                    <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
+                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button>
+                  </td>
+                </tr>
+                <tr v-if="ventasFiltradas.length === 0">
+                  <td colspan="6" class="text-center py-4 text-muted">No se encontraron ventas registradas.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
 
+      </div>
     </div>
-  </div>
-  </main-layout>
+  </MainLayout>
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
-import MainLayout from '../layouts/MainLayout.vue';
+import MainLayout from '../layouts/MainLayout.vue'; 
 
-// ✅ LÓGICA DINÁMICA APLICADA
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
-const API_URL = `${BASE_URL}/api/ventas-cf`;
-// -----------------------------
+const API_URL = `${BASE_URL}/api/ventas-consumidor`; // Asegúrate que esta ruta exista en tu backend
 
-// LISTAS REUTILIZADAS
-const opcionesClase = ["IMPRESO", "DTE", "OTROS"];
-const opcionesTipo = ["01 FACTURA", "02 COMPROBANTE", "12 DCL MERCANCIAS", "14 SUJETO EXCLUIDO"];
-const opcionesOperacion = ["1. GRAVADA", "2. EXENTA", "3. NO SUJETA", "4. MIXTA"];
-const opcionesIngreso = ["1. INGRESO", "2. OTROS", "3. DEVOLUCION"];
-
+// --- ESTADOS ---
 const formulario = ref({
     fecha: new Date().toISOString().split('T')[0],
-    claseDoc: 'IMPRESO', tipoDoc: '01 FACTURA', resolucion: '', serie: '',
-    controlDel: '', controlAl: '', docDel: '', docAl: '', maqRegistro: '',
-    exentas: '0.00', exentasNoSujetasProp: '0.00', noSujetas: '0.00', gravadas: '0.00',
-    expCentroAmerica: '0.00', expFueraCentroAmerica: '0.00', expServicios: '0.00',
-    ventasZonaFranca: '0.00', ventasTerceros: '0.00',
-    total: '0.00',
-    tipoOpera: '1. GRAVADA', tipoIngreso: '1. INGRESO', anexo: ''
+    numero: '',
+    serie: '',
+    cliente: 'Cliente General',
+    documentoCliente: '',
+    gravadas: '0.00',
+    exentas: '0.00',
+    noSujetas: '0.00',
+    retencion: '0.00',
+    total: '0.00'
 });
 
-const listaVentas = ref([]);
+const listaVentas = ref([]); // Aquí cargaremos los datos reales
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
 const idEdicion = ref(null);
 const cargando = ref(false);
+const mensaje = ref('');
+const tipoMensaje = ref('');
+const filtro = ref('');
 
-// CÁLCULO TOTAL (SUMA DE TODO)
-watch(() => [
-    formulario.value.exentas, formulario.value.exentasNoSujetasProp, formulario.value.noSujetas, 
-    formulario.value.gravadas, 
-    formulario.value.expCentroAmerica, formulario.value.expFueraCentroAmerica, formulario.value.expServicios,
-    formulario.value.ventasZonaFranca, formulario.value.ventasTerceros
-], () => {
-    const sum = (parseFloat(formulario.value.exentas)||0) + 
-                (parseFloat(formulario.value.exentasNoSujetasProp)||0) +
-                (parseFloat(formulario.value.noSujetas)||0) + 
-                (parseFloat(formulario.value.gravadas)||0) + 
-                (parseFloat(formulario.value.expCentroAmerica)||0) +
-                (parseFloat(formulario.value.expFueraCentroAmerica)||0) +
-                (parseFloat(formulario.value.expServicios)||0) +
-                (parseFloat(formulario.value.ventasZonaFranca)||0) +
-                (parseFloat(formulario.value.ventasTerceros)||0);
-    formulario.value.total = sum.toFixed(2);
+// --- COMPUTADOS ---
+const totalCalculado = computed(() => {
+    const g = parseFloat(formulario.value.gravadas) || 0;
+    const e = parseFloat(formulario.value.exentas) || 0;
+    const n = parseFloat(formulario.value.noSujetas) || 0;
+    const r = parseFloat(formulario.value.retencion) || 0;
+    
+    // Total Venta = Gravadas + Exentas + No Sujetas - Retención
+    // Nota: El IVA ya está incluido en el precio de venta al consumidor final
+    return (g + e + n - r).toFixed(2);
 });
 
+const ventasFiltradas = computed(() => {
+    if (!filtro.value) return listaVentas.value;
+    const txt = filtro.value.toLowerCase();
+    return listaVentas.value.filter(v => 
+        (v.cliente && v.cliente.toLowerCase().includes(txt)) || 
+        (v.numero && v.numero.includes(txt))
+    );
+});
+
+// --- MÉTODOS ---
 const formatearDecimal = (campo) => {
     const valor = parseFloat(formulario.value[campo]);
     formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
 };
 
-const cargarDatos = async () => {
+const cargarVentas = async () => {
     try {
-        const res = await axios.get(API_URL);
-        listaVentas.value = res.data;
-    } catch (e) { console.error(e); }
+        // Simulación temporal si no tienes el endpoint listo, descomenta cuando tengas API
+        // const res = await axios.get(API_URL);
+        // listaVentas.value = res.data;
+        
+        // Datos dummy para visualizar el diseño (borrar al integrar backend)
+        if (listaVentas.value.length === 0) {
+            listaVentas.value = [
+                { id: 1, fecha: '2023-10-25', cliente: 'Juan Pérez', numero: '0015', gravadas: '15.50', total: '15.50' },
+                { id: 2, fecha: '2023-10-26', cliente: 'Cliente General', numero: '0016', gravadas: '5.00', total: '5.00' }
+            ];
+        }
+    } catch (error) { console.error("Error cargando ventas", error); }
 };
 
 const guardarVenta = async () => {
     cargando.value = true;
-    const payload = {
-        ...formulario.value,
-        // Convertir a números
-        exentas: parseFloat(formulario.value.exentas) || 0,
-        exentasNoSujetasProp: parseFloat(formulario.value.exentasNoSujetasProp) || 0,
-        noSujetas: parseFloat(formulario.value.noSujetas) || 0,
-        gravadas: parseFloat(formulario.value.gravadas) || 0,
-        expCentroAmerica: parseFloat(formulario.value.expCentroAmerica) || 0,
-        expFueraCentroAmerica: parseFloat(formulario.value.expFueraCentroAmerica) || 0,
-        expServicios: parseFloat(formulario.value.expServicios) || 0,
-        ventasZonaFranca: parseFloat(formulario.value.ventasZonaFranca) || 0,
-        ventasTerceros: parseFloat(formulario.value.ventasTerceros) || 0,
-        total: parseFloat(formulario.value.total) || 0
-    };
+    formulario.value.total = totalCalculado.value; // Asegurar total
 
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, payload);
-            alert('Actualizado');
+            // await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
+            // Simulación update
+            const index = listaVentas.value.findIndex(v => v.id === idEdicion.value);
+            if (index !== -1) listaVentas.value[index] = { ...formulario.value, id: idEdicion.value };
+            
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡Venta actualizada!';
         } else {
-            await axios.post(API_URL, payload);
-            alert('Guardado');
+            // await axios.post(API_URL, formulario.value);
+            // Simulación insert
+            listaVentas.value.unshift({ ...formulario.value, id: Date.now() });
+            
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡Venta guardada exitosamente!';
         }
-        await cargarDatos();
+        
         resetForm();
-        mostrandoLista.value = true;
-    } catch (e) { alert('Error'); console.error(e); } 
-    finally { cargando.value = false; }
+        setTimeout(() => { 
+            mensaje.value = ''; 
+            mostrandoLista.value = true; 
+        }, 1500);
+    } catch (error) {
+        tipoMensaje.value = 'error';
+        mensaje.value = 'Error al procesar la venta.';
+    } finally {
+        cargando.value = false;
+    }
 };
 
 const eliminarVenta = async (id) => {
-    if(!confirm('¿Eliminar?')) return;
-    try { await axios.delete(`${API_URL}/${id}`); cargarDatos(); } catch(e) { alert('Error'); }
+    if(!confirm('¿Eliminar esta venta?')) return;
+    try {
+        // await axios.delete(`${API_URL}/${id}`);
+        listaVentas.value = listaVentas.value.filter(v => v.id !== id);
+    } catch (e) { alert('Error'); }
 };
 
-const prepararEdicion = (item) => {
-    let fechaSegura = item.ConsFecha ? new Date(item.ConsFecha).toISOString().split('T')[0] : '';
-    formulario.value = {
-        fecha: fechaSegura,
-        claseDoc: item.ConsClaseDoc, tipoDoc: item.ConsTipoDoc, resolucion: item.ConsNumResolu, serie: item.ConsSerieDoc,
-        controlDel: item.ConsNumContIntDEL, controlAl: item.ConsNumContIntAL,
-        docDel: item.ConsNumDocDEL, docAl: item.ConsNumDocAL, maqRegistro: item.ConsNumMaqRegistro,
-        
-        exentas: parseFloat(item.ConsVtaExentas || 0).toFixed(2),
-        exentasNoSujetasProp: parseFloat(item.ConsVtaIntExenNoSujProporcio || 0).toFixed(2),
-        noSujetas: parseFloat(item.ConsVtaNoSujetas || 0).toFixed(2),
-        gravadas: parseFloat(item.ConsVtaGravLocales || 0).toFixed(2),
-        expCentroAmerica: parseFloat(item.ConsExpDentAreaCA || 0).toFixed(2),
-        expFueraCentroAmerica: parseFloat(item.ConsExpFueraAreaCA || 0).toFixed(2),
-        expServicios: parseFloat(item.ConsExpServicios || 0).toFixed(2),
-        ventasZonaFranca: parseFloat(item.ConsVtaZonaFrancasDPA || 0).toFixed(2),
-        ventasTerceros: parseFloat(item.ConsVtaCtaTercNoDomici || 0).toFixed(2),
-        total: parseFloat(item.ConsTotalVta || 0).toFixed(2),
-        
-        tipoOpera: item.ConsTipoOpera, tipoIngreso: item.ConsTipoIngreso, anexo: item.ConsNumAnexo
-    };
-    idEdicion.value = item.idconsfinal;
+const prepararEdicion = (venta) => {
+    formulario.value = { ...venta };
+    idEdicion.value = venta.id;
     modoEdicion.value = true;
     mostrandoLista.value = false;
 };
 
+const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
+
 const resetForm = () => {
     formulario.value = {
-        fecha: new Date().toISOString().split('T')[0], claseDoc: 'IMPRESO', tipoDoc: '01 FACTURA',
-        exentas: '0.00', exentasNoSujetasProp: '0.00', noSujetas: '0.00', gravadas: '0.00',
-        expCentroAmerica: '0.00', expFueraCentroAmerica: '0.00', expServicios: '0.00',
-        ventasZonaFranca: '0.00', ventasTerceros: '0.00', total: '0.00',
-        tipoOpera: '1. GRAVADA', tipoIngreso: '1. INGRESO', anexo: ''
+        fecha: new Date().toISOString().split('T')[0],
+        numero: '', serie: '', cliente: 'Cliente General', documentoCliente: '',
+        gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', total: '0.00'
     };
     modoEdicion.value = false;
     idEdicion.value = null;
+    mensaje.value = '';
 };
 
-const alternarVista = () => { if(modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
+const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
 
-onMounted(cargarDatos);
+onMounted(cargarVentas);
 </script>
 
 <style scoped>
-.ventas-container { padding: 2rem; background: #e3f2fd; min-height: 100vh; }
-.header-section { display: flex; justify-content: space-between; margin-bottom: 2rem; max-width: 1000px; margin: 0 auto; }
-.header-buttons { display: flex; gap: 10px; }
-.btn-toggle { background: #1976d2; color: white; padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
-.btn-volver { background: #666; color: white; padding: 10px; border-radius: 8px; border: none; cursor: pointer; }
-.card-form, .card-lista-full { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 1000px; margin: 0 auto; border-top: 5px solid #1976d2; }
+/* --- ESTILO MATERIAL DESVANECIDO (Consistente con Compras/Proveedores) --- */
+.ventas-container {
+  padding: 20px;
+  /* Fondo tintado característico */
+  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
 
-/* Grid Systems */
-.form-row { display: grid; gap: 1rem; margin-top: 1rem; }
-.grid-2 { grid-template-columns: 1fr 1fr; }
-.grid-3 { grid-template-columns: 1fr 1fr 1fr; }
-.grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+/* Cabecera */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
+.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
 
-.form-group { display: flex; flex-direction: column; }
-label { font-weight: bold; color: #555; font-size: 0.85rem; margin-bottom: 5px; }
-input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; }
+/* Tarjetas */
+.card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgba(85, 194, 183, 0.15);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-/* Sections */
-.seccion-grupo { background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; margin-bottom: 15px; }
-.seccion-grupo h3 { margin-top: 0; color: #1976d2; font-size: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-bottom: 10px; }
+.card-header {
+  border-bottom: 1px solid #f0fdfa;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+}
+.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.badge-info { 
+  font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px;
+}
 
-.seccion-montos { background: #fffde7; padding: 1rem; border-radius: 8px; margin-top: 1rem; border: 1px solid #fff59d; }
-.subtitulo-seccion { margin-top: 15px; margin-bottom: 5px; font-size: 0.9rem; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+/* Formularios */
+.form-section { margin-bottom: 30px; }
+.section-title { 
+  font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; 
+  border-left: 4px solid #55C2B7; padding-left: 12px; 
+}
 
-.input-monto.principal { border-color: #1976d2; font-weight: bold; color: #1976d2; }
-.input-total { border: 2px solid #1976d2; font-weight: bold; color: #1976d2; text-align: right; font-size: 1.2rem; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
-.actions { margin-top: 1.5rem; display: flex; gap: 10px; }
-.btn-guardar { flex: 1; background: #1976d2; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.btn-cancelar { background: #999; color: white; padding: 12px; border: none; border-radius: 8px; cursor: pointer; }
+.form-group { margin-bottom: 5px; }
+.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+
+/* Inputs Modernos */
+.form-control {
+  width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937;
+  background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem;
+  transition: all 0.2s; box-sizing: border-box;
+}
+.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+
+/* Montos */
+.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
+.monto-group { flex: 1; min-width: 150px; }
+.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
+.input-wrapper { position: relative; }
+.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
+.monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
+.total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem;
+  border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+.btn:active { transform: translateY(1px); }
+.btn-primary { background-color: #55C2B7; color: white; }
+.btn-primary:hover { background-color: #45a89d; }
+.btn-success { background-color: #10b981; color: white; }
+.btn-success:hover { background-color: #059669; }
+.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
+.btn-secondary:hover { background-color: #f3f4f6; }
+.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; }
+.btn-icon:hover { background-color: #f9fafb; color: #111827; }
+
+.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
 
 /* Tabla */
-.tabla-container { margin-top: 1rem; overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px; border-bottom: 2px solid #eee; color: #777; }
-td { padding: 10px; border-bottom: 1px solid #eee; }
-.monto-gravado { color: #1565c0; font-weight: bold; }
-.monto-total { color: #1976d2; font-weight: bold; font-size: 1.05rem; }
-.btn-accion { background: #f0f0f0; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 5px; }
+.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
+.table { width: 100%; border-collapse: collapse; background: white; }
+.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
+.table tr:hover td { background-color: #f9fafb; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+
+/* Alertas */
+.alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
+.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.text-danger { color: #ef4444; }
+.text-muted { color: #6b7280; }
+.mt-3 { margin-top: 15px; }
+
+@media (max-width: 768px) {
+  .montos-wrapper { flex-direction: column; }
+  .monto-group { width: 100%; }
+  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .header-actions { width: 100%; }
+  .header-actions .btn { width: 100%; }
+}
 </style>
