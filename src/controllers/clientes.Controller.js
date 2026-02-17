@@ -13,11 +13,28 @@ export const getClientes = async (req, res) => {
 
 // 2. CREAR UN CLIENTE
 export const createCliente = async (req, res) => {
-    const { nit, nombre, direccion, departamento, giro, registro, tel1, tel2, correo, observacion } = req.body;
+    // Extraemos los datos y asignamos valores por defecto ('') si vienen vacíos
+    const { 
+        nit, 
+        nombre, 
+        direccion = '', 
+        departamento = '', 
+        giro = '', 
+        registro = '', 
+        tel1 = '', 
+        tel2 = '', 
+        correo = '', 
+        observacion = '' 
+    } = req.body;
+
+    // Validación mínima obligatoria
+    if (!nit || !nombre) {
+        return res.status(400).json({ message: 'El NIT y el Nombre del cliente son obligatorios.' });
+    }
 
     try {
         // Verificar si ya existe
-        const [existente] = await pool.query('SELECT * FROM clientes WHERE ClienNIT = ?', [nit]);
+        const [existente] = await pool.query('SELECT ClienNIT FROM clientes WHERE ClienNIT = ?', [nit]);
         if (existente.length > 0) {
             return res.status(400).json({ message: 'El NIT ya está registrado en clientes.' });
         }
@@ -26,7 +43,18 @@ export const createCliente = async (req, res) => {
             `INSERT INTO clientes 
             (ClienNIT, ClienNom, ClienDirec, ClienDepto, ClienGiro, ClienNumReg, ClienTel1, ClienTel2, ClienCorreo, ClienObserv) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [nit, nombre, direccion, departamento, giro, registro, tel1, tel2, correo, observacion]
+            [
+                nit, 
+                nombre, 
+                direccion || '', 
+                departamento || '', 
+                giro || '', 
+                registro || '', 
+                tel1 || '', 
+                tel2 || '', 
+                correo || '', 
+                observacion || ''
+            ]
         );
 
         res.json({ message: 'Cliente registrado exitosamente', id: result.insertId });
@@ -38,17 +66,51 @@ export const createCliente = async (req, res) => {
 
 // 3. ACTUALIZAR UN CLIENTE
 export const updateCliente = async (req, res) => {
-    const { id } = req.params; // El NIT original
-    const { nit, nombre, direccion, departamento, giro, registro, tel1, tel2, correo, observacion } = req.body;
+    const { id } = req.params; // NIT original para el WHERE
+    const { 
+        nit, 
+        nombre, 
+        direccion, 
+        departamento, 
+        giro, 
+        registro, 
+        tel1, 
+        tel2, 
+        correo, 
+        observacion 
+    } = req.body;
+
+    if (!nit || !nombre) {
+        return res.status(400).json({ message: 'El NIT y el Nombre son obligatorios.' });
+    }
 
     try {
         const [result] = await pool.query(
             `UPDATE clientes SET 
-            ClienNIT = ?, ClienNom = ?, ClienDirec = ?, ClienDepto = ?, 
-            ClienGiro = ?, ClienNumReg = ?, ClienTel1 = ?, ClienTel2 = ?, 
-            ClienCorreo = ?, ClienObserv = ?
+            ClienNIT = ?, 
+            ClienNom = ?, 
+            ClienDirec = ?, 
+            ClienDepto = ?, 
+            ClienGiro = ?, 
+            ClienNumReg = ?, 
+            ClienTel1 = ?, 
+            ClienTel2 = ?, 
+            ClienCorreo = ?, 
+            ClienObserv = ?
             WHERE ClienNIT = ?`,
-            [nit, nombre, direccion, departamento, giro, registro, tel1, tel2, correo, observacion, id]
+            [
+                nit, 
+                nombre, 
+                direccion || '', 
+                departamento || '', 
+                giro || '', 
+                registro || '', 
+                tel1 || '', 
+                tel2 || '', 
+                correo || '', 
+                observacion || '', 
+                id
+            ]
         );
 
         if (result.affectedRows === 0) {
@@ -65,17 +127,14 @@ export const updateCliente = async (req, res) => {
 // 4. ELIMINAR UN CLIENTE
 export const deleteCliente = async (req, res) => {
     const { id } = req.params;
-
     try {
         const [result] = await pool.query('DELETE FROM clientes WHERE ClienNIT = ?', [id]);
-
         if (result.affectedRows === 0) {
             return res.status(404).json({ message: 'Cliente no encontrado' });
         }
-
         res.json({ message: 'Cliente eliminado correctamente' });
     } catch (error) {
         console.error('❌ Error al eliminar cliente:', error);
-        res.status(500).json({ message: 'Error al eliminar. Verifique si tiene ventas asociadas.', error: error.message });
+        res.status(500).json({ message: 'Error al eliminar', error: error.message });
     }
 };

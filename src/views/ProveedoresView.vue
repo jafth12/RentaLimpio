@@ -26,7 +26,7 @@
           <form @submit.prevent="procesarFormulario" class="form-body">
             
             <div class="form-section">
-              <h3 class="section-title">🏢 Datos de Identificación</h3>
+              <h3 class="section-title">🏢 Datos de Identificación y Fiscales</h3>
               
               <div class="form-grid">
                 <div class="form-group" :class="{ 'has-error': !formulario.nit && intentoGuardar }">
@@ -50,6 +50,28 @@
                     class="form-control"
                   >
                   <span v-if="!formulario.nombre && intentoGuardar" class="error-msg">El nombre es requerido</span>
+                </div>
+              </div>
+
+              <div class="form-grid mt-2">
+                <div class="form-group">
+                  <label class="form-label">NRC (Registro)</label>
+                  <input 
+                    v-model="formulario.nrc" 
+                    type="text" 
+                    placeholder="000000-0" 
+                    class="form-control"
+                  >
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Giro / Actividad Económica</label>
+                  <input 
+                    v-model="formulario.giro" 
+                    type="text" 
+                    placeholder="Ej: Venta de Insumos..." 
+                    class="form-control"
+                  >
                 </div>
               </div>
             </div>
@@ -106,7 +128,7 @@
           <div class="card-header flex-between">
              <h3>📋 Directorio de Proveedores</h3>
              <div class="search-wrapper">
-               <input type="text" v-model="busqueda" placeholder="🔍 Buscar por nombre o NIT..." class="form-control search-list">
+               <input type="text" v-model="busqueda" placeholder="🔍 Buscar por nombre, NIT o NRC..." class="form-control search-list">
              </div>
           </div>
           
@@ -114,17 +136,24 @@
             <table class="table">
               <thead>
                 <tr>
-                  <th>NIT</th>
+                  <th>NIT / NRC</th>
                   <th>Nombre / Razón Social</th>
+                  <th>Giro / Actividad</th>
                   <th>Ubicación</th>
                   <th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="prov in proveedoresFiltrados" :key="prov.ProvNIT" :class="{ 'row-active': prov.ProvNIT === ultimoGuardado }">
-                  <td><span class="doc-number">{{ prov.ProvNIT }}</span></td>
+                  <td>
+                    <div class="doc-number">{{ prov.ProvNIT }}</div>
+                    <small v-if="prov.ProvNRC" class="text-muted d-block mt-1">NRC: <strong>{{ prov.ProvNRC }}</strong></small>
+                  </td>
                   <td>
                     <div class="fw-bold text-dark">{{ prov.ProvNombre }}</div>
+                  </td>
+                  <td class="text-muted text-sm">
+                    {{ prov.ProvGiro ? prov.ProvGiro : '---' }}
                   </td>
                   <td class="text-muted text-sm">
                     {{ prov.ProvDepto ? prov.ProvDepto : 'N/A' }}
@@ -135,7 +164,7 @@
                   </td>
                 </tr>
                 <tr v-if="proveedoresFiltrados.length === 0">
-                  <td colspan="4" class="text-center py-4 text-muted">
+                  <td colspan="5" class="text-center py-4 text-muted">
                     {{ busqueda ? 'No hay coincidencias.' : 'No hay proveedores registrados.' }}
                   </td>
                 </tr>
@@ -150,7 +179,7 @@
 </template>
 
 <script setup>
-import MainLayout from '../layouts/MainLayout.vue'; // Importación correcta
+import MainLayout from '../layouts/MainLayout.vue'; 
 import { ref, computed, onMounted } from 'vue';
 import axios from 'axios';
 
@@ -162,9 +191,10 @@ const BASE_URL = `http://${hostname}:3000`;
 const API_URL = BASE_URL + '/api/proveedores';
 
 // --- ESTADOS ---
-const formulario = ref({ nit: '', nombre: '', direccion: '', departamento: '' });
+// Agregamos nrc y giro al estado inicial
+const formulario = ref({ nit: '', nombre: '', direccion: '', departamento: '', nrc: '', giro: '' });
 const listaProveedores = ref([]);
-const mostrarLista = ref(false); // Empezamos en formulario si queremos registrar rápido, o true si prefieres lista
+const mostrarLista = ref(false); 
 const cargando = ref(false);
 const modoEdicion = ref(false);
 const nitOriginalEdicion = ref(null);
@@ -192,7 +222,8 @@ const proveedoresFiltrados = computed(() => {
   const txt = busqueda.value.toLowerCase();
   return listaProveedores.value.filter(p => 
     (p.ProvNombre && p.ProvNombre.toLowerCase().includes(txt)) || 
-    (p.ProvNIT && p.ProvNIT.includes(txt))
+    (p.ProvNIT && p.ProvNIT.includes(txt)) ||
+    (p.ProvNRC && p.ProvNRC.includes(txt)) // Busqueda por NRC también
   );
 });
 
@@ -209,7 +240,8 @@ const cancelarEdicion = () => {
   modoEdicion.value = false;
   nitOriginalEdicion.value = null;
   intentoGuardar.value = false;
-  formulario.value = { nit: '', nombre: '', direccion: '', departamento: '' };
+  // Reseteamos incluyendo los nuevos campos
+  formulario.value = { nit: '', nombre: '', direccion: '', departamento: '', nrc: '', giro: '' };
   mensaje.value = '';
 };
 
@@ -218,20 +250,23 @@ const seleccionarParaEditar = (prov) => {
   nitOriginalEdicion.value = prov.ProvNIT;
   mensaje.value = '';
   
+  // Mapeamos los datos de la DB al formulario
   formulario.value = {
     nit: prov.ProvNIT,
     nombre: prov.ProvNombre,
     direccion: prov.ProvDirec,
-    departamento: prov.ProvDepto
+    departamento: prov.ProvDepto,
+    nrc: prov.ProvNRC,  // Nuevo
+    giro: prov.ProvGiro // Nuevo
   };
   
-  mostrarLista.value = false; // Cambiamos a la vista de formulario
+  mostrarLista.value = false; 
 };
 
 const procesarFormulario = async () => {
   intentoGuardar.value = true;
   if (!formulario.value.nit || !formulario.value.nombre) {
-    return; // Validación simple
+    return; 
   }
 
   cargando.value = true;
@@ -251,12 +286,11 @@ const procesarFormulario = async () => {
     ultimoGuardado.value = formulario.value.nit;
     tipoMensaje.value = 'success';
     
-    // Limpieza y recarga
-    formulario.value = { nit: '', nombre: '', direccion: '', departamento: '' };
+    // Limpieza
+    formulario.value = { nit: '', nombre: '', direccion: '', departamento: '', nrc: '', giro: '' };
     intentoGuardar.value = false;
     await cargarLista();
     
-    // Volver a la lista después de guardar con éxito
     setTimeout(() => { 
       mensaje.value = ''; 
       mostrarLista.value = true; 
@@ -387,8 +421,11 @@ onMounted(cargarLista);
 .table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
 .table tr:hover td { background-color: #f9fafb; }
-.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; display: inline-block;}
 .row-active td { background-color: #f0fdfa !important; }
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 10px; }
+.d-block { display: block; }
 
 /* Alertas */
 .alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
