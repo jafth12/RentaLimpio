@@ -15,6 +15,7 @@ import VentasTercerosView from '../views/VentasTercerosView.vue'
 import ImportExportView from '../views/ImportExportView.vue';
 import JsonReaderView from '../views/JsonReaderView.vue';
 import ClientesView from '../views/ClientesView.vue';
+import DeclarantesView from '../views/DeclarantesView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -92,6 +93,12 @@ const router = createRouter({
             name: 'Gestion de Clientes',
             component: ClientesView, 
             meta:{ requiresAuth: true } 
+        },
+        {
+            path: '/declarantes',
+            name: 'declarantes',
+            component: DeclarantesView,
+            meta: { requiresAuth: true }
         },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---

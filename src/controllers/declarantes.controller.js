@@ -46,3 +46,22 @@ export const updateDeclarante = async (req, res) => {
         res.status(500).json({ message: 'Error al actualizar ficha', error: error.message });
     }
 };
+
+// 4. ELIMINAR EMPRESA DECLARANTE
+export const deleteDeclarante = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await pool.query('DELETE FROM declarante WHERE iddeclaNIT = ?', [id]);
+        
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: 'Empresa no encontrada' });
+        }
+        res.json({ message: 'Empresa eliminada correctamente' });
+    } catch (error) {
+        // Error común: llave foránea (si ya hay facturas con este declarante)
+        if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+             return res.status(400).json({ message: 'No se puede eliminar: Esta empresa tiene documentos asociados.' });
+        }
+        res.status(500).json({ message: 'Error al eliminar empresa', error: error.message });
+    }
+};

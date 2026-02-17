@@ -131,7 +131,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="cliente in clientesFiltrados" :key="cliente.id">
+                <tr v-for="cliente in clientesFiltrados" :key="cliente.nit">
                   <td>
                     <div class="fw-bold text-dark">{{ cliente.nombre }}</div>
                     <div class="text-xs text-muted">{{ cliente.departamento }}</div>
@@ -141,7 +141,7 @@
                     <div v-if="cliente.nrc" class="doc-item">NRC: <span class="fw-bold">{{ cliente.nrc }}</span></div>
                   </td>
                   <td>
-                    <span class="badge badge-light">{{ cliente.categoria }}</span>
+                    <span class="badge badge-light">{{ cliente.categoria || 'N/A' }}</span>
                     <div class="text-xs mt-1">{{ cliente.giro }}</div>
                   </td>
                   <td>
@@ -150,7 +150,7 @@
                   </td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(cliente)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarCliente(cliente.id)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-danger" @click="eliminarCliente(cliente.nit)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
                 <tr v-if="clientesFiltrados.length === 0">
@@ -173,7 +173,7 @@ import MainLayout from '../layouts/MainLayout.vue';
 
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
-const API_URL = `${BASE_URL}/api/clientes`; // Ajusta según tu backend
+const API_URL = `${BASE_URL}/api/clientes`;
 
 const departamentos = ["San Salvador", "La Libertad", "Santa Ana", "San Miguel", "Sonsonate", "Usulután", "Ahuachapán", "La Paz", "La Unión", "Cuscatlán", "Chalatenango", "Morazán", "San Vicente", "Cabañas"];
 
@@ -185,16 +185,10 @@ const formulario = ref({
     telefono: '', email: ''
 });
 
-const datosParaEnviar = {
-    ...formulario.value,
-    nombre: formulario.value.nombre.toUpperCase(),
-    nit: formulario.value.nit.replace(/-/g, '').trim(),
-    registro: formulario.value.nrc // Mapeamos nrc a registro para el controller
-};
 const listaClientes = ref([]);
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
-const idEdicion = ref(null);
+const idEdicion = ref(null); // Usaremos el NIT como ID
 const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
@@ -212,71 +206,114 @@ const clientesFiltrados = computed(() => {
 });
 
 // --- MÉTODOS ---
+
+// 1. CARGAR (GET) - Corregido mapeo de BD a Frontend
 const cargarClientes = async () => {
     try {
-        // const res = await axios.get(API_URL);
-        // listaClientes.value = res.data;
+        const res = await axios.get(API_URL);
         
-        // Dummy data
-        if (listaClientes.value.length === 0) {
-            listaClientes.value = [
-                { id: 1, nombre: 'Empresa Ejemplo S.A. de C.V.', giro: 'Venta de Insumos', nit: '0614-010190-102-1', nrc: '12345-6', categoria: 'Contribuyente', departamento: 'San Salvador', telefono: '2222-0000' }
-            ];
-        }
-    } catch (error) { console.error("Error cargando clientes", error); }
+        // Mapeamos los datos crudos de la BD (ClienNom, ClienNIT) al formato visual (nombre, nit)
+        listaClientes.value = res.data.map(db => ({
+            nit: db.ClienNIT,
+            nombre: db.ClienNom,
+            direccion: db.ClienDirec,
+            departamento: db.ClienDepto,
+            giro: db.ClienGiro,
+            nrc: db.ClienNumReg,
+            telefono: db.ClienTel1, // Asumimos Tel1 como principal
+            email: db.ClienCorreo,
+            observacion: db.ClienObserv,
+            categoria: 'Contribuyente' // Valor por defecto si no viene de BD
+        }));
+
+    } catch (error) { 
+        console.error("Error cargando clientes", error);
+        mensaje.value = 'Error al cargar los clientes del servidor.';
+        tipoMensaje.value = 'error';
+    }
 };
 
+// 2. GUARDAR (POST / PUT) - Corregido envío de datos
 const guardarCliente = async () => {
-    // 1. Validación de Auditoría Fiscal
-    if (formulario.value.categoria !== 'Consumidor Final') {
-        if (!formulario.value.nrc || !formulario.value.giro) {
-            tipoMensaje.value = 'error';
-            mensaje.value = '⚠️ ERROR DE AUDITORÍA: NRC y Giro son obligatorios para Contribuyentes.';
-            return;
-        }
-    }
+    cargando.value = true;
+    mensaje.value = '';
 
-    // 2. Preparación de datos (Justo al momento de enviar)
+    // Preparamos el objeto EXACTAMENTE como lo espera el Backend
     const payload = {
-        ...formulario.value,
-        nombre: formulario.value.nombre.toUpperCase(), // Estándar contable
-        nit: formulario.value.nit.replace(/-/g, '').trim(), // Limpieza para la DB
-        registro: formulario.value.nrc // Mapeo correcto para el controller que arreglamos
+        nit: formulario.value.nit,
+        nombre: formulario.value.nombre,
+        direccion: formulario.value.direccion,
+        departamento: formulario.value.departamento,
+        giro: formulario.value.giro,
+        registro: formulario.value.nrc, // Backend espera "registro", frontend tiene "nrc"
+        tel1: formulario.value.telefono, // Backend espera "tel1"
+        correo: formulario.value.email,   // Backend espera "correo"
+        observacion: formulario.value.categoria // Guardamos categoría en observación o campo libre
     };
 
-    cargando.value = true;
     try {
         if(modoEdicion.value) {
+            // ACTUALIZAR (PUT)
             await axios.put(`${API_URL}/${idEdicion.value}`, payload);
-            mensaje.value = '¡Ficha de cliente actualizada y auditada!';
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡Cliente actualizado correctamente!';
         } else {
+            // CREAR (POST)
             await axios.post(API_URL, payload);
-            mensaje.value = '¡Cliente registrado con éxito fiscal!';
+            tipoMensaje.value = 'success';
+            mensaje.value = '¡Cliente registrado con éxito!';
         }
         
-        tipoMensaje.value = 'success';
-        await cargarClientes(); // Refrescamos la lista de la PowerEdge
+        // Recargar la lista real desde el servidor
+        await cargarClientes();
+        
         resetForm();
-        setTimeout(() => { mostrandoLista.value = true; }, 1500);
+        setTimeout(() => { 
+            mensaje.value = ''; 
+            mostrandoLista.value = true; 
+        }, 1500);
+
     } catch (error) {
         tipoMensaje.value = 'error';
-        mensaje.value = error.response?.data?.message || 'Error al conectar con el servidor de datos.';
+        if (error.response && error.response.data.message) {
+             mensaje.value = error.response.data.message;
+        } else {
+             mensaje.value = 'Error de conexión con el servidor.';
+        }
     } finally {
         cargando.value = false;
     }
 };
 
-const eliminarCliente = async (id) => {
-    if(!confirm('¿Eliminar este cliente de la base de datos?')) return;
+// 3. ELIMINAR (DELETE)
+const eliminarCliente = async (nit) => {
+    if(!confirm('¿Eliminar este cliente de la base de datos? Esta acción no se puede deshacer.')) return;
+    
     try {
-        // await axios.delete(`${API_URL}/${id}`);
-        listaClientes.value = listaClientes.value.filter(c => c.id !== id);
-    } catch (e) { alert('Error'); }
+        await axios.delete(`${API_URL}/${nit}`);
+        // Actualizamos la lista localmente para que sea rápido
+        listaClientes.value = listaClientes.value.filter(c => c.nit !== nit);
+        alert('Cliente eliminado correctamente.');
+    } catch (error) { 
+        console.error(error);
+        alert('Error al eliminar: Posiblemente tenga ventas asociadas.'); 
+    }
 };
 
 const prepararEdicion = (cliente) => {
-    formulario.value = { ...cliente };
-    idEdicion.value = cliente.id;
+    // Mapeamos de vuelta al formulario
+    formulario.value = { 
+        nombre: cliente.nombre,
+        nit: cliente.nit,
+        nrc: cliente.nrc,
+        giro: cliente.giro,
+        departamento: cliente.departamento,
+        direccion: cliente.direccion,
+        telefono: cliente.telefono,
+        email: cliente.email,
+        categoria: cliente.categoria || 'Consumidor Final'
+    };
+    idEdicion.value = cliente.nit; // Usamos NIT para identificar
     modoEdicion.value = true;
     mostrandoLista.value = false;
 };
