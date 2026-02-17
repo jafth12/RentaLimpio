@@ -1,14 +1,10 @@
 import { Router } from "express";
-import { 
-    getVentasConsumidor, 
-    createVentaConsumidor, 
-    updateVentaConsumidor,
-    deleteVentaConsumidor 
-} from "../controllers/consumidorFinal.controller.js";
+import { exportarVentasConsumidor } from "../controllers/data.controller.js";
+import { getVentasConsumidor, createVentaConsumidor, updateVentaConsumidor,deleteVentaConsumidor } from "../controllers/consumidorFinal.controller.js";
 
 const router = Router();
 
-
+router.get('/ventas-cf/exportar', exportarVentasConsumidor);
 router.get('/ventas-cf', getVentasConsumidor);          
 router.post('/ventas-cf', createVentaConsumidor);       
 router.put('/ventas-cf/:id', updateVentaConsumidor);    

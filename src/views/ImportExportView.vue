@@ -195,13 +195,26 @@ const procesarAccion = async () => {
   try {
     let endpoint = '';
     
-    // Selector de Endpoints
+    // CORRECCIÓN FINAL DE RUTAS (Según tu index.js)
     switch (moduloSeleccionado.value) {
-      case 'todo': endpoint = `${BASE_URL}/api/exportar-todo`; break;
-      case 'compras': endpoint = `${BASE_URL}/api/compras/exportar`; break;
-      case 'ventas_cf': endpoint = `${BASE_URL}/api/ventas-consumidor/exportar`; break; // Asumiendo ruta
-      case 'ventas_ccf': endpoint = `${BASE_URL}/api/ventas-credito/exportar`; break; // Asumiendo ruta
-      case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; // Asumiendo ruta
+      case 'todo': 
+        endpoint = `${BASE_URL}/api/exportar-todo`; 
+        break;
+      case 'compras': 
+        endpoint = `${BASE_URL}/api/compras/exportar`; 
+        break;
+      case 'ventas_cf': 
+        // CORRECTO: 'ventas-cf'
+        endpoint = `${BASE_URL}/api/ventas-cf/exportar`; 
+        break; 
+      case 'ventas_ccf': 
+        // CORRECTO: 'ventas-CCF' (Tal como me indicaste)
+        endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; 
+        break; 
+      case 'sujetos': 
+        endpoint = `${BASE_URL}/api/sujetos/exportar`; 
+        break; 
+      
       default: endpoint = `${BASE_URL}/api/exportar-todo`;
     }
 

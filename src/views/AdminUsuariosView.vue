@@ -1,125 +1,172 @@
 <template>
-  <div class="admin-container">
-    <div class="header-section">
-      <h1>🛡️ Administración del Sistema</h1>
-      <div class="header-buttons">
-         <button @click="pestanaActiva = 'empleados'" :class="['btn-tab', { active: pestanaActiva === 'empleados' }]">👨‍💼 Empleados</button>
-         <button @click="pestanaActiva = 'usuarios'" :class="['btn-tab', { active: pestanaActiva === 'usuarios' }]">🔑 Usuarios</button>
-         <button @click="$router.push('/inicio')" class="btn-volver">⬅ Volver</button>
+  <MainLayout>
+    <div class="admin-container">
+      
+      <div class="header-section">
+        <div class="title-box">
+          <h1>🛡️ Administración del Sistema</h1>
+          <p class="subtitle">Gestión de empleados y control de accesos</p>
+        </div>
+        
+        <div class="tabs-container">
+          <button @click="pestanaActiva = 'empleados'" :class="['tab-btn', { active: pestanaActiva === 'empleados' }]">👨‍💼 Empleados</button>
+          <button @click="pestanaActiva = 'usuarios'" :class="['tab-btn', { active: pestanaActiva === 'usuarios' }]">🔑 Usuarios</button>
+        </div>
+      </div>
+
+      <div class="main-content">
+
+        <div v-if="pestanaActiva === 'empleados'" class="modulo-content fade-in">
+           
+           <div class="card mb-4">
+              <div class="card-header">
+                <h2>{{ modoEdicionEmp ? '✏️ Editar Empleado' : '✨ Nuevo Empleado' }}</h2>
+                <span class="badge-info">{{ modoEdicionEmp ? 'Modificando datos' : 'Registrar personal' }}</span>
+              </div>
+              
+              <form @submit.prevent="guardarEmpleado" class="form-body">
+                 <div class="form-grid">
+                    <div class="form-group">
+                       <label class="form-label">Nombre Completo <span class="text-danger">*</span></label>
+                       <input v-model="formEmpleado.EmpleNombre" required class="form-control" placeholder="Ej: Juan Antonio Pérez">
+                    </div>
+                    <div class="form-group">
+                       <label class="form-label">DUI <span class="text-danger">*</span></label>
+                       <input v-model="formEmpleado.EmpleDUI" required class="form-control" placeholder="00000000-0">
+                    </div>
+                 </div>
+                 
+                 <div class="form-grid">
+                    <div class="form-group"><label class="form-label">Teléfono</label><input v-model="formEmpleado.EmpleaTel" class="form-control" placeholder="0000-0000"></div>
+                    <div class="form-group"><label class="form-label">Dirección</label><input v-model="formEmpleado.EmpleDirec" class="form-control" placeholder="Dirección de residencia"></div>
+                 </div>
+                 
+                 <div class="form-group mt-2">
+                    <label class="form-label">Correo Electrónico</label>
+                    <input type="email" v-model="formEmpleado.EmpleCorreo" class="form-control" placeholder="empleado@empresa.com">
+                 </div>
+
+                 <div class="form-actions">
+                    <button v-if="modoEdicionEmp" type="button" @click="resetEmpleado" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-success btn-lg">
+                       {{ modoEdicionEmp ? 'Actualizar Datos' : 'Guardar y Asignar Usuario ➡' }}
+                    </button>
+                 </div>
+              </form>
+           </div>
+
+           <div class="card">
+              <div class="card-header"><h3>📋 Nómina de Empleados</h3></div>
+              <div class="table-responsive">
+                 <table class="table">
+                    <thead><tr><th>Nombre</th><th>Contacto</th><th>DUI</th><th class="text-center">Acciones</th></tr></thead>
+                    <tbody>
+                       <tr v-for="emp in listaEmpleados" :key="emp.idempleado">
+                          <td class="fw-bold text-dark">{{ emp.EmpleNombre }}</td>
+                          <td class="text-muted">{{ emp.EmpleaTel }}</td>
+                          <td><span class="doc-number">{{ emp.EmpleDUI }}</span></td>
+                          <td class="text-center">
+                             <button @click="prepararEdicionEmp(emp)" class="btn-icon" title="Editar">✏️</button>
+                             <button @click="eliminarEmpleado(emp.idempleado)" class="btn-icon text-danger" title="Eliminar">🗑️</button>
+                          </td>
+                       </tr>
+                       <tr v-if="listaEmpleados.length === 0"><td colspan="4" class="text-center py-4 text-muted">No hay empleados registrados.</td></tr>
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+        </div>
+
+        <div v-if="pestanaActiva === 'usuarios'" class="modulo-content fade-in">
+           
+           <div class="card mb-4 border-warning">
+              <div class="card-header">
+                 <h2>👤 Gestión de Acceso</h2>
+                 <span class="badge-info warning">Crear credenciales</span>
+              </div>
+              
+              <div class="user-selection-area">
+                 <p class="section-subtitle">Asignando usuario para: <span class="highlight-name">{{ nombreEmpleadoSeleccionado || 'Seleccione un empleado abajo 👇' }}</span></p>
+              </div>
+
+              <form @submit.prevent="guardarUsuario" class="form-body">
+                 <div class="form-grid">
+                    <div class="form-group">
+                       <label class="form-label">Empleado Asociado <span class="text-danger">*</span></label>
+                       <select v-model="formUsuario.empleados_idempleado" @change="actualizarNombreEmpleado" required class="form-control select-highlight">
+                          <option :value="null">-- Seleccionar --</option>
+                          <option v-for="emp in listaEmpleados" :key="emp.idempleado" :value="emp.idempleado">
+                             {{ emp.EmpleNombre }}
+                          </option>
+                       </select>
+                    </div>
+                    <div class="form-group">
+                       <label class="form-label">Rol de Sistema <span class="text-danger">*</span></label>
+                       <select v-model="formUsuario.Rol" required class="form-control">
+                          <option value="empleado">👤 Empleado (Limitado)</option>
+                          <option value="admin">🛡️ Administrador (Total)</option>
+                       </select>
+                    </div>
+                 </div>
+
+                 <div class="form-grid mt-3">
+                    <div class="form-group">
+                       <label class="form-label">Nombre de Usuario <span class="text-danger">*</span></label>
+                       <div class="input-group">
+                          <input 
+                            v-model="formUsuario.UsuaNombre" 
+                            required 
+                            class="form-control fw-bold" 
+                            placeholder="Escribe el usuario o usa la sugerencia"
+                          >
+                          <button type="button" @click="generarSugerencia" class="btn-icon-square" title="Generar Sugerencia Automática">🔄</button>
+                       </div>
+                       <small class="text-muted text-xs">Puedes escribir uno propio o generar uno automático.</small>
+                    </div>
+                    <div class="form-group">
+                       <label class="form-label">Contraseña <span class="text-danger">*</span></label>
+                       <input type="password" v-model="formUsuario.UsuarioPassword" required class="form-control" placeholder="••••••••">
+                    </div>
+                 </div>
+
+                 <div class="form-actions">
+                    <button type="submit" class="btn btn-success btn-lg" :disabled="!formUsuario.empleados_idempleado">💾 Crear Credenciales</button>
+                 </div>
+              </form>
+           </div>
+
+           <div class="card">
+              <div class="card-header"><h3>🔑 Usuarios Activos</h3></div>
+              <div class="table-responsive">
+                 <table class="table">
+                    <thead><tr><th>Usuario</th><th>Empleado Asignado</th><th>Rol</th><th class="text-center">Acciones</th></tr></thead>
+                    <tbody>
+                       <tr v-for="usu in listaUsuarios" :key="usu.idUsuario">
+                          <td><span class="user-badge">{{ usu.UsuaNombre }}</span></td>
+                          <td class="text-dark">{{ usu.EmpleNombre || '---' }}</td>
+                          <td>
+                             <span :class="['role-badge', usu.Rol === 'admin' ? 'role-admin' : 'role-user']">
+                                {{ usu.Rol ? usu.Rol.toUpperCase() : 'N/A' }}
+                             </span>
+                          </td>
+                          <td class="text-center">
+                             <button @click="eliminarUsuario(usu.idUsuario)" class="btn-icon text-danger" title="Eliminar Acceso">🗑️</button>
+                          </td>
+                       </tr>
+                       <tr v-if="listaUsuarios.length === 0"><td colspan="4" class="text-center py-4 text-muted">No hay usuarios activos.</td></tr>
+                    </tbody>
+                 </table>
+              </div>
+           </div>
+        </div>
+
       </div>
     </div>
-
-    <div v-if="pestanaActiva === 'empleados'" class="modulo-content">
-       <div class="card-form">
-          <h3>{{ modoEdicionEmp ? '✏️ Editar Empleado' : '✨ Nuevo Empleado' }}</h3>
-          <form @submit.prevent="guardarEmpleado">
-             <div class="form-row">
-                <div class="form-group">
-                    <label>Nombre Completo *</label>
-                    <input v-model="formEmpleado.EmpleNombre" required placeholder="Ej: Juan Antonio Pérez">
-                </div>
-                <div class="form-group">
-                    <label>DUI *</label>
-                    <input v-model="formEmpleado.EmpleDUI" required placeholder="00000000-0">
-                </div>
-             </div>
-             <div class="form-row">
-                <div class="form-group"><label>Teléfono</label><input v-model="formEmpleado.EmpleaTel" placeholder="0000-0000"></div>
-                <div class="form-group"><label>Dirección</label><input v-model="formEmpleado.EmpleDirec" placeholder="Dirección de residencia"></div>
-             </div>
-             <div class="form-group"><label>Email</label><input type="email" v-model="formEmpleado.EmpleCorreo"></div>
-             
-             <button type="submit" class="btn-guardar">
-                {{ modoEdicionEmp ? 'Actualizar' : 'Guardar y Asignar Usuario ➡' }}
-             </button>
-             <button v-if="modoEdicionEmp" type="button" @click="resetEmpleado" class="btn-cancelar">Cancelar</button>
-          </form>
-       </div>
-
-       <div class="lista-items">
-          <table>
-             <thead><tr><th>Nombre</th><th>Teléfono</th><th>DUI</th><th>Acciones</th></tr></thead>
-             <tbody>
-                <tr v-for="emp in listaEmpleados" :key="emp.idempleado">
-                   <td>{{ emp.EmpleNombre }}</td>
-                   <td>{{ emp.EmpleaTel }}</td>
-                   <td>{{ emp.EmpleDUI }}</td>
-                   <td>
-                      <button @click="prepararEdicionEmp(emp)" class="btn-icon">✏️</button>
-                      <button @click="eliminarEmpleado(emp.idempleado)" class="btn-icon delete">🗑️</button>
-                   </td>
-                </tr>
-             </tbody>
-          </table>
-       </div>
-    </div>
-
-    <div v-if="pestanaActiva === 'usuarios'" class="modulo-content">
-       <div class="card-form user-mode">
-          <h3>👤 Crear Usuario para: <span class="resaltado">{{ nombreEmpleadoSeleccionado || 'Seleccione un empleado...' }}</span></h3>
-          
-          <form @submit.prevent="guardarUsuario">
-             <div class="form-row">
-                <div class="form-group">
-                   <label>Empleado Asociado *</label>
-                   <select v-model="formUsuario.empleados_idempleado" @change="actualizarNombreEmpleado" required class="select-destacado">
-                      <option v-for="emp in listaEmpleados" :key="emp.idempleado" :value="emp.idempleado">
-                         {{ emp.EmpleNombre }}
-                      </option>
-                   </select>
-                </div>
-                <div class="form-group">
-                   <label>Rol de Sistema *</label>
-                   <select v-model="formUsuario.Rol" required>
-                      <option value="empleado">👤 Empleado (Limitado)</option>
-                      <option value="admin">🛡️ Administrador (Total)</option>
-                   </select>
-                </div>
-             </div>
-             
-             <div class="form-row">
-                <div class="form-group">
-                   <label>Usuario Sugerido</label>
-                   <div class="input-group">
-                      <input v-model="formUsuario.UsuaNombre" required style="font-weight:bold; color: #2c3e50; background-color: #e8f5e9;">
-                      <button type="button" @click="generarSugerencia" class="btn-small" title="Re-generar">🔄</button>
-                   </div>
-                   <small class="hint">Formato: Nombre + 2 letras Apellido</small>
-                </div>
-                <div class="form-group">
-                   <label>Contraseña</label>
-                   <input type="password" v-model="formUsuario.UsuarioPassword" required>
-                </div>
-             </div>
-
-             <button type="submit" class="btn-guardar">💾 Crear Usuario</button>
-          </form>
-       </div>
-
-       <div class="lista-items">
-          <h3>Usuarios Activos</h3>
-          <table>
-             <thead><tr><th>Usuario</th><th>Empleado Asignado</th><th>Rol</th><th>Acciones</th></tr></thead>
-             <tbody>
-                <tr v-for="usu in listaUsuarios" :key="usu.idUsuario">
-                   <td><strong>{{ usu.UsuaNombre }}</strong></td>
-                   <td>{{ usu.EmpleNombre || '---' }}</td>
-                   <td>
-                      <span :class="['badge-rol', usu.Rol === 'admin' ? 'rol-admin' : 'rol-empleado']">
-                         {{ usu.Rol }}
-                      </span>
-                   </td>
-                   <td><button @click="eliminarUsuario(usu.idUsuario)" class="btn-icon delete">🗑️</button></td>
-                </tr>
-             </tbody>
-          </table>
-       </div>
-    </div>
-
-  </div>
+  </MainLayout>
 </template>
 
 <script setup>
+import MainLayout from '../layouts/MainLayout.vue';
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 
@@ -152,11 +199,10 @@ const guardarEmpleado = async () => {
     try {
         if (modoEdicionEmp.value) {
             await axios.put(`${API_ADMIN}/empleados/${idEmpEdicion.value}`, formEmpleado.value);
-            alert('Empleado actualizado');
+            alert('¡Empleado actualizado correctamente!');
             resetEmpleado();
         } else {
             const res = await axios.post(`${API_ADMIN}/empleados`, formEmpleado.value);
-            // ALERTA INTELIGENTE: Pasa a crear usuario inmediatamente
             if(confirm(`Empleado "${res.data.nombre}" creado. ¿Desea crearle un usuario ahora?`)) {
                 prepararUsuarioNuevo(res.data.id, res.data.nombre);
             }
@@ -199,40 +245,35 @@ const actualizarNombreEmpleado = () => {
     if(emp) {
         nombreEmpleadoSeleccionado.value = emp.EmpleNombre;
         generarUsuarioSugerido(emp.EmpleNombre);
+    } else {
+        nombreEmpleadoSeleccionado.value = '';
+        formUsuario.value.UsuaNombre = '';
     }
 };
 
-// LÓGICA DE SUGERENCIA DE USUARIO
-// Regla: Primer nombre + 2 primeras letras del segundo bloque (apellido)
 const generarUsuarioSugerido = (nombreCompleto) => {
     if(!nombreCompleto) return;
-    
-    // Separamos por espacios
     const partes = nombreCompleto.trim().split(/\s+/);
-    
     let usuarioBase = '';
     
     if (partes.length >= 1) {
-        // Tomamos el primer nombre
         usuarioBase += partes[0].toLowerCase();
-        
         if (partes.length >= 2) {
-            // Tomamos las primeras 2 letras de la segunda palabra (asumimos apellido)
             usuarioBase += partes[1].substring(0, 2).toLowerCase();
         }
     }
-    
-    // Agregamos un número aleatorio para evitar duplicados
     const random = Math.floor(Math.random() * 100); 
     formUsuario.value.UsuaNombre = `${usuarioBase}${random}`;
 };
 
-const generarSugerencia = () => actualizarNombreEmpleado(); // Re-trigger manual
+const generarSugerencia = () => {
+    if (nombreEmpleadoSeleccionado.value) generarUsuarioSugerido(nombreEmpleadoSeleccionado.value);
+};
 
 const guardarUsuario = async () => {
     try {
         await axios.post(`${API_ADMIN}/usuarios`, formUsuario.value);
-        alert('Usuario creado con éxito');
+        alert('¡Usuario creado con éxito!');
         formUsuario.value = { UsuaNombre: '', UsuarioPassword: '', Rol: 'empleado', empleados_idempleado: null };
         nombreEmpleadoSeleccionado.value = '';
         cargarData();
@@ -240,7 +281,7 @@ const guardarUsuario = async () => {
 };
 
 const eliminarUsuario = async (id) => {
-    if(confirm('¿Eliminar usuario? El empleado seguirá existiendo, pero perderá acceso al sistema.')) {
+    if(confirm('¿Eliminar acceso de usuario? El empleado seguirá existiendo.')) {
         try { await axios.delete(`${API_ADMIN}/usuarios/${id}`); cargarData(); }
         catch (e) { alert('Error al eliminar'); }
     }
@@ -250,43 +291,125 @@ onMounted(cargarData);
 </script>
 
 <style scoped>
-.admin-container { padding: 2rem; background: #f0f2f5; min-height: 100vh; }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; max-width: 1200px; margin: 0 auto; }
-.header-buttons { display: flex; gap: 10px; }
+/* --- ESTILO MATERIAL DESVANECIDO (Consistente) --- */
+.admin-container {
+  padding: 20px;
+  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
+  height: 100%;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
 
-/* Botones Pestaña */
-.btn-tab { padding: 10px 20px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 8px; font-weight: bold; color: #666; transition: 0.3s; }
-.btn-tab.active { background: #55C2B7; color: white; transform: scale(1.05); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-.btn-volver { background: #666; color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer; }
+/* Cabecera */
+.header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
+.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
 
-/* Contenido */
-.modulo-content { animation: fadeIn 0.4s ease-out; max-width: 1200px; margin: 0 auto; }
-.card-form { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 2rem; border-top: 5px solid #55C2B7; }
-.user-mode { border-top-color: #ff9800; } 
+/* Tabs */
+.tabs-container {
+  display: flex;
+  background: #fff;
+  padding: 4px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.tab-btn {
+  padding: 8px 20px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab-btn.active {
+  background: #55C2B7;
+  color: white;
+  box-shadow: 0 2px 4px rgba(85, 194, 183, 0.3);
+}
 
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
-.form-group { display: flex; flex-direction: column; }
-label { font-weight: bold; color: #555; margin-bottom: 5px; font-size: 0.9rem; }
-input, select { padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; }
-.input-group { display: flex; gap: 5px; }
-.btn-small { padding: 0 10px; border: 1px solid #ddd; background: #f9f9f9; cursor: pointer; border-radius: 4px; }
+/* Tarjetas */
+.card {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid rgba(85, 194, 183, 0.15);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+.border-warning { border-top: 4px solid #f59e0b; }
+.mb-4 { margin-bottom: 1.5rem; }
 
-.btn-guardar { background: #55C2B7; color: white; padding: 12px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; font-size: 1rem; }
-.btn-cancelar { background: #999; color: white; padding: 10px; border: none; border-radius: 8px; cursor: pointer; margin-top: 10px; width: 100%; }
+.card-header {
+  border-bottom: 1px solid #f0fdfa;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.badge-info { 
+  font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; 
+}
+.badge-info.warning { background: #fef3c7; color: #b45309; }
+
+/* Formularios */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+.form-group { margin-bottom: 5px; }
+.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
+
+.form-control {
+  width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937;
+  background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem;
+  transition: all 0.2s; box-sizing: border-box;
+}
+.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+
+/* Ajustes de usuario editable */
+.select-highlight { border-color: #f59e0b; background-color: #fffbeb; }
+.input-group { display: flex; gap: 8px; }
+.btn-icon-square { border: 1px solid #d1d5db; background: white; border-radius: 6px; padding: 0 12px; cursor: pointer; transition: 0.2s; }
+.btn-icon-square:hover { background-color: #f0fdfa; border-color: #55C2B7; }
+.fw-bold { font-weight: 700; }
+
+/* Acciones */
+.form-actions { display: flex; justify-content: flex-end; margin-top: 20px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 10px; }
+.btn { display: inline-flex; align-items: center; padding: 0.6rem 1.2rem; font-weight: 600; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s; }
+.btn-success { background-color: #10b981; color: white; }
+.btn-success:hover { background-color: #059669; }
+.btn-secondary { background-color: #fff; border: 1px solid #d1d5db; color: #374151; }
 
 /* Tabla */
-.lista-items table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-th { background: #f4f6f8; padding: 12px; text-align: left; font-weight: bold; color: #555; border-bottom: 2px solid #e0e0e0; }
-td { padding: 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
-.btn-icon { background: none; border: none; cursor: pointer; font-size: 1.2rem; margin-right: 8px; transition: transform 0.2s; }
-.btn-icon:hover { transform: scale(1.2); }
-.btn-icon.delete:hover { filter: drop-shadow(0 0 2px red); }
+.table-responsive { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; padding: 12px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
+.table td { padding: 12px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; vertical-align: middle; }
+.btn-icon { background: none; border: none; font-size: 1.1rem; cursor: pointer; padding: 4px; transition: transform 0.2s; }
+.btn-icon:hover { transform: scale(1.1); }
 
-.resaltado { color: #55C2B7; font-weight: bold; text-decoration: underline; }
-.badge-rol { padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; }
-.rol-admin { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-.rol-empleado { background: #f5f5f5; color: #616161; border: 1px solid #bdbdbd; }
-.hint { font-size: 0.75rem; color: #888; margin-top: 3px; }
+/* Detalles Específicos */
+.doc-number { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; color: #374151; }
+.user-badge { font-weight: 700; color: #4338ca; background: #e0e7ff; padding: 2px 8px; border-radius: 12px; font-size: 0.85rem; }
+.role-badge { font-size: 0.7rem; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
+.role-admin { background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; }
+.role-user { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+
+.section-subtitle { margin-bottom: 15px; color: #6b7280; font-size: 0.95rem; }
+.highlight-name { color: #059669; font-weight: 800; font-size: 1.1rem; }
+.text-danger { color: #ef4444; } .text-muted { color: #6b7280; } .text-xs { font-size: 0.75rem; } .mt-2 { margin-top: 10px; } .mt-3 { margin-top: 15px; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 768px) {
+  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+  .tabs-container { width: 100%; } .tab-btn { flex: 1; }
+}
 </style>
