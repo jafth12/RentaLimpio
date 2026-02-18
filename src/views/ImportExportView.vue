@@ -57,6 +57,16 @@
               </button>
             </div>
 
+            <div v-if="accion === 'exportar'" class="export-card card fade-in mb-3">
+               <h3 class="text-hacienda">🏛️ Reporte Legal (Hacienda)</h3>
+               <p class="text-sm-hacienda">Genera los anexos JSON oficiales para presentar la declaración mensual.</p>
+               <div class="export-controls mt-2">
+                  <button @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block">
+                    📦 Descargar Anexos F07
+                  </button>
+               </div>
+            </div>
+
             <div class="config-body">
               
               <div v-if="accion === 'exportar'" class="animate-slide">
@@ -73,7 +83,7 @@
                   </div>
                 </div>
                 <div class="info-note">
-                  <small>📅 Se generará un archivo JSON compatible con el sistema del Ministerio de Hacienda.</small>
+                  <small>📅 Se generará un backup JSON de seguridad de este módulo.</small>
                 </div>
               </div>
 
@@ -87,7 +97,7 @@
 
               <div class="action-area">
                 <button @click="procesarAccion" class="btn btn-primary btn-block" :disabled="cargando">
-                  {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Archivo JSON' : '🔍 Ir al Lector Inteligente') }}
+                  {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Backup del Módulo' : '🔍 Ir al Lector Inteligente') }}
                 </button>
               </div>
             </div>
@@ -188,14 +198,14 @@ const procesarAccion = async () => {
     return;
   }
 
-  // 2. LÓGICA DE EXPORTACIÓN
+  // 2. LÓGICA DE EXPORTACIÓN (BACKUP INTERNO)
   cargando.value = true;
   resultado.value = null;
 
   try {
     let endpoint = '';
     
-    // CORRECCIÓN FINAL DE RUTAS (Según tu index.js)
+    // CORRECCIÓN DE RUTAS
     switch (moduloSeleccionado.value) {
       case 'todo': 
         endpoint = `${BASE_URL}/api/exportar-todo`; 
@@ -204,25 +214,22 @@ const procesarAccion = async () => {
         endpoint = `${BASE_URL}/api/compras/exportar`; 
         break;
       case 'ventas_cf': 
-        // CORRECTO: 'ventas-cf'
         endpoint = `${BASE_URL}/api/ventas-cf/exportar`; 
         break; 
       case 'ventas_ccf': 
-        // CORRECTO: 'ventas-CCF' (Tal como me indicaste)
         endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; 
         break; 
       case 'sujetos': 
         endpoint = `${BASE_URL}/api/sujetos/exportar`; 
         break; 
-      
       default: endpoint = `${BASE_URL}/api/exportar-todo`;
     }
 
-    // Parámetros (Ajusta el NIT si debe ser dinámico desde una configuración)
+    // Parámetros
     const params = {
       mes: mes.value,
       anio: anio.value,
-      nit: '06192901600027' 
+      nit: '06192901600027' // NIT por defecto (Debería ser dinámico en el futuro)
     };
 
     // Llamada Axios
@@ -236,19 +243,17 @@ const procesarAccion = async () => {
 
     // Calcular Totales para el Preview
     let totalPreview = '0.00';
-    // Intenta buscar totales en diferentes estructuras posibles de respuesta
     if (data.totales_periodo) {
         totalPreview = data.totales_periodo.gran_total_gravado || data.totales_periodo.total_gravado || '0.00';
     } else if (Array.isArray(data) && data.length > 0 && data[0].total) {
-        // Si devuelve un array directo, sumamos (ejemplo simple)
         totalPreview = data.reduce((sum, item) => sum + (parseFloat(item.total)||0), 0).toFixed(2);
     }
 
     // Construir Objeto Resultado
     resultado.value = {
       tipo: 'success',
-      titulo: 'JSON Generado',
-      archivo: `Reporte_${moduloSeleccionado.value}_${mes.value}_${anio.value}.json`,
+      titulo: 'Backup Generado',
+      archivo: `Backup_${moduloSeleccionado.value}_${mes.value}_${anio.value}.json`,
       cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'),
       total: totalPreview,
       snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '')
@@ -278,6 +283,35 @@ const descargarArchivoReal = () => {
   link.click();
   link.remove();
 };
+
+// --- FUNCIÓN CORREGIDA PARA HACIENDA ---
+const descargarAnexosHacienda = async () => {
+    const { nit, mes, anio } = filtroExport.value;
+
+    if (!nit || !mes || !anio) {
+        alert("⚠️ Auditoría: Seleccione Empresa, Mes y Año primero.");
+        return;
+    }
+
+    try {
+        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
+            params: { nit, mes, anio }
+        });
+
+        // Crear el archivo para descarga directa
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 4));
+        const link = document.createElement('a');
+        link.setAttribute("href", dataStr);
+        link.setAttribute("download", `Anexos_F07_${nit}_${mes}_${anio}.json`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        alert("✅ Reporte para Hacienda generado con éxito.");
+    } catch (error) {
+        alert("🚨 Fallo al conectar con el servidor fiscal.");
+    }
+};
 </script>
 
 <style scoped>
@@ -299,7 +333,7 @@ const descargarArchivoReal = () => {
 /* Grid Principal */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr; /* Izquierda un poco más ancha para controles */
+  grid-template-columns: 1.2fr 1fr;
   gap: 20px;
   max-width: 1400px;
   margin: 0 auto;
@@ -321,6 +355,8 @@ const descargarArchivoReal = () => {
 .full-height { height: 100%; min-height: 400px; display: flex; flex-direction: column; }
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
+.mb-3 { margin-bottom: 15px; }
+.mt-2 { margin-top: 10px; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -382,6 +418,13 @@ const descargarArchivoReal = () => {
   transition: all 0.2s;
 }
 .tab-btn.active { background: white; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+
+/* ESTILO HACIENDA */
+.export-card { background: #f8fafc; border: 1px dashed #94a3b8; }
+.text-hacienda { font-size: 1rem; color: #1e3a8a; margin: 0; font-weight: 700; }
+.text-sm-hacienda { font-size: 0.85rem; color: #64748b; margin: 5px 0 0 0; }
+.btn-dark-blue { background: #1e3a8a; color: white; font-weight: 600; padding: 10px; border-radius: 6px; border:none; cursor: pointer; }
+.btn-dark-blue:hover { background: #1e40af; }
 
 /* Configuración Body */
 .config-body { display: flex; flex-direction: column; gap: 15px; }

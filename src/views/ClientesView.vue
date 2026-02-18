@@ -235,20 +235,19 @@ const cargarClientes = async () => {
 
 // 2. GUARDAR (POST / PUT) - Corregido envío de datos
 const guardarCliente = async () => {
-    cargando.value = true;
-    mensaje.value = '';
-
-    // Preparamos el objeto EXACTAMENTE como lo espera el Backend
+    // 1. Validaciones...
+    
+    // 2. CREA EL PAYLOAD AQUÍ ADENTRO (NO AFUERA)
     const payload = {
-        nit: formulario.value.nit,
-        nombre: formulario.value.nombre,
+        nit: formulario.value.nit.replace(/-/g, '').trim(),
+        nombre: formulario.value.nombre.toUpperCase(),
         direccion: formulario.value.direccion,
         departamento: formulario.value.departamento,
         giro: formulario.value.giro,
-        registro: formulario.value.nrc, // Backend espera "registro", frontend tiene "nrc"
-        tel1: formulario.value.telefono, // Backend espera "tel1"
-        correo: formulario.value.email,   // Backend espera "correo"
-        observacion: formulario.value.categoria // Guardamos categoría en observación o campo libre
+        registro: formulario.value.nrc,
+        tel1: formulario.value.telefono,
+        correo: formulario.value.email,
+        observacion: formulario.value.categoria
     };
 
     try {
