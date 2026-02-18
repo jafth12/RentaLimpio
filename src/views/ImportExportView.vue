@@ -286,30 +286,43 @@ const descargarArchivoReal = () => {
 
 // --- FUNCIÓN CORREGIDA PARA HACIENDA ---
 const descargarAnexosHacienda = async () => {
-    const { nit, mes, anio } = filtroExport.value;
+    // 1. Usamos las variables que SÍ existen en tu script (mes y anio)
+    const m = mes.value;
+    const a = anio.value;
+    const nitEmpresa = '06192901600027'; // NIT temporal (o el que uses por defecto)
 
-    if (!nit || !mes || !anio) {
-        alert("⚠️ Auditoría: Seleccione Empresa, Mes y Año primero.");
+    // 2. Validamos
+    if (!m || !a) {
+        alert("Auditoría: Debe seleccionar Mes y Año en el formulario.");
         return;
     }
 
     try {
+        // 3. Hacemos la petición usando los valores correctos
         const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
-            params: { nit, mes, anio }
+            params: { 
+                nit: nitEmpresa, 
+                mes: m, 
+                anio: a 
+            }
         });
 
-        // Crear el archivo para descarga directa
+        // 4. Descargamos el archivo
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 4));
-        const link = document.createElement('a');
-        link.setAttribute("href", dataStr);
-        link.setAttribute("download", `Anexos_F07_${nit}_${mes}_${anio}.json`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", `Anexos_Hacienda_${nitEmpresa}_${m}_${a}.json`);
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
 
-        alert("✅ Reporte para Hacienda generado con éxito.");
+        alert("✅ Archivo para Hacienda generado correctamente.");
+        
     } catch (error) {
-        alert("🚨 Fallo al conectar con el servidor fiscal.");
+        console.error("Error en exportación legal:", error);
+        // Mensaje de error amigable
+        const msg = error.response?.data?.message || "No se pudo generar el reporte. Verifique la conexión.";
+        alert(`🚨 Error: ${msg}`);
     }
 };
 </script>
