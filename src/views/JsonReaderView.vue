@@ -38,27 +38,27 @@
       <div class="stats-grid">
         <div class="stat-card blue">
           <h3>🛒 Compras</h3>
-          <p class="number">{{ payloadFinal?.modulos?.compras?.length || 0 }}</p>
+          <p class="number">{{ payloadFinal?.data?.compras?.length || 0 }}</p>
           <small>Receptor (Gastos)</small>
         </div>
         <div class="stat-card green">
           <h3>📄 Crédito Fiscal</h3>
-          <p class="number">{{ payloadFinal?.modulos?.ventas_credito_fiscal?.length || 0 }}</p>
+          <p class="number">{{ payloadFinal?.data?.ventas_ccf?.length || 0 }}</p>
           <small>Ventas (Tipo 03)</small>
         </div>
         <div class="stat-card orange">
           <h3>🧾 Consumidor Final</h3>
-          <p class="number">{{ payloadFinal?.modulos?.ventas_consumidor?.length || 0 }}</p>
+          <p class="number">{{ payloadFinal?.data?.ventas_cf?.length || 0 }}</p>
           <small>Ventas (Tipo 01)</small>
         </div>
         <div class="stat-card purple">
           <h3>🚫 Suj. Excluidos</h3>
-          <p class="number">{{ payloadFinal?.modulos?.sujetos_excluidos?.length || 0 }}</p>
+          <p class="number">{{ payloadFinal?.data?.sujetos_excluidos?.length || 0 }}</p>
           <small>Ventas (Tipo 14)</small>
         </div>
       </div>
 
-      <div v-if="payloadFinal?.modulos?.compras?.length > 0" class="table-container">
+      <div v-if="payloadFinal?.data?.compras?.length > 0" class="table-container">
         <h3>🔍 Detalle: Compras Detectadas</h3>
         <table>
           <thead>
@@ -70,15 +70,15 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, idx) in payloadFinal.modulos.compras.slice(0, 10)" :key="idx">
-              <td>{{ item.fecha }}</td>
-              <td>{{ item.numero }}</td>
-              <td>{{ item.proveedor_nombre || item.proveedor?.nombre }}</td>
-              <td>${{ (item.valores?.total || 0).toFixed(2) }}</td>
+            <tr v-for="(item, idx) in payloadFinal.data.compras.slice(0, 10)" :key="idx">
+              <td>{{ item.ComFecha || item.fecha }}</td>
+              <td>{{ item.ComNumero || item.numero }}</td>
+              <td>{{ item.ComNomProve || item.proveedor_nombre }}</td>
+              <td>${{ parseFloat(item.ComTotal || item.valores?.total || 0).toFixed(2) }}</td>
             </tr>
           </tbody>
         </table>
-        <p v-if="payloadFinal.modulos.compras.length > 10" class="more">... y más registros ...</p>
+        <p v-if="payloadFinal.data.compras.length > 10" class="more">... y más registros ...</p>
       </div>
     </div>
   </div>
@@ -90,44 +90,45 @@ import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const hostname = window.location.hostname; // Usamos IP dinámica para evitar error de red
+// Detectar IP automáticamente para evitar errores de red
+const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
-const datosProcesados = ref(null);
+const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
 
 const limpiarNit = (texto) => texto ? texto.toString().replace(/[^0-9]/g, '') : '';
 
-// --- NORMALIZADOR DE BACKUPS ---
+const limpiar = () => {
+  datosProcesados.value = false;
+  payloadFinal.value = null;
+};
+
+// --- NORMALIZADOR: Construye la estructura exacta que pide el backend ---
 const normalizarPayload = (json) => {
   const normalizado = {
-    encabezado: json.encabezado || { 
-      nit_declarante: miNit.value, 
-      periodo: { mes: 'Importado', anio: new Date().getFullYear() } 
+    backup_info: json.backup_info || json.encabezado || { 
+      // CORRECCIÓN CLAVE: Limpiamos el NIT antes de enviarlo
+      nit: limpiarNit(miNit.value), 
+      empresa: 'Importación Manual',
+      periodo: new Date().getFullYear().toString()
     },
-    modulos: {
-      compras: [],
-      ventas_consumidor: [],
-      ventas_credito_fiscal: [],
-      sujetos_excluidos: []
+    data: {
+      compras: json.data?.compras || json.modulos?.compras || [],
+      
+      ventas_ccf: json.data?.ventas_ccf || json.modulos?.ventas_credito_fiscal || [],
+      
+      // Compatibilidad con backups antiguos (ventas_consumidor_final)
+      ventas_cf: json.data?.ventas_cf || json.modulos?.ventas_consumidor || json.modulos?.ventas_consumidor_final || [],
+      
+      sujetos_excluidos: json.data?.sujetos_excluidos || json.modulos?.sujetos_excluidos || []
     }
   };
-
-  if (json.modulos) {
-    normalizado.modulos.compras = json.modulos.compras || [];
-    normalizado.modulos.ventas_credito_fiscal = json.modulos.ventas_credito_fiscal || [];
-    normalizado.modulos.sujetos_excluidos = json.modulos.sujetos_excluidos || [];
-    normalizado.modulos.ventas_consumidor = 
-      json.modulos.ventas_consumidor || 
-      json.modulos.ventas_consumidor_final || 
-      [];
-  }
   return normalizado;
 };
 
-// --- CLASIFICADOR HACIENDA ---
 const clasificarDTE = (dte) => {
   const ident = dte.identificacion || {};
   const emisor = dte.emisor || {};
@@ -137,6 +138,7 @@ const clasificarDTE = (dte) => {
   const tipoDte = ident.tipoDte || '00';
   const numero = ident.numeroControl || 'S/N';
   const fecha = ident.fecEmi || new Date().toISOString().split('T')[0];
+  
   const total = parseFloat(resumen.totalPagar) || 0;
   const iva = parseFloat(resumen.totalIva) || 0;
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
@@ -147,38 +149,82 @@ const clasificarDTE = (dte) => {
 
   const resultado = { modulo: null, data: null };
 
+  // 1. COMPRAS (Yo soy receptor)
   if (receptorNit === miNitClean) {
     resultado.modulo = 'compras';
     resultado.data = {
-      fecha, tipo_doc: tipoDte, numero,
-      proveedor_nit: emisor.nit, proveedor_nombre: emisor.nombre,
-      valores: { gravado, iva, total }
+      ComFecha: fecha,
+      ComTipo: tipoDte,
+      ComNumero: numero,
+      proveedor_ProvNIT: emisorNit,
+      ComNomProve: emisor.nombre?.toUpperCase(),
+      ComIntGrav: gravado,
+      ComCredFiscal: iva,
+      ComTotal: total,
+      ComClase: '4', // DTE
+      ComMesDeclarado: 'Importado',
+      ComAnioDeclarado: new Date().getFullYear().toString()
     };
-  } else if (emisorNit === miNitClean) {
+  } 
+  // 2. VENTAS (Yo soy emisor)
+  else if (emisorNit === miNitClean) {
+    
+    // A. CRÉDITO FISCAL (Tipo 03)
     if (tipoDte === '03') {
-      resultado.modulo = 'ventas_credito_fiscal';
+      resultado.modulo = 'ventas_ccf'; 
       resultado.data = {
-        fecha, numero, cliente_nit: receptor.nit, cliente_nombre: receptor.nombre,
-        valores: { gravado, iva, total }
+        FiscFecha: fecha,
+        FiscNumDoc: numero,
+        FiscNit: receptorNit,
+        FiscNomRazonDenomi: receptor.nombre?.toUpperCase(),
+        FiscVtaGravLocal: gravado,
+        FiscDebitoFiscal: iva,
+        FiscTotalVtas: total,
+        FisClasDoc: '4',
+        FisTipoDoc: '03',
+        FiscNumAnexo: '2'
       };
-    } else if (tipoDte === '01') {
-      resultado.modulo = 'ventas_consumidor';
+    } 
+    // B. CONSUMIDOR FINAL (Tipo 01)
+    else if (tipoDte === '01') {
+      resultado.modulo = 'ventas_cf'; 
       resultado.data = {
-        fecha, del: numero, al: numero,
-        valores: { gravado, exento: 0, total }
+        ConsFecha: fecha,
+        ConsNumDocDEL: numero,
+        ConsNumDocAL: numero,
+        ConsVtaGravLocales: gravado,
+        ConsTotalVta: total,
+        ConsClaseDoc: 'DTE',
+        ConsTipoDoc: '01. FACTURA',
+        ConsNumAnexo: '1',
+        ConsTipoOpera: '1. GRAVADA',
+        ConsTipoIngreso: '1. INGRESO',
+        ConsSerieDoc: ident.serie || 'S/S',
+        ConsNumResolu: ident.numeroControl
       };
-    } else if (tipoDte === '14') {
+    } 
+    // C. SUJETO EXCLUIDO (Tipo 14)
+    else if (tipoDte === '14') {
+      const montoOperacion = total;
+      const montoRetencion = (montoOperacion * 0.10).toFixed(2);
+      
       resultado.modulo = 'sujetos_excluidos';
       resultado.data = {
-        fecha, numero, sujeto_nit: receptor.nit, sujeto_nombre: receptor.nombre,
-        valores: { monto: total, retencion: 0 }
+        ComprasSujExcluFecha: fecha,
+        ComprasSujExcluNIT: receptorNit,
+        ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
+        ComprasSujExcluNumDoc: numero,
+        ComprasSujExcluMontoOpera: montoOperacion,
+        ComprasSujExcluMontoReten: montoRetencion,
+        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO',
+        ComprasSujExcluAnexo: '5'
       };
     }
   }
+  
   return resultado;
 };
 
-// --- CARGAR ARCHIVO ---
 const cargarArchivo = (event) => {
   if (!miNit.value || miNit.value.length < 5) {
     alert("⚠️ Por favor, ingresa TU NIT primero para poder clasificar.");
@@ -194,70 +240,78 @@ const cargarArchivo = (event) => {
     try {
       const jsonRaw = JSON.parse(e.target.result);
       
-      if (jsonRaw.modulos) {
-        payloadFinal.value = normalizarPayload(jsonRaw);
-      } else {
-        const estructura = normalizarPayload({}); 
-        const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
+      // Caso 1: Backup ya formateado correctamente
+      if (jsonRaw.data && jsonRaw.backup_info) {
+        payloadFinal.value = jsonRaw;
+      }
+      // Caso 2: Backup antiguo o JSON de Hacienda
+      else {
+        // Normalizamos la estructura
+        const estructura = normalizarPayload(jsonRaw.modulos ? jsonRaw : {}); 
         
-        lista.forEach(doc => {
-          const dteReal = doc.dteJson || doc;
-          const clasif = clasificarDTE(dteReal);
-          if (clasif.modulo) {
-            estructura.modulos[clasif.modulo].push(clasif.data);
-          }
-        });
+        // Si es JSON de Hacienda (Array suelto de DTEs)
+        if (!jsonRaw.modulos && !jsonRaw.data) {
+          const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
+          lista.forEach(doc => {
+            const dteReal = doc.dteJson || doc;
+            const clasif = clasificarDTE(dteReal);
+            if (clasif.modulo) {
+              // Mapeamos el módulo interno al nombre que espera 'data'
+              const mapModulo = {
+                'compras': 'compras',
+                'ventas_ccf': 'ventas_ccf',
+                'ventas_cf': 'ventas_cf',
+                'sujetos_excluidos': 'sujetos_excluidos'
+              };
+              estructura.data[mapModulo[clasif.modulo]].push(clasif.data);
+            }
+          });
+        }
         payloadFinal.value = estructura;
       }
+      
       datosProcesados.value = true;
+
     } catch (error) {
+      console.error(error);
       alert("Error: El archivo no es un JSON válido.");
     }
   };
   reader.readAsText(file);
 };
 
-// --- ENVIAR (AQUÍ ESTÁ LA CORRECCIÓN) ---
 const enviarAlBackend = async () => {
   cargando.value = true;
   try {
     const response = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
     
-    // El backend ahora devuelve una estructura simple (números), no objetos complejos
-    const reporte = response.data.detalle || {};
+    const data = response.data || {};
+    const det = data.detalle || {};
     
-    // Usamos ?. para evitar errores si algo viene undefined
-    const compras = reporte.compras || 0;
-    const ventasCCF = reporte.ventas_ccf || reporte.ventas_credito_fiscal || 0;
-    const ventasCF = reporte.ventas_cf || reporte.ventas_consumidor || 0;
-    const errores = reporte.errores || 0;
-
     alert(`
-      ✅ PROCESO FINALIZADO
+      ✅ Importación Exitosa!
       
-      📥 Compras Guardadas: ${compras}
-      📥 Ventas CCF Guardadas: ${ventasCCF}
-      📥 Ventas Consumidor: ${ventasCF}
-      
-      ⚠️ Errores/Omitidos: ${errores}
+      📥 Compras: ${det.compras || 0}
+      📥 Ventas CCF: ${det.ventas_ccf || 0}
+      📥 Ventas CF: ${det.ventas_cf || 0}
+      📥 Sujetos: ${det.sujetos || 0}
+      ⚠️ Duplicados Omitidos: ${det.duplicados || 0}
     `);
     
     limpiar();
+    router.push('/importar-exportar');
+    
   } catch (error) {
     const msg = error.response?.data?.message || error.message;
-    alert("⛔ Ocurrió un error: " + msg);
+    alert("⛔ Ocurrió un error al guardar: " + msg);
   } finally {
     cargando.value = false;
   }
 };
-
-const limpiar = () => {
-  datosProcesados.value = null;
-  payloadFinal.value = null;
-};
 </script>
 
 <style scoped>
+/* (Mismos estilos que tenías) */
 .reader-container { max-width: 900px; margin: 0 auto; padding: 20px; font-family: 'Segoe UI', sans-serif; }
 .header-box { text-align: center; margin-bottom: 30px; }
 .config-card { background: #e3f2fd; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #90caf9; margin-bottom: 20px; }
