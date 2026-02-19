@@ -29,11 +29,16 @@
     </div>
 
     <div v-if="!datosProcesados" class="upload-area">
-      <div class="drop-zone">
+      <div 
+        class="drop-zone" 
+        @dragover.prevent 
+        @dragenter.prevent 
+        @drop.prevent="cargarArchivo"
+      >
         <span class="icon">📂</span>
-        <h3>Arrastra tu archivo JSON aquí</h3>
+        <h3>Arrastra tus archivos JSON aquí</h3>
         <p>Compatible con: Backups de RentaLimpio y JSONs de Hacienda</p>
-        <input type="file" @change="cargarArchivo" accept=".json" />
+        <input type="file" multiple @change="cargarArchivo" accept=".json" />
       </div>
     </div>
 
@@ -139,93 +144,74 @@ const clasificarDTE = (dte) => {
 
   const tipoDte = ident.tipoDte || '00';
   const numero = ident.numeroControl || 'S/N';
-  const codGeneracion = ident.codigoGeneracion || null; // EXTRAÍDO AQUÍ
   const fecha = ident.fecEmi || new Date().toISOString().split('T')[0];
+  const codGen = ident.codigoGeneracion || null; 
   
   const total = parseFloat(resumen.totalPagar) || 0;
   
-  // Extracción Inteligente de IVA (Busca en tributos si Hacienda lo ocultó)
+  // 🛡️ RECUPERADO: Extracción Inteligente de IVA (Gasolineras)
   let iva = parseFloat(resumen.totalIva) || 0;
   if (iva === 0 && resumen.tributos) {
-    const tribIva = resumen.tributos.find(t => t.codigo === '20'); // 20 es el código de IVA en SV
+    const tribIva = resumen.tributos.find(t => t.codigo === '20'); // 20 es el código de IVA
     if (tribIva) iva = parseFloat(tribIva.valor) || 0;
   }
   
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
 
-  // Limpiamos los IDs ingresados
   const miNitClean = limpiarNit(miNit.value);
   const miAliasClean = limpiarNit(miAlias.value);
-
-  // Limpiamos los IDs del JSON
   const emisorNit = limpiarNit(emisor.nit);
   const receptorNit = limpiarNit(receptor.nit);
   const emisorNrc = limpiarNit(emisor.nrc);
   const receptorNrc = limpiarNit(receptor.nrc);
 
-  // Comprobamos si coincide el NIT principal, o el Alias (DUI/NRC)
+  // 🛡️ RECUPERADO: Comprobación de Alias (Reconoce si te facturaron con DUI)
   const soyReceptor = receptorNit === miNitClean || (miAliasClean && (receptorNit === miAliasClean || receptorNrc === miAliasClean));
   const soyEmisor = emisorNit === miNitClean || (miAliasClean && (emisorNit === miAliasClean || emisorNrc === miAliasClean));
 
   const resultado = { modulo: null, data: null };
 
-  // CASO A: COMPRA (Yo soy el receptor)
+  // 1. COMPRAS (Yo soy el receptor)
   if (soyReceptor) {
     resultado.modulo = 'compras';
     resultado.data = {
-      ComFecha: fecha,
-      ComTipo: tipoDte,
-      ComNumero: numero,
-      ComCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
+      ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero,
+      ComCodGeneracion: codGen,
       proveedor_ProvNIT: emisorNit,
       ComNomProve: emisor.nombre?.toUpperCase(),
-      ComIntGrav: gravado,
-      ComCredFiscal: iva,
-      ComTotal: total,
-      ComClase: '4',
-      ComMesDeclarado: 'Importado'
+      ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total,
+      ComClase: '4', ComAnexo: '3'
     };
   } 
-  // CASO B: VENTA (Yo soy el emisor)
+  // 2. VENTAS (Yo soy el emisor)
   else if (soyEmisor) {
-    if (tipoDte === '03') { // Crédito Fiscal
-      resultado.modulo = 'ventas_ccf';
+    if (tipoDte === '03') { // CRÉDITO FISCAL
+      resultado.modulo = 'ventas_ccf'; // 🛠️ CORREGIDO (Antes ventas_credito_fiscal)
       resultado.data = {
-        FiscFecha: fecha, 
-        FiscNumDoc: numero, 
-        FiscCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
+        FiscFecha: fecha, FiscNumDoc: numero, 
+        FiscCodGeneracion: codGen,
         FiscNit: receptorNit,
         FiscNomRazonDenomi: receptor.nombre?.toUpperCase(),
-        FiscVtaGravLocal: gravado, 
-        FiscDebitoFiscal: iva, 
-        FiscTotalVtas: total,
-        FisClasDoc: '4', 
-        FisTipoDoc: '03'
+        FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total,
+        FisClasDoc: '4', FisTipoDoc: '03', FiscNumAnexo: '2'
       };
-    } else if (tipoDte === '01') { // Consumidor Final
-      resultado.modulo = 'ventas_cf';
+    } else if (tipoDte === '01') { // CONSUMIDOR FINAL
+      resultado.modulo = 'ventas_cf'; // 🛠️ CORREGIDO (Antes ventas_consumidor)
       resultado.data = {
-        ConsFecha: fecha, 
-        ConsNumDocDEL: numero, 
-        ConsNumDocAL: numero, // Usamos el numControl como correlativo
-        ConsCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
-        ConsVtaGravLocales: gravado, 
-        ConsTotalVta: total,
-        ConsClaseDoc: 'DTE', 
-        ConsTipoDoc: '01. FACTURA'
+        ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero,
+        ConsCodGeneracion: codGen,
+        ConsVtaGravLocales: gravado, ConsTotalVta: total,
+        ConsClaseDoc: 'DTE', ConsTipoDoc: '01. FACTURA', ConsNumAnexo: '1'
       };
-    } else if (tipoDte === '14') { // Sujetos Excluidos
-      const montoRetencion = (total * 0.10).toFixed(2);
+    } else if (tipoDte === '14') { // SUJETOS EXCLUIDOS
       resultado.modulo = 'sujetos_excluidos';
       resultado.data = {
-        ComprasSujExcluFecha: fecha, 
+        ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero,
+        ComprasSujExcluCodGeneracion: codGen,
         ComprasSujExcluNIT: receptorNit,
-        ComprasSujExcluNom: receptor.nombre?.toUpperCase(), 
-        ComprasSujExcluNumDoc: numero,
-        ComprasSujExcluCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
-        ComprasSujExcluMontoOpera: total, 
-        ComprasSujExcluMontoReten: montoRetencion,
-        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO', 
+        ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
+        ComprasSujExcluMontoOpera: total,
+        ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
         ComprasSujExcluAnexo: '5'
       };
     }
@@ -235,14 +221,17 @@ const clasificarDTE = (dte) => {
 
 // --- CARGAR ARCHIVOS ---
 const cargarArchivo = (event) => {
+  // Prevenir que el navegador abra el JSON en otra pestaña al soltarlo
+  if (event.preventDefault) event.preventDefault();
+
   if (!miNit.value || miNit.value.length < 5) {
     alert("⚠️ Por favor, ingresa TU NIT principal primero.");
-    event.target.value = '';
+    if (event.target) event.target.value = '';
     return;
   }
-
-  const files = event.target.files;
-  if (!files.length) return;
+  const files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
+  
+  if (!files || files.length === 0) return;
 
   if (!payloadFinal.value) payloadFinal.value = normalizarPayload({});
 
@@ -262,7 +251,7 @@ const cargarArchivo = (event) => {
           lista.forEach(doc => {
             const dteUnico = doc.dteJson || doc.dte || doc;
             const clasif = clasificarDTE(dteUnico);
-            if (clasif.modulo) {
+            if (clasif.modulo && payloadFinal.value.data[clasif.modulo]) {
               payloadFinal.value.data[clasif.modulo].push(clasif.data);
             }
           });
