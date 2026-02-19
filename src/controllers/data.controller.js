@@ -6,10 +6,9 @@ const obtenerMes = (m) => {
     return mapa[m] || 1;
 };
 
-// ✅ NUEVO: Función "Tijera" para limpiar fechas
+// Función "Tijera" para limpiar fechas (Evita el error 'Incorrect date value')
 const formatearFecha = (fecha) => {
     if (!fecha) return null;
-    // Convierte '2025-12-01T06:00:00.000Z' -> '2025-12-01'
     return fecha.toString().split('T')[0];
 };
 
@@ -71,7 +70,7 @@ export const exportarTodoJSON = async (req, res) => {
 };
 
 // ==========================================
-// 3. IMPORTACIÓN AUDITADA (Con Corrección de Fechas)
+// 3. IMPORTACIÓN AUDITADA CON SOPORTE DTE
 // ==========================================
 export const importarTodoJSON = async (req, res) => {
     const info = req.body.backup_info || req.body.encabezado;
@@ -79,7 +78,7 @@ export const importarTodoJSON = async (req, res) => {
     const nitDeclarante = info?.nit || info?.nit_declarante;
 
     if (!nitDeclarante || !dataToImport) {
-        return res.status(400).json({ message: "Estructura de JSON no reconocida. Se requiere NIT y datos." });
+        return res.status(400).json({ message: "Error de Auditoría: Estructura JSON no reconocida o NIT faltante." });
     }
 
     const connection = await pool.getConnection();
@@ -88,103 +87,140 @@ export const importarTodoJSON = async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 1. Validar Declarante
-        const [existeDeclarante] = await connection.query('SELECT iddeclaNIT FROM declarante WHERE iddeclaNIT = ?', [nitDeclarante]);
-        if (existeDeclarante.length === 0) {
-            throw new Error(`El declarante con NIT ${nitDeclarante} no existe. Regístrelo primero en el sistema.`);
+        // 1. Validar que el Declarante exista en nuestra DB
+        const [existeD] = await connection.query('SELECT iddeclaNIT FROM declarante WHERE iddeclaNIT = ?', [nitDeclarante]);
+        if (existeD.length === 0) {
+            throw new Error(`El declarante ${nitDeclarante} no existe en el sistema. Regístrelo primero.`);
         }
 
-        // 2. Importar Compras
+        // 2. IMPORTAR COMPRAS
         const listaCompras = dataToImport.compras || [];
-        if (listaCompras.length) {
-            for (const c of listaCompras) {
-                await connection.query('INSERT IGNORE INTO proveedor (ProvNIT, ProvNombre) VALUES (?, ?)', 
-                    [c.proveedor_ProvNIT || '0000', c.ComNomProve || 'Proveedor Importado']);
+        for (const c of listaCompras) {
+            await connection.query('INSERT IGNORE INTO proveedor (ProvNIT, ProvNombre) VALUES (?, ?)', 
+                [c.proveedor_ProvNIT || '0000', c.ComNomProve || 'Proveedor Importado']);
 
-                const [existe] = await connection.query(
-                    'SELECT idcompras FROM compras WHERE iddeclaNIT = ? AND ComNumero = ? AND proveedor_ProvNIT = ?', 
-                    [nitDeclarante, c.ComNumero, c.proveedor_ProvNIT]
-                );
+            // Verificación DTE de duplicados
+            const [duplicado] = await connection.query(
+                `SELECT idcompras FROM compras 
+                 WHERE iddeclaNIT = ? AND (ComCodGeneracion = ? OR (ComNumero = ? AND proveedor_ProvNIT = ?))`,
+                [nitDeclarante, c.ComCodGeneracion || 'N/A', c.ComNumero, c.proveedor_ProvNIT]
+            );
 
-                if (existe.length === 0) {
-                    const nuevaCompra = {
-                        iddeclaNIT: nitDeclarante,
-                        proveedor_ProvNIT: c.proveedor_ProvNIT,
-                        ComNomProve: c.ComNomProve,
-                        ComFecha: formatearFecha(c.ComFecha), // 🛠️ CORRECCIÓN DE FECHA
-                        ComClase: c.ComClase,
-                        ComTipo: c.ComTipo,
-                        ComNumero: c.ComNumero,
-                        ComIntExe: c.ComIntExe || 0,
-                        ComIntGrav: c.ComIntGrav || 0,
-                        ComCredFiscal: c.ComCredFiscal || 0,
-                        ComTotal: c.ComTotal || 0,
-                        ComMesDeclarado: c.ComMesDeclarado || 'Importado',
-                        ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString()
-                    };
-                    await connection.query('INSERT INTO compras SET ?', nuevaCompra);
-                    reporte.compras++;
-                } else { reporte.duplicados++; }
-            }
+            if (duplicado.length === 0) {
+                // BLINDAJE Y LIMPIEZA DE FECHA
+                const nuevaCompra = {
+                    iddeclaNIT: nitDeclarante,
+                    proveedor_ProvNIT: c.proveedor_ProvNIT,
+                    ComNomProve: c.ComNomProve,
+                    ComFecha: formatearFecha(c.ComFecha), // Formato YYYY-MM-DD
+                    ComClase: c.ComClase,
+                    ComTipo: c.ComTipo,
+                    ComNumero: c.ComNumero,
+                    ComCodGeneracion: c.ComCodGeneracion || null, // Guardamos el UUID del DTE
+                    ComIntExe: c.ComIntExe || 0,
+                    ComIntGrav: c.ComIntGrav || 0,
+                    ComCredFiscal: c.ComCredFiscal || 0,
+                    ComTotal: c.ComTotal || 0,
+                    ComMesDeclarado: c.ComMesDeclarado || 'Importado',
+                    ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString()
+                };
+                await connection.query('INSERT INTO compras SET ?', nuevaCompra);
+                reporte.compras++;
+            } else { reporte.duplicados++; }
         }
 
-        // 3. Ventas CCF
+        // 3. VENTAS CCF
         const listaCCF = dataToImport.ventas_ccf || dataToImport.ventas_credito_fiscal || [];
-        if (listaCCF.length) {
-            for (const v of listaCCF) {
-                const [existe] = await connection.query('SELECT idCredFiscal FROM credfiscal WHERE iddeclaNIT = ? AND FiscNumDoc = ? AND FiscNit = ?', [nitDeclarante, v.FiscNumDoc, v.FiscNit]);
-                if (existe.length === 0) {
-                    const { idCredFiscal, ...resto } = v;
-                    // Limpieza y formato de fecha
-                    const nuevoCCF = { ...resto, iddeclaNIT: nitDeclarante };
-                    if (nuevoCCF.FiscFecha) nuevoCCF.FiscFecha = formatearFecha(nuevoCCF.FiscFecha); // 🛠️ CORRECCIÓN
+        for (const v of listaCCF) {
+            const [duplicado] = await connection.query(
+                `SELECT idCredFiscal FROM credfiscal 
+                 WHERE iddeclaNIT = ? AND (FiscCodGeneracion = ? OR (FiscNumDoc = ? AND FiscNit = ?))`,
+                [nitDeclarante, v.FiscCodGeneracion || 'N/A', v.FiscNumDoc, v.FiscNit]
+            );
 
-                    await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
-                    reporte.ventas_ccf++;
-                } else { reporte.duplicados++; }
-            }
+            if (duplicado.length === 0) {
+                // BLINDAJE Y LIMPIEZA DE FECHA
+                const nuevoCCF = {
+                    iddeclaNIT: nitDeclarante,
+                    FiscFecha: formatearFecha(v.FiscFecha), // Formato YYYY-MM-DD
+                    FisClasDoc: v.FisClasDoc,
+                    FisTipoDoc: v.FisTipoDoc,
+                    FiscNumDoc: v.FiscNumDoc,
+                    FiscCodGeneracion: v.FiscCodGeneracion || null, // Guardamos el UUID
+                    FiscNit: v.FiscNit,
+                    FiscNomRazonDenomi: v.FiscNomRazonDenomi,
+                    FiscVtaGravLocal: v.FiscVtaGravLocal || 0,
+                    FiscDebitoFiscal: v.FiscDebitoFiscal || 0,
+                    FiscTotalVtas: v.FiscTotalVtas || 0,
+                    FiscNumAnexo: v.FiscNumAnexo || '2',
+                    FiscNumContInter: v.FiscNumContInter || '0'
+                };
+                await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
+                reporte.ventas_ccf++;
+            } else { reporte.duplicados++; }
         }
 
-        // 4. Ventas Consumidor
+        // 4. VENTAS CONSUMIDOR
         const listaCF = dataToImport.ventas_cf || dataToImport.ventas_consumidor || [];
-        if (listaCF.length) {
-            for (const v of listaCF) {
-                const [existe] = await connection.query('SELECT idconsfinal FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsFecha = ? AND ConsNumDocDEL = ?', [nitDeclarante, v.ConsFecha, v.ConsNumDocDEL]);
-                if (existe.length === 0) {
-                    const { idconsfinal, ...resto } = v;
-                    // Limpieza y formato de fecha
-                    const nuevoCF = { ...resto, iddeclaNIT: nitDeclarante };
-                    if (nuevoCF.ConsFecha) nuevoCF.ConsFecha = formatearFecha(nuevoCF.ConsFecha); // 🛠️ CORRECCIÓN
+        for (const v of listaCF) {
+            const [duplicado] = await connection.query(
+                `SELECT idconsfinal FROM consumidorfinal 
+                 WHERE iddeclaNIT = ? AND (ConsCodGeneracion = ? OR (ConsFecha = ? AND ConsNumDocDEL = ?))`,
+                [nitDeclarante, v.ConsCodGeneracion || 'N/A', formatearFecha(v.ConsFecha), v.ConsNumDocDEL]
+            );
 
-                    await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
-                    reporte.ventas_cf++;
-                } else { reporte.duplicados++; }
-            }
+            if (duplicado.length === 0) {
+                // BLINDAJE Y LIMPIEZA DE FECHA
+                const nuevoCF = {
+                    iddeclaNIT: nitDeclarante,
+                    ConsFecha: formatearFecha(v.ConsFecha),
+                    ConsClaseDoc: v.ConsClaseDoc,
+                    ConsTipoDoc: v.ConsTipoDoc,
+                    ConsNumDocDEL: v.ConsNumDocDEL,
+                    ConsNumDocAL: v.ConsNumDocAL,
+                    ConsCodGeneracion: v.ConsCodGeneracion || null, // Guardamos el UUID
+                    ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
+                    ConsTotalVta: v.ConsTotalVta || 0,
+                    ConsNumAnexo: v.ConsNumAnexo || '1'
+                };
+                await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
+                reporte.ventas_cf++;
+            } else { reporte.duplicados++; }
         }
 
-        // 5. Sujetos Excluidos
+        // 5. SUJETOS EXCLUIDOS
         const listaSujetos = dataToImport.sujetos_excluidos || [];
-        if (listaSujetos.length) {
-            for (const s of listaSujetos) {
-                const [existe] = await connection.query('SELECT idComSujExclui FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluNIT = ? AND ComprasSujExcluNumDoc = ?', [nitDeclarante, s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]);
-                if (existe.length === 0) {
-                    const { idComSujExclui, ...resto } = s;
-                    // Limpieza y formato de fecha
-                    const nuevoSujeto = { ...resto, iddeclaNIT: nitDeclarante };
-                    if (nuevoSujeto.ComprasSujExcluFecha) nuevoSujeto.ComprasSujExcluFecha = formatearFecha(nuevoSujeto.ComprasSujExcluFecha); // 🛠️ CORRECCIÓN
+        for (const s of listaSujetos) {
+            const [duplicado] = await connection.query(
+                `SELECT idComSujExclui FROM comprassujexcluidos 
+                 WHERE iddeclaNIT = ? AND (ComprasSujExcluCodGeneracion = ? OR (ComprasSujExcluNIT = ? AND ComprasSujExcluNumDoc = ?))`,
+                [nitDeclarante, s.ComprasSujExcluCodGeneracion || 'N/A', s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]
+            );
 
-                    await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
-                    reporte.sujetos++;
-                } else { reporte.duplicados++; }
-            }
+            if (duplicado.length === 0) {
+                // BLINDAJE Y LIMPIEZA DE FECHA
+                const nuevoSujeto = {
+                    iddeclaNIT: nitDeclarante,
+                    ComprasSujExcluNIT: s.ComprasSujExcluNIT,
+                    ComprasSujExcluNom: s.ComprasSujExcluNom,
+                    ComprasSujExcluFecha: formatearFecha(s.ComprasSujExcluFecha),
+                    ComprasSujExcluNumDoc: s.ComprasSujExcluNumDoc,
+                    ComprasSujExcluCodGeneracion: s.ComprasSujExcluCodGeneracion || null, // Guardamos el UUID
+                    ComprasSujExcluMontoOpera: s.ComprasSujExcluMontoOpera || 0,
+                    ComprasSujExcluMontoReten: s.ComprasSujExcluMontoReten || 0,
+                    ComprasSujExcluAnexo: s.ComprasSujExcluAnexo || '5'
+                };
+                await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
+                reporte.sujetos++;
+            } else { reporte.duplicados++; }
         }
 
         await connection.commit();
-        res.json({ message: "Importación finalizada con éxito.", detalle: reporte });
+        res.json({ message: "Búnker DTE actualizado con éxito.", detalle: reporte });
 
     } catch (e) {
         await connection.rollback();
-        console.error("Error Importación:", e.message);
-        res.status(400).json({ message: "Error: " + e.message });
+        console.error("Falla de Auditoría:", e.message);
+        res.status(400).json({ message: "Falla de Auditoría: " + e.message });
     } finally { connection.release(); }
 };

@@ -106,7 +106,7 @@ const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
-const miAlias = ref(''); // NUEVO: Para atrapar el DUI o NRC
+const miAlias = ref(''); // Para atrapar el DUI o NRC
 const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
@@ -139,11 +139,12 @@ const clasificarDTE = (dte) => {
 
   const tipoDte = ident.tipoDte || '00';
   const numero = ident.numeroControl || 'S/N';
+  const codGeneracion = ident.codigoGeneracion || null; // EXTRAÍDO AQUÍ
   const fecha = ident.fecEmi || new Date().toISOString().split('T')[0];
   
   const total = parseFloat(resumen.totalPagar) || 0;
   
-  // 🛠️ CORRECCIÓN: Extracción Inteligente de IVA (Busca en tributos si Hacienda lo ocultó)
+  // Extracción Inteligente de IVA (Busca en tributos si Hacienda lo ocultó)
   let iva = parseFloat(resumen.totalIva) || 0;
   if (iva === 0 && resumen.tributos) {
     const tribIva = resumen.tributos.find(t => t.codigo === '20'); // 20 es el código de IVA en SV
@@ -162,7 +163,7 @@ const clasificarDTE = (dte) => {
   const emisorNrc = limpiarNit(emisor.nrc);
   const receptorNrc = limpiarNit(receptor.nrc);
 
-  // 🛠️ CORRECCIÓN: Comprobamos si coincide el NIT principal, o el Alias (DUI/NRC)
+  // Comprobamos si coincide el NIT principal, o el Alias (DUI/NRC)
   const soyReceptor = receptorNit === miNitClean || (miAliasClean && (receptorNit === miAliasClean || receptorNrc === miAliasClean));
   const soyEmisor = emisorNit === miNitClean || (miAliasClean && (emisorNit === miAliasClean || emisorNrc === miAliasClean));
 
@@ -175,6 +176,7 @@ const clasificarDTE = (dte) => {
       ComFecha: fecha,
       ComTipo: tipoDte,
       ComNumero: numero,
+      ComCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
       proveedor_ProvNIT: emisorNit,
       ComNomProve: emisor.nombre?.toUpperCase(),
       ComIntGrav: gravado,
@@ -189,26 +191,42 @@ const clasificarDTE = (dte) => {
     if (tipoDte === '03') { // Crédito Fiscal
       resultado.modulo = 'ventas_ccf';
       resultado.data = {
-        FiscFecha: fecha, FiscNumDoc: numero, FiscNit: receptorNit,
+        FiscFecha: fecha, 
+        FiscNumDoc: numero, 
+        FiscCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
+        FiscNit: receptorNit,
         FiscNomRazonDenomi: receptor.nombre?.toUpperCase(),
-        FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total,
-        FisClasDoc: '4', FisTipoDoc: '03'
+        FiscVtaGravLocal: gravado, 
+        FiscDebitoFiscal: iva, 
+        FiscTotalVtas: total,
+        FisClasDoc: '4', 
+        FisTipoDoc: '03'
       };
     } else if (tipoDte === '01') { // Consumidor Final
       resultado.modulo = 'ventas_cf';
       resultado.data = {
-        ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero,
-        ConsVtaGravLocales: gravado, ConsTotalVta: total,
-        ConsClaseDoc: 'DTE', ConsTipoDoc: '01. FACTURA'
+        ConsFecha: fecha, 
+        ConsNumDocDEL: numero, 
+        ConsNumDocAL: numero, // Usamos el numControl como correlativo
+        ConsCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
+        ConsVtaGravLocales: gravado, 
+        ConsTotalVta: total,
+        ConsClaseDoc: 'DTE', 
+        ConsTipoDoc: '01. FACTURA'
       };
     } else if (tipoDte === '14') { // Sujetos Excluidos
       const montoRetencion = (total * 0.10).toFixed(2);
       resultado.modulo = 'sujetos_excluidos';
       resultado.data = {
-        ComprasSujExcluFecha: fecha, ComprasSujExcluNIT: receptorNit,
-        ComprasSujExcluNom: receptor.nombre?.toUpperCase(), ComprasSujExcluNumDoc: numero,
-        ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: montoRetencion,
-        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO', ComprasSujExcluAnexo: '5'
+        ComprasSujExcluFecha: fecha, 
+        ComprasSujExcluNIT: receptorNit,
+        ComprasSujExcluNom: receptor.nombre?.toUpperCase(), 
+        ComprasSujExcluNumDoc: numero,
+        ComprasSujExcluCodGeneracion: codGeneracion, // AGREGADO AQUÍ CORRECTAMENTE
+        ComprasSujExcluMontoOpera: total, 
+        ComprasSujExcluMontoReten: montoRetencion,
+        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO', 
+        ComprasSujExcluAnexo: '5'
       };
     }
   }
