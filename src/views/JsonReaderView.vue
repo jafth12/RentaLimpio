@@ -6,15 +6,25 @@
     </div>
 
     <div class="config-card">
-      <label>🏢 Ingresa TU NIT (Sin guiones):</label>
+      <label>🏢 Ingresa TU NIT (Obligatorio - El que está en tu Base de Datos):</label>
       <div class="input-group">
         <input 
           v-model="miNit" 
           type="text" 
-          placeholder="Ej: 06140101901234" 
+          placeholder="Ej: 06192901600027" 
           class="nit-input"
         />
-        <small>El sistema usará este NIT para clasificar (Venta vs Compra)</small>
+      </div>
+      
+      <label style="margin-top: 15px; display:block; color:#555;">🆔 Ingresa tu DUI o NRC (Opcional - Si tu factura viene con este ID):</label>
+      <div class="input-group">
+        <input 
+          v-model="miAlias" 
+          type="text" 
+          placeholder="Ej: 024985769 o 52795" 
+          class="nit-input alias-input"
+        />
+        <small style="display:block; margin-top:5px;">Hacienda ahora usa DUI como NIT. Ponlo aquí para que el lector lo reconozca.</small>
       </div>
     </div>
 
@@ -66,19 +76,21 @@
               <th>Fecha</th>
               <th>Documento</th>
               <th>Proveedor</th>
+              <th>IVA Extraído</th>
               <th>Total</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(item, idx) in payloadFinal.data.compras.slice(0, 10)" :key="idx">
+            <tr v-for="(item, idx) in payloadFinal?.data?.compras?.slice(0, 10)" :key="idx">
               <td>{{ item.ComFecha || item.fecha }}</td>
               <td>{{ item.ComNumero || item.numero }}</td>
               <td>{{ item.ComNomProve || item.proveedor_nombre }}</td>
-              <td>${{ parseFloat(item.ComTotal || item.valores?.total || 0).toFixed(2) }}</td>
+              <td style="color:#e65100; font-weight:bold;">${{ (parseFloat(item.ComCredFiscal) || 0).toFixed(2) }}</td>
+              <td>${{ (parseFloat(item.ComTotal || item.valores?.total) || 0).toFixed(2) }}</td>
             </tr>
           </tbody>
         </table>
-        <p v-if="payloadFinal.data.compras.length > 10" class="more">... y más registros ...</p>
+        <p v-if="payloadFinal?.data?.compras?.length > 10" class="more">... y más registros ...</p>
       </div>
     </div>
   </div>
@@ -90,45 +102,35 @@ import axios from 'axios';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-// Detectar IP automáticamente para evitar errores de red
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
+const miAlias = ref(''); // NUEVO: Para atrapar el DUI o NRC
 const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
 
 const limpiarNit = (texto) => texto ? texto.toString().replace(/[^0-9]/g, '') : '';
 
-const limpiar = () => {
-  datosProcesados.value = false;
-  payloadFinal.value = null;
-};
-
-// --- NORMALIZADOR: Construye la estructura exacta que pide el backend ---
+// --- NORMALIZADOR DE ESTRUCTURA ---
 const normalizarPayload = (json) => {
-  const normalizado = {
+  return {
     backup_info: json.backup_info || json.encabezado || { 
-      // CORRECCIÓN CLAVE: Limpiamos el NIT antes de enviarlo
       nit: limpiarNit(miNit.value), 
       empresa: 'Importación Manual',
       periodo: new Date().getFullYear().toString()
     },
     data: {
       compras: json.data?.compras || json.modulos?.compras || [],
-      
       ventas_ccf: json.data?.ventas_ccf || json.modulos?.ventas_credito_fiscal || [],
-      
-      // Compatibilidad con backups antiguos (ventas_consumidor_final)
-      ventas_cf: json.data?.ventas_cf || json.modulos?.ventas_consumidor || json.modulos?.ventas_consumidor_final || [],
-      
+      ventas_cf: json.data?.ventas_cf || json.modulos?.ventas_consumidor || [],
       sujetos_excluidos: json.data?.sujetos_excluidos || json.modulos?.sujetos_excluidos || []
     }
   };
-  return normalizado;
 };
 
+// --- CLASIFICADOR OFICIAL HACIENDA ---
 const clasificarDTE = (dte) => {
   const ident = dte.identificacion || {};
   const emisor = dte.emisor || {};
@@ -140,17 +142,34 @@ const clasificarDTE = (dte) => {
   const fecha = ident.fecEmi || new Date().toISOString().split('T')[0];
   
   const total = parseFloat(resumen.totalPagar) || 0;
-  const iva = parseFloat(resumen.totalIva) || 0;
+  
+  // 🛠️ CORRECCIÓN: Extracción Inteligente de IVA (Busca en tributos si Hacienda lo ocultó)
+  let iva = parseFloat(resumen.totalIva) || 0;
+  if (iva === 0 && resumen.tributos) {
+    const tribIva = resumen.tributos.find(t => t.codigo === '20'); // 20 es el código de IVA en SV
+    if (tribIva) iva = parseFloat(tribIva.valor) || 0;
+  }
+  
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
 
+  // Limpiamos los IDs ingresados
   const miNitClean = limpiarNit(miNit.value);
+  const miAliasClean = limpiarNit(miAlias.value);
+
+  // Limpiamos los IDs del JSON
   const emisorNit = limpiarNit(emisor.nit);
   const receptorNit = limpiarNit(receptor.nit);
+  const emisorNrc = limpiarNit(emisor.nrc);
+  const receptorNrc = limpiarNit(receptor.nrc);
+
+  // 🛠️ CORRECCIÓN: Comprobamos si coincide el NIT principal, o el Alias (DUI/NRC)
+  const soyReceptor = receptorNit === miNitClean || (miAliasClean && (receptorNit === miAliasClean || receptorNrc === miAliasClean));
+  const soyEmisor = emisorNit === miNitClean || (miAliasClean && (emisorNit === miAliasClean || emisorNrc === miAliasClean));
 
   const resultado = { modulo: null, data: null };
 
-  // 1. COMPRAS (Yo soy receptor)
-  if (receptorNit === miNitClean) {
+  // CASO A: COMPRA (Yo soy el receptor)
+  if (soyReceptor) {
     resultado.modulo = 'compras';
     resultado.data = {
       ComFecha: fecha,
@@ -161,161 +180,106 @@ const clasificarDTE = (dte) => {
       ComIntGrav: gravado,
       ComCredFiscal: iva,
       ComTotal: total,
-      ComClase: '4', // DTE
-      ComMesDeclarado: 'Importado',
-      ComAnioDeclarado: new Date().getFullYear().toString()
+      ComClase: '4',
+      ComMesDeclarado: 'Importado'
     };
   } 
-  // 2. VENTAS (Yo soy emisor)
-  else if (emisorNit === miNitClean) {
-    
-    // A. CRÉDITO FISCAL (Tipo 03)
-    if (tipoDte === '03') {
-      resultado.modulo = 'ventas_ccf'; 
+  // CASO B: VENTA (Yo soy el emisor)
+  else if (soyEmisor) {
+    if (tipoDte === '03') { // Crédito Fiscal
+      resultado.modulo = 'ventas_ccf';
       resultado.data = {
-        FiscFecha: fecha,
-        FiscNumDoc: numero,
-        FiscNit: receptorNit,
+        FiscFecha: fecha, FiscNumDoc: numero, FiscNit: receptorNit,
         FiscNomRazonDenomi: receptor.nombre?.toUpperCase(),
-        FiscVtaGravLocal: gravado,
-        FiscDebitoFiscal: iva,
-        FiscTotalVtas: total,
-        FisClasDoc: '4',
-        FisTipoDoc: '03',
-        FiscNumAnexo: '2'
+        FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total,
+        FisClasDoc: '4', FisTipoDoc: '03'
       };
-    } 
-    // B. CONSUMIDOR FINAL (Tipo 01)
-    else if (tipoDte === '01') {
-      resultado.modulo = 'ventas_cf'; 
+    } else if (tipoDte === '01') { // Consumidor Final
+      resultado.modulo = 'ventas_cf';
       resultado.data = {
-        ConsFecha: fecha,
-        ConsNumDocDEL: numero,
-        ConsNumDocAL: numero,
-        ConsVtaGravLocales: gravado,
-        ConsTotalVta: total,
-        ConsClaseDoc: 'DTE',
-        ConsTipoDoc: '01. FACTURA',
-        ConsNumAnexo: '1',
-        ConsTipoOpera: '1. GRAVADA',
-        ConsTipoIngreso: '1. INGRESO',
-        ConsSerieDoc: ident.serie || 'S/S',
-        ConsNumResolu: ident.numeroControl
+        ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero,
+        ConsVtaGravLocales: gravado, ConsTotalVta: total,
+        ConsClaseDoc: 'DTE', ConsTipoDoc: '01. FACTURA'
       };
-    } 
-    // C. SUJETO EXCLUIDO (Tipo 14)
-    else if (tipoDte === '14') {
-      const montoOperacion = total;
-      const montoRetencion = (montoOperacion * 0.10).toFixed(2);
-      
+    } else if (tipoDte === '14') { // Sujetos Excluidos
+      const montoRetencion = (total * 0.10).toFixed(2);
       resultado.modulo = 'sujetos_excluidos';
       resultado.data = {
-        ComprasSujExcluFecha: fecha,
-        ComprasSujExcluNIT: receptorNit,
-        ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
-        ComprasSujExcluNumDoc: numero,
-        ComprasSujExcluMontoOpera: montoOperacion,
-        ComprasSujExcluMontoReten: montoRetencion,
-        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO',
-        ComprasSujExcluAnexo: '5'
+        ComprasSujExcluFecha: fecha, ComprasSujExcluNIT: receptorNit,
+        ComprasSujExcluNom: receptor.nombre?.toUpperCase(), ComprasSujExcluNumDoc: numero,
+        ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: montoRetencion,
+        ComprasSujExcluTipoDoc: '14. FACTURA DE SUJETO EXCLUIDO', ComprasSujExcluAnexo: '5'
       };
     }
   }
-  
   return resultado;
 };
 
+// --- CARGAR ARCHIVOS ---
 const cargarArchivo = (event) => {
   if (!miNit.value || miNit.value.length < 5) {
-    alert("⚠️ Por favor, ingresa TU NIT primero para poder clasificar.");
+    alert("⚠️ Por favor, ingresa TU NIT principal primero.");
     event.target.value = '';
     return;
   }
 
-  const file = event.target.files[0];
-  if (!file) return;
+  const files = event.target.files;
+  if (!files.length) return;
 
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const jsonRaw = JSON.parse(e.target.result);
-      
-      // Caso 1: Backup ya formateado correctamente
-      if (jsonRaw.data && jsonRaw.backup_info) {
-        payloadFinal.value = jsonRaw;
-      }
-      // Caso 2: Backup antiguo o JSON de Hacienda
-      else {
-        // Normalizamos la estructura
-        const estructura = normalizarPayload(jsonRaw.modulos ? jsonRaw : {}); 
+  if (!payloadFinal.value) payloadFinal.value = normalizarPayload({});
+
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const jsonRaw = JSON.parse(e.target.result);
         
-        // Si es JSON de Hacienda (Array suelto de DTEs)
-        if (!jsonRaw.modulos && !jsonRaw.data) {
+        let dteReal = jsonRaw.dte || jsonRaw.dteJson || jsonRaw;
+        
+        if (jsonRaw.modulos || jsonRaw.data) { 
+          payloadFinal.value = normalizarPayload(jsonRaw);
+          datosProcesados.value = true;
+        } else { 
           const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
           lista.forEach(doc => {
-            const dteReal = doc.dteJson || doc;
-            const clasif = clasificarDTE(dteReal);
+            const dteUnico = doc.dteJson || doc.dte || doc;
+            const clasif = clasificarDTE(dteUnico);
             if (clasif.modulo) {
-              // Mapeamos el módulo interno al nombre que espera 'data'
-              const mapModulo = {
-                'compras': 'compras',
-                'ventas_ccf': 'ventas_ccf',
-                'ventas_cf': 'ventas_cf',
-                'sujetos_excluidos': 'sujetos_excluidos'
-              };
-              estructura.data[mapModulo[clasif.modulo]].push(clasif.data);
+              payloadFinal.value.data[clasif.modulo].push(clasif.data);
             }
           });
+          datosProcesados.value = true;
         }
-        payloadFinal.value = estructura;
-      }
-      
-      datosProcesados.value = true;
-
-    } catch (error) {
-      console.error(error);
-      alert("Error: El archivo no es un JSON válido.");
-    }
-  };
-  reader.readAsText(file);
+      } catch (err) { console.error("Error en archivo:", err); }
+    };
+    reader.readAsText(file);
+  });
 };
 
 const enviarAlBackend = async () => {
   cargando.value = true;
   try {
-    const response = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
-    
-    const data = response.data || {};
-    const det = data.detalle || {};
-    
-    alert(`
-      ✅ Importación Exitosa!
-      
-      📥 Compras: ${det.compras || 0}
-      📥 Ventas CCF: ${det.ventas_ccf || 0}
-      📥 Ventas CF: ${det.ventas_cf || 0}
-      📥 Sujetos: ${det.sujetos || 0}
-      ⚠️ Duplicados Omitidos: ${det.duplicados || 0}
-    `);
-    
+    const res = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
+    const r = res.data.detalle || {};
+    alert(`✅ PROCESO EXITOSO\n\n📥 Compras: ${r.compras || 0}\n📥 CCF: ${r.ventas_ccf || 0}\n📥 Consumidor: ${r.ventas_cf || 0}\n📥 Sujetos: ${r.sujetos || 0}\n\n⚠️ Duplicados: ${r.duplicados || 0}`);
     limpiar();
-    router.push('/importar-exportar');
-    
-  } catch (error) {
-    const msg = error.response?.data?.message || error.message;
-    alert("⛔ Ocurrió un error al guardar: " + msg);
-  } finally {
-    cargando.value = false;
-  }
+  } catch (err) {
+    alert("🚨 Error: " + (err.response?.data?.message || err.message));
+  } finally { cargando.value = false; }
+};
+
+const limpiar = () => {
+  datosProcesados.value = false;
+  payloadFinal.value = null;
 };
 </script>
 
 <style scoped>
-/* (Mismos estilos que tenías) */
 .reader-container { max-width: 900px; margin: 0 auto; padding: 20px; font-family: 'Segoe UI', sans-serif; }
 .header-box { text-align: center; margin-bottom: 30px; }
 .config-card { background: #e3f2fd; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid #90caf9; margin-bottom: 20px; }
 .nit-input { padding: 10px; font-size: 18px; text-align: center; border-radius: 5px; border: 1px solid #ccc; width: 250px; margin-top: 10px; }
+.alias-input { background-color: #fff9c4; border-color: #ffb300; }
 .upload-area { display: flex; justify-content: center; margin-top: 20px; }
 .drop-zone { border: 3px dashed #ccc; padding: 50px; border-radius: 15px; text-align: center; cursor: pointer; width: 100%; background: #fafafa; }
 .drop-zone:hover { border-color: #2196f3; background: #e3f2fd; }
