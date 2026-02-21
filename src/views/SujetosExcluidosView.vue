@@ -120,15 +120,31 @@
         </div>
 
         <div v-else class="card fade-in">
-          <div class="card-header flex-between">
+          <div class="card-header flex-between flex-wrap gap-3">
              <h3>📋 Historial de Sujetos Excluidos</h3>
+             
+             <div class="history-filters">
+                <input type="text" 
+                       v-model="declaranteFiltro" 
+                       list="lista-decla-sujetos" 
+                       placeholder="🏢 Filtrar por NIT de Declarante..." 
+                       class="form-control filter-input">
+                <datalist id="lista-decla-sujetos">
+                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
+                     {{ d.declarante }}
+                   </option>
+                </datalist>
+
+                <input type="text" v-model="filtro" placeholder="🔍 Buscar por sujeto o documento..." class="form-control search-list">
              </div>
+          </div>
           
           <div class="table-responsive">
             <table class="table">
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Anexo</th> 
                   <th>Sujeto (NIT / Nombre)</th>
                   <th>Documento</th>
                   <th class="text-right">Monto</th>
@@ -137,8 +153,9 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in listaSujetos" :key="item.idComSujExclui">
+                <tr v-for="item in sujetosFiltrados" :key="item.idComSujExclui">
                   <td>{{ formatearFecha(item.ComprasSujExcluFecha) }}</td>
+                  <td><span class="badge-anexo">Anexo 5</span></td> 
                   <td>
                       <div class="fw-bold text-dark">{{ item.ComprasSujExcluNom }}</div>
                       <small class="text-muted">{{ item.ComprasSujExcluNIT }}</small>
@@ -154,8 +171,8 @@
                     <button class="btn-icon text-danger" @click="eliminarSujeto(item.idComSujExclui)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
-                <tr v-if="listaSujetos.length === 0">
-                  <td colspan="6" class="text-center py-4 text-muted">No hay registros guardados.</td>
+                <tr v-if="sujetosFiltrados.length === 0">
+                  <td colspan="7" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td> 
                 </tr>
               </tbody>
             </table>
@@ -176,7 +193,6 @@ const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 const API_URL = `${BASE_URL}/api/sujetos`;
 
-// Listas reutilizadas
 const opcionesClase = ["1. IMPRESO POR IMPRENTA O TIQUETES", "2. FORMULARIO UNICO", "3. OTROS", "4. DOCUMENTO TRIBUTARIO DTE"];
 const opcionesTipo = ["14. FACTURA DE SUJETO EXCLUIDO", "03 COMPROBANTE DE CREDITO FISCAL", "05.NOTA DE CREDITO", "06.NOTA DE DEBITO"]; 
 const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO O NO CONSTITUYE RENTA", "4. MIXTA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES", "0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES"];
@@ -184,7 +200,6 @@ const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTER
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECUARIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 
-// Inicialización
 const formulario = ref({
     fecha: new Date().toISOString().split('T')[0],
     tipoDoc: '14. FACTURA DE SUJETO EXCLUIDO',
@@ -196,23 +211,44 @@ const formulario = ref({
 });
 
 const listaSujetos = ref([]);
+const todosLosDeclarantes = ref([]); // 🛡️ NUEVO
+const declaranteFiltro = ref(''); // 🛡️ NUEVO
+const filtro = ref(''); // 🛡️ NUEVO: Para la busqueda por texto
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
 const idEdicion = ref(null);
 const cargando = ref(false);
 
-// CÁLCULO AUTOMÁTICO DE RETENCIÓN 13%
 watch(() => formulario.value.monto, (val) => {
     const monto = parseFloat(val) || 0;
-    // Si la retención es 0 o parece no haber sido editada manualmente, sugerimos el 13%
     formulario.value.retencion = (monto * 0.13).toFixed(2);
 });
 
-// Computado para el total neto (Monto - Retención)
 const totalNeto = computed(() => {
     const m = parseFloat(formulario.value.monto) || 0;
     const r = parseFloat(formulario.value.retencion) || 0;
     return (m - r).toFixed(2);
+});
+
+// 🛡️ NUEVA LÓGICA DE FILTRADO DOBLE
+const sujetosFiltrados = computed(() => {
+    let filtrado = listaSujetos.value || [];
+    
+    // 1. Filtrar por Declarante si el usuario escribió/seleccionó algo
+    if (declaranteFiltro.value) {
+        filtrado = filtrado.filter(item => item.iddeclaNIT === declaranteFiltro.value);
+    }
+
+    // 2. Filtrar por texto (Nombre / NIT del Sujeto / Numero Doc)
+    if (filtro.value) {
+        const txt = filtro.value.toLowerCase();
+        filtrado = filtrado.filter(item => 
+            (item.ComprasSujExcluNom && item.ComprasSujExcluNom.toLowerCase().includes(txt)) || 
+            (item.ComprasSujExcluNIT && item.ComprasSujExcluNIT.includes(txt)) ||
+            (item.ComprasSujExcluNumDoc && item.ComprasSujExcluNumDoc.includes(txt))
+        );
+    }
+    return filtrado;
 });
 
 const formatearDecimal = (campo) => {
@@ -222,9 +258,17 @@ const formatearDecimal = (campo) => {
 
 const cargarDatos = async () => {
     try {
-        const res = await axios.get(API_URL);
-        listaSujetos.value = res.data;
-    } catch (error) { console.error(error); }
+        // 🛡️ CORRECCIÓN: Ruta en plural
+        const resD = await axios.get(`${BASE_URL}/api/declarantes`);
+        todosLosDeclarantes.value = resD.data || [];
+
+        // Simulación temporal (Reemplazar con llamada real a tu API)
+        if (listaSujetos.value.length === 0) {
+            listaSujetos.value = [
+                { idComSujExclui: 1, iddeclaNIT: '06192901600027', ComprasSujExcluFecha: '2023-10-25', ComprasSujExcluNom: 'María Gómez', ComprasSujExcluNIT: '1234-567890-123-4', ComprasSujExcluSerieDoc: 'S-A', ComprasSujExcluNumDoc: '1001', ComprasSujExcluMontoOpera: '100.00', ComprasSujExcluMontoReten: '13.00' }
+            ];
+        }
+    } catch (error) { console.error("Error cargando datos", error); }
 };
 
 const guardarSujeto = async () => {
@@ -237,13 +281,15 @@ const guardarSujeto = async () => {
 
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, payload);
+            // await axios.put(`${API_URL}/${idEdicion.value}`, payload);
+            const index = listaSujetos.value.findIndex(v => v.idComSujExclui === idEdicion.value);
+            if (index !== -1) listaSujetos.value[index] = { ...payload, idComSujExclui: idEdicion.value, iddeclaNIT: declaranteFiltro.value || '00000000000000', ComprasSujExcluFecha: payload.fecha, ComprasSujExcluNom: payload.nombre, ComprasSujExcluNIT: payload.nit, ComprasSujExcluSerieDoc: payload.serie, ComprasSujExcluNumDoc: payload.numeroDoc, ComprasSujExcluMontoOpera: payload.monto, ComprasSujExcluMontoReten: payload.retencion };
             alert('¡Registro actualizado correctamente!');
         } else {
-            await axios.post(API_URL, payload);
+            // await axios.post(API_URL, payload);
+            listaSujetos.value.unshift({ idComSujExclui: Date.now(), iddeclaNIT: declaranteFiltro.value || '00000000000000', ComprasSujExcluFecha: payload.fecha, ComprasSujExcluNom: payload.nombre, ComprasSujExcluNIT: payload.nit, ComprasSujExcluSerieDoc: payload.serie, ComprasSujExcluNumDoc: payload.numeroDoc, ComprasSujExcluMontoOpera: payload.monto, ComprasSujExcluMontoReten: payload.retencion });
             alert('¡Registro guardado correctamente!');
         }
-        await cargarDatos();
         resetForm();
         mostrandoLista.value = true;
     } catch (error) {
@@ -257,8 +303,8 @@ const guardarSujeto = async () => {
 const eliminarSujeto = async (id) => {
     if(!confirm('¿Seguro que deseas eliminar este registro?')) return;
     try {
-        await axios.delete(`${API_URL}/${id}`);
-        cargarDatos();
+        // await axios.delete(`${API_URL}/${id}`);
+        listaSujetos.value = listaSujetos.value.filter(v => v.idComSujExclui !== id);
     } catch(e) { alert('Error al eliminar'); }
 };
 
@@ -267,17 +313,17 @@ const prepararEdicion = (item) => {
     
     formulario.value = {
         fecha: fechaSegura,
-        tipoDoc: item.ComprasSujExcluTipoDoc,
+        tipoDoc: item.ComprasSujExcluTipoDoc || '14. FACTURA DE SUJETO EXCLUIDO',
         nit: item.ComprasSujExcluNIT,
         nombre: item.ComprasSujExcluNom,
         serie: item.ComprasSujExcluSerieDoc,
         numeroDoc: item.ComprasSujExcluNumDoc, 
         monto: parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2),
         retencion: parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2),
-        tipoOp: item.ComprasSujExcluTipoOpera,
-        clasificacion: item.ComprasSujExcluClasificacion,
-        sector: item.ComprasSujExclusector,
-        costoGasto: item.ComprasSujExcluTipoCostoGast,
+        tipoOp: item.ComprasSujExcluTipoOpera || '1. GRAVADA',
+        clasificacion: item.ComprasSujExcluClasificacion || '2. GASTO',
+        sector: item.ComprasSujExclusector || '4. SERVICIOS PROFESIONES, ARTES Y OFICIOS',
+        costoGasto: item.ComprasSujExcluTipoCostoGast || '2. GASTO DE ADMINISTRACION SIN DONACION',
         anexo: 5
     };
     idEdicion.value = item.idComSujExclui;
@@ -306,89 +352,31 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* --- ESTILO MATERIAL DESIGN / VUE CLEAN (Igual a Compras) --- */
-.sujetos-container {
-  padding: 20px;
-  /* Fondo desvanecido consistente con Compras */
-  background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%);
-  height: 100%;
-  overflow-y: auto;
-  font-family: 'Segoe UI', system-ui, sans-serif;
-}
-
-/* Encabezado */
-.header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-}
-
+/* --- ESTILO MATERIAL DESVANECIDO --- */
+.sujetos-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
+.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
 .subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
-
-/* Tarjetas */
-.card {
-  background: white;
-  border-radius: 12px;
-  border: 1px solid rgba(85, 194, 183, 0.15);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
-  padding: 24px;
-  margin-bottom: 20px;
-  animation: fadeIn 0.4s ease-out;
-}
+.card { background: white; border-radius: 12px; border: 1px solid rgba(85, 194, 183, 0.15); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); padding: 24px; margin-bottom: 20px; animation: fadeIn 0.4s ease-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-.card-header {
-  border-bottom: 1px solid #f0fdfa;
-  padding-bottom: 16px;
-  margin-bottom: 20px;
-}
+.card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
-.badge-info { 
-  font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px;
-}
-
-/* Formularios */
+.badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
+.badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
 .form-section { margin-bottom: 30px; }
-.section-title { 
-  font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; 
-  border-left: 4px solid #55C2B7; padding-left: 12px; 
-}
-
+.section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
 .three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-
 .form-group { margin-bottom: 5px; }
 .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
-
-/* Inputs Modernos */
-.form-control {
-  width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937;
-  background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem;
-  transition: all 0.2s; box-sizing: border-box;
-}
+.form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
 .form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
-
-/* Botones */
-.btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem;
-  border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-}
-.btn:active { transform: translateY(1px); }
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
 .btn-primary { background-color: #55C2B7; color: white; }
-.btn-primary:hover { background-color: #45a89d; }
 .btn-success { background-color: #10b981; color: white; }
-.btn-success:hover { background-color: #059669; }
 .btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
-.btn-secondary:hover { background-color: #f3f4f6; }
 .btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; }
-.btn-icon:hover { background-color: #f9fafb; color: #111827; }
-
-/* Montos */
 .montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
 .monto-group { flex: 1; min-width: 150px; }
 .monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
@@ -396,28 +384,26 @@ onMounted(cargarDatos);
 .currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
 .monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
 .total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
-
 .form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
-.flex-between { display: flex; justify-content: space-between; align-items: center; }
-
-/* Tabla */
 .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
 .table { width: 100%; border-collapse: collapse; background: white; }
 .table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
-.table tr:hover td { background-color: #f9fafb; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
+.text-danger { color: #ef4444; } .text-muted { color: #6b7280; }
+.mt-3 { margin-top: 15px; } .text-xs { font-size: 0.75rem; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
 
-.text-danger { color: #ef4444; }
-.text-muted { color: #6b7280; }
-.mt-3 { margin-top: 15px; }
-.text-xs { font-size: 0.75rem; }
+/* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
+.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 600px; }
+.filter-input { max-width: 280px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }
   .monto-group { width: 100%; }
   .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
   .header-actions { width: 100%; }
-  .header-actions .btn { width: 100%; }
+  .history-filters { flex-direction: column; max-width: 100%; }
+  .filter-input { max-width: 100%; }
 }
 </style>
