@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { generarAnexosHaciendaJSON } from '../controllers/reportes.controller.js';
+// 🛡️ IMPORTAMOS LA NUEVA FUNCIÓN DEL CSV
+import { generarAnexosHaciendaJSON, descargarAnexo3CSV } from '../controllers/reportes.controller.js';
 
 const router = Router();
 
@@ -9,5 +10,12 @@ const router = Router();
  * @access  Privado (Requiere NIT, Mes y Año por QueryParams)
  */
 router.get('/anexos-hacienda', generarAnexosHaciendaJSON);
+
+/**
+ * @route   GET /api/reportes/anexo3-csv
+ * @desc    Descarga el Anexo 3 (Compras) en formato CSV oficial de Hacienda (UTF-8 con BOM)
+ * @access  Privado (Requiere nit, mes y anio por QueryParams)
+ */
+router.get('/anexo3-csv', descargarAnexo3CSV);
 
 export default router;
