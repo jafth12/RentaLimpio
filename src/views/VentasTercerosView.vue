@@ -1,22 +1,17 @@
 <template>
   <MainLayout>
     <div class="ventas-container">
-      
       <div class="header-section">
         <div class="title-box">
           <h1>🤝 Ventas por Cuenta de Terceros</h1>
           <p class="subtitle">Gestión de operaciones realizadas a nombre de mandantes</p>
         </div>
-        
         <div class="header-actions">
-          <button @click="alternarVista" class="btn btn-primary">
-            {{ mostrandoLista ? '➕ Nueva Venta Terceros' : '📋 Ver Historial' }}
-          </button>
+          <button @click="alternarVista" class="btn btn-primary">{{ mostrandoLista ? '➕ Nueva Venta Terceros' : '📋 Ver Historial' }}</button>
         </div>
       </div>
 
       <div class="main-content">
-        
         <div v-if="!mostrandoLista" class="card fade-in">
           <div class="card-header">
             <h2>{{ modoEdicion ? '✏️ Editar Venta Tercero' : '✨ Nueva Operación' }}</h2>
@@ -24,26 +19,16 @@
           </div>
 
           <form @submit.prevent="guardarVenta" class="form-body">
-            
             <div class="form-section">
               <h3 class="section-title">👤 Datos del Mandante (Tercero)</h3>
-              
               <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label">NIT Mandante <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.nitMandante" class="form-control" placeholder="0000-000000-000-0" required>
-                </div>
-                
-                <div class="form-group">
-                  <label class="form-label">Nombre Mandante <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.nombreMandante" class="form-control" placeholder="Empresa o Persona representada" required>
-                </div>
+                <div class="form-group"><label class="form-label">NIT Mandante <span class="text-danger">*</span></label><input type="text" v-model="formulario.nitMandante" class="form-control" placeholder="0000-000000-000-0" required></div>
+                <div class="form-group"><label class="form-label">Nombre Mandante <span class="text-danger">*</span></label><input type="text" v-model="formulario.nombreMandante" class="form-control" placeholder="Empresa o Persona representada" required></div>
               </div>
             </div>
 
             <div class="form-section bg-light">
               <h3 class="section-title">📄 Detalles del Documento</h3>
-              
               <div class="form-grid three-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
@@ -51,161 +36,66 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Número Documento <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.numero" class="form-control" placeholder="0000" required>
+                   <label class="form-label">Número Doc. (DTE) <span class="text-danger">*</span></label>
+                   <div class="dte-mask-container">
+                      <span class="dte-prefix">DTE</span>
+                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
+                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
+                      <span class="dte-sep">P</span>
+                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
+                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
+                   </div>
+                   <small class="form-text text-muted text-xs">Ej: DTE-00-S-000-P-000...</small>
                 </div>
 
-                <div class="form-group">
-                  <label class="form-label">Serie (Opcional)</label>
-                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
-                </div>
+                <div class="form-group"><label class="form-label">Serie (Opcional)</label><input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE"></div>
               </div>
             </div>
 
             <div class="form-section">
               <h3 class="section-title">💰 Montos de la Venta</h3>
-              
               <div class="montos-wrapper">
-                
-                <div class="monto-group">
-                  <label class="monto-label">Ventas Gravadas</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.gravadas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('gravadas')">
-                  </div>
-                </div>
-
-                <div class="monto-group">
-                  <label class="monto-label">Ventas Exentas</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.exentas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('exentas')">
-                  </div>
-                </div>
-
-                <div class="monto-group">
-                  <label class="monto-label">Ventas No Sujetas</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.noSujetas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('noSujetas')">
-                  </div>
-                </div>
-
-                <div class="monto-group">
-                  <label class="monto-label text-success">Comisión (Ingreso Propio)</label>
-                  <div class="input-wrapper">
-                    <span class="currency text-success">+</span>
-                    <input type="number" 
-                           v-model="formulario.comision" 
-                           step="0.01" 
-                           class="form-control monto-input text-success" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('comision')">
-                  </div>
-                </div>
-
-                <div class="monto-group total-group">
-                  <label class="monto-label">TOTAL OPERACIÓN</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input :value="totalCalculado" type="text" class="form-control total-input" readonly>
-                  </div>
-                </div>
-
+                <div class="monto-group"><label class="monto-label">Ventas Gravadas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('gravadas')"></div></div>
+                <div class="monto-group"><label class="monto-label">Ventas Exentas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('exentas')"></div></div>
+                <div class="monto-group"><label class="monto-label">Ventas No Sujetas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('noSujetas')"></div></div>
+                <div class="monto-group"><label class="monto-label text-success">Comisión (Ingreso)</label><div class="input-wrapper"><span class="currency text-success">+</span><input type="number" v-model="formulario.comision" step="0.01" class="form-control monto-input text-success" placeholder="0.00" @blur="formatearDecimal('comision')"></div></div>
+                <div class="monto-group total-group"><label class="monto-label">TOTAL OPERACIÓN</label><div class="input-wrapper"><span class="currency">$</span><input :value="totalCalculado" type="text" class="form-control total-input" readonly></div></div>
               </div>
             </div>
 
             <div class="form-actions">
               <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
-                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar Venta') }}
-              </button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">{{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar Venta') }}</button>
             </div>
-
-            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
-              {{ mensaje }}
-            </div>
-
           </form>
         </div>
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
              <h3>📋 Historial de Operaciones</h3>
-             
              <div class="history-filters">
-                <input type="text" 
-                       v-model="declaranteFiltro" 
-                       list="lista-decla-terceros" 
-                       placeholder="🏢 Filtrar por NIT de Declarante..." 
-                       class="form-control filter-input">
-                <datalist id="lista-decla-terceros">
-                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                     {{ d.declarante }}
-                   </option>
-                </datalist>
-
+                <input type="text" v-model="declaranteFiltro" list="lista-decla-terceros" placeholder="🏢 Filtrar por NIT de Declarante..." class="form-control filter-input">
+                <datalist id="lista-decla-terceros"><option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option></datalist>
                 <input type="text" v-model="filtro" placeholder="🔍 Buscar por mandante o número..." class="form-control search-list">
              </div>
           </div>
-          
           <div class="table-responsive">
             <table class="table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Anexo</th> 
-                  <th>Mandante (Tercero)</th>
-                  <th>Documento</th>
-                  <th class="text-right">Gravado</th>
-                  <th class="text-right text-success">Comisión</th>
-                  <th class="text-right">Total</th>
-                  <th class="text-center">Acciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Fecha</th><th>Anexo</th><th>Mandante (Tercero)</th><th>Documento</th><th class="text-right">Gravado</th><th class="text-right text-success">Comisión</th><th class="text-right">Total</th><th class="text-center">Acciones</th></tr></thead>
               <tbody>
                 <tr v-for="venta in ventasFiltradas" :key="venta.id">
-                  <td>{{ formatearFecha(venta.fecha) }}</td>
-                  <td><span class="badge-anexo">Anexo 4</span></td> 
-                  <td>
-                    <div class="fw-bold text-dark">{{ venta.nombreMandante }}</div>
-                    <small class="text-muted">{{ venta.nitMandante }}</small>
-                  </td>
-                  <td>
-                    <span class="doc-number">{{ venta.numero }}</span>
-                    <span v-if="venta.serie" class="badge-light ml-2">{{ venta.serie }}</span>
-                  </td>
-                  <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-success">+${{ parseFloat(venta.comision || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-dark">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
-                  <td class="text-center">
-                    <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button>
-                  </td>
+                  <td>{{ formatearFecha(venta.fecha) }}</td><td><span class="badge-anexo">Anexo 4</span></td> 
+                  <td><div class="fw-bold text-dark">{{ venta.nombreMandante }}</div><small class="text-muted">{{ venta.nitMandante }}</small></td>
+                  <td><span class="doc-number">{{ venta.numero }}</span></td>
+                  <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td><td class="text-right fw-bold text-success">+${{ parseFloat(venta.comision || 0).toFixed(2) }}</td><td class="text-right fw-bold text-dark">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
+                  <td class="text-center"><button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button><button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button></td>
                 </tr>
-                <tr v-if="ventasFiltradas.length === 0">
-                  <td colspan="8" class="text-center py-4 text-muted">No se encontraron operaciones para estos filtros.</td> 
-                </tr>
+                <tr v-if="ventasFiltradas.length === 0"><td colspan="8" class="text-center py-4 text-muted">No se encontraron operaciones.</td></tr>
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
   </MainLayout>
@@ -218,140 +108,33 @@ import MainLayout from '../layouts/MainLayout.vue';
 
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
-const API_URL = `${BASE_URL}/api/ventas-terceros`; 
 
-// --- ESTADOS ---
-const formulario = ref({
-    fecha: new Date().toISOString().split('T')[0],
-    numero: '', serie: '', 
-    nitMandante: '', nombreMandante: '',
-    gravadas: '0.00', exentas: '0.00', noSujetas: '0.00',
-    comision: '0.00', total: '0.00'
-});
+const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+const handleLetraInput = (e) => { let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto(); };
+const handleInputMask = (e, partName, maxLength) => { let raw = e.target.value.replace(/\D/g, ''); if (raw.length > maxLength) raw = raw.slice(-maxLength); const padded = raw.padStart(maxLength, '0'); ccfParts.value[partName] = padded; e.target.value = padded; actualizarNumeroCompleto(); };
+const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie || 'S'; formulario.value.numero = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; };
 
-const listaVentas = ref([]);
-const todosLosDeclarantes = ref([]); // 🛡️ NUEVO
-const declaranteFiltro = ref(''); // 🛡️ NUEVO
-const mostrandoLista = ref(false);
-const modoEdicion = ref(false);
-const idEdicion = ref(null);
-const cargando = ref(false);
-const mensaje = ref('');
-const tipoMensaje = ref('');
-const filtro = ref('');
+const formulario = ref({ fecha: new Date().toISOString().split('T')[0], numero: '', serie: '', nitMandante: '', nombreMandante: '', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', comision: '0.00', total: '0.00' });
+const listaVentas = ref([]); const todosLosDeclarantes = ref([]); const declaranteFiltro = ref(''); const mostrandoLista = ref(false); const modoEdicion = ref(false); const idEdicion = ref(null); const cargando = ref(false); const filtro = ref('');
 
-// --- COMPUTADOS ---
-const totalCalculado = computed(() => {
-    const g = parseFloat(formulario.value.gravadas) || 0;
-    const e = parseFloat(formulario.value.exentas) || 0;
-    const n = parseFloat(formulario.value.noSujetas) || 0;
-    const c = parseFloat(formulario.value.comision) || 0;
-    return (g + e + n + c).toFixed(2);
-});
+const totalCalculado = computed(() => { const g = parseFloat(formulario.value.gravadas) || 0; const e = parseFloat(formulario.value.exentas) || 0; const n = parseFloat(formulario.value.noSujetas) || 0; const c = parseFloat(formulario.value.comision) || 0; return (g + e + n + c).toFixed(2); });
+const ventasFiltradas = computed(() => { let filtrado = listaVentas.value || []; if (declaranteFiltro.value) filtrado = filtrado.filter(v => v.iddeclaNIT === declaranteFiltro.value); if (filtro.value) { const txt = filtro.value.toLowerCase(); filtrado = filtrado.filter(v => (v.nombreMandante && v.nombreMandante.toLowerCase().includes(txt)) || (v.nitMandante && v.nitMandante.includes(txt)) || (v.numero && v.numero.includes(txt))); } return filtrado; });
+const formatearDecimal = (campo) => { formulario.value[campo] = !isNaN(parseFloat(formulario.value[campo])) ? parseFloat(formulario.value[campo]).toFixed(2) : '0.00'; };
 
-// 🛡️ NUEVA LÓGICA DE FILTRADO DOBLE
-const ventasFiltradas = computed(() => {
-    let filtrado = listaVentas.value || [];
-    
-    // 1. Filtrar por Declarante 
-    if (declaranteFiltro.value) {
-        filtrado = filtrado.filter(v => v.iddeclaNIT === declaranteFiltro.value);
-    }
+const cargarVentas = async () => { try { const resD = await axios.get(`${BASE_URL}/api/declarantes`); todosLosDeclarantes.value = resD.data || []; if (listaVentas.value.length === 0) listaVentas.value = [{ id: 1, iddeclaNIT: '06192901600027', fecha: '2023-11-01', nombreMandante: 'Logística Global S.A.', nitMandante: '0614-200590-102-1', numero: 'DTE-03-S005P004-000000000141739', gravadas: '500.00', comision: '50.00', total: '550.00' }]; } catch (error) { console.error(error); } };
 
-    // 2. Filtrar por texto 
-    if (filtro.value) {
-        const txt = filtro.value.toLowerCase();
-        filtrado = filtrado.filter(v => 
-            (v.nombreMandante && v.nombreMandante.toLowerCase().includes(txt)) || 
-            (v.nitMandante && v.nitMandante.includes(txt)) ||
-            (v.numero && v.numero.includes(txt))
-        );
-    }
-    return filtrado;
-});
-
-// --- MÉTODOS ---
-const formatearDecimal = (campo) => {
-    const valor = parseFloat(formulario.value[campo]);
-    formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
+const guardarVenta = async () => { actualizarNumeroCompleto(); cargando.value = true; /* Guardado aquí */ modoEdicion.value = false; mostrandoLista.value = true; cargando.value = false; };
+const eliminarVenta = async (id) => { if(confirm('¿Eliminar?')) listaVentas.value = listaVentas.value.filter(v => v.id !== id); };
+const prepararEdicion = (venta) => { 
+    const cleanNumero = venta.numero ? venta.numero.replace(/-/g, '') : '';
+    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; const match = cleanNumero.match(regex);
+    ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    formulario.value = { ...venta }; idEdicion.value = venta.id; modoEdicion.value = true; mostrandoLista.value = false; 
 };
-
-const cargarVentas = async () => {
-    try {
-        // 🛡️ CORRECCIÓN: Ruta en plural
-        const resD = await axios.get(`${BASE_URL}/api/declarantes`);
-        todosLosDeclarantes.value = resD.data || [];
-
-        // Simulación temporal
-        if (listaVentas.value.length === 0) {
-            listaVentas.value = [
-                { id: 1, iddeclaNIT: '06192901600027', fecha: '2023-11-01', nombreMandante: 'Logística Global S.A.', nitMandante: '0614-200590-102-1', numero: '0890', gravadas: '500.00', comision: '50.00', total: '550.00' }
-            ];
-        }
-    } catch (error) { console.error("Error cargando datos", error); }
-};
-
-const guardarVenta = async () => {
-    cargando.value = true;
-    formulario.value.total = totalCalculado.value;
-
-    try {
-        if(modoEdicion.value) {
-            const index = listaVentas.value.findIndex(v => v.id === idEdicion.value);
-            if (index !== -1) listaVentas.value[index] = { ...formulario.value, id: idEdicion.value };
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Operación actualizada!';
-        } else {
-            listaVentas.value.unshift({ ...formulario.value, id: Date.now() });
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Operación registrada con éxito!';
-        }
-        
-        resetForm();
-        setTimeout(() => { 
-            mensaje.value = ''; 
-            mostrandoLista.value = true; 
-        }, 1500);
-    } catch (error) {
-        tipoMensaje.value = 'error';
-        mensaje.value = 'Error al procesar la operación.';
-    } finally {
-        cargando.value = false;
-    }
-};
-
-const eliminarVenta = async (id) => {
-    if(!confirm('¿Eliminar este registro?')) return;
-    try {
-        listaVentas.value = listaVentas.value.filter(v => v.id !== id);
-    } catch (e) { alert('Error'); }
-};
-
-const prepararEdicion = (venta) => {
-    formulario.value = { ...venta };
-    idEdicion.value = venta.id;
-    modoEdicion.value = true;
-    mostrandoLista.value = false;
-};
-
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
-
-const resetForm = () => {
-    formulario.value = {
-        fecha: new Date().toISOString().split('T')[0],
-        numero: '', serie: '', nitMandante: '', nombreMandante: '',
-        gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', comision: '0.00', total: '0.00'
-    };
-    modoEdicion.value = false;
-    idEdicion.value = null;
-    mensaje.value = '';
-};
-
+const resetForm = () => { ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; modoEdicion.value = false; };
 const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
-
 onMounted(cargarVentas);
 </script>
 
@@ -400,10 +183,20 @@ onMounted(cargarVentas);
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-muted { color: #6b7280; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
+.mt-3 { margin-top: 15px; } .text-xs { font-size: 0.75rem; }
 
 /* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 600px; }
 .filter-input { max-width: 280px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
+
+/* 🛡️ ESTILOS DE LA MÁSCARA DTE (NUEVO Y NECESARIO) */
+.dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
+.dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
+.dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
+.dte-sep { padding: 0 5px; color: #9ca3af; font-weight: bold; }
+.dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
+.w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
+.dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }

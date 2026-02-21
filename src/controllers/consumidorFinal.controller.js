@@ -10,7 +10,7 @@ export const getVentasConsumidor = async (req, res) => {
     }
 };
 
-// --- 2. OBTENER UNA VENTA POR ID (¡ESTA ES LA QUE FALTABA!) ---
+// --- 2. OBTENER UNA VENTA POR ID ---
 export const getVentaConsumidorById = async (req, res) => {
     const { id } = req.params;
     try {
@@ -28,9 +28,9 @@ export const getVentaConsumidorById = async (req, res) => {
 export const createVentaConsumidor = async (req, res) => {
     const data = req.body;
 
-    // Validación mínima para no meter basura al sistema
-    if (!data.fecha || !data.docDel || !data.docAl || !data.iddeclaNIT) {
-        return res.status(400).json({message: 'Auditoría: Fecha, Rangos e ID Declarante son obligatorios.'});
+    // Validación: El frontend nos manda "numero", que es el DTE ya armado.
+    if (!data.fecha || !data.numero || !data.iddeclaNIT) {
+        return res.status(400).json({message: 'Auditoría: Fecha, Número de Documento e ID Declarante son obligatorios.'});
     }
     
     try {
@@ -44,13 +44,30 @@ export const createVentaConsumidor = async (req, res) => {
              ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
             [
-                data.iddeclaNIT, data.fecha, data.claseDoc || 'FÍSICO', data.tipoDoc || '01', 
-                data.resolucion, data.serie, data.controlDel, data.controlAl, 
-                data.docDel, data.docAl, data.maqRegistro,
-                data.exentas || 0, data.exentasNoSujetasProp || 0, data.noSujetas || 0, data.gravadas || 0,
-                data.expCentroAmerica || 0, data.expFueraCentroAmerica || 0, data.expServicios || 0,
-                data.ventasZonaFranca || 0, data.ventasTerceros || 0, data.total || 0,
-                data.tipoOpera || '1', data.tipoIngreso || '1', data.anexo || '1'
+                data.iddeclaNIT, 
+                data.fecha, 
+                data.claseDoc || '4', // En el SV, 4 = DTE
+                data.tipoDoc || '01', 
+                data.resolucion || null, 
+                data.serie || null, 
+                data.controlDel || null, 
+                data.controlAl || null, 
+                data.numero, // 🛡️ AQUÍ GUARDAMOS EL DTE EN ConsNumDocDEL
+                data.numero, // 🛡️ Y EN ConsNumDocAL (Es el mismo en DTE)
+                data.maqRegistro || null,
+                data.exentas || 0, 
+                data.exentasNoSujetasProp || 0, 
+                data.noSujetas || 0, 
+                data.gravadas || 0,
+                data.expCentroAmerica || 0, 
+                data.expFueraCentroAmerica || 0, 
+                data.expServicios || 0,
+                data.ventasZonaFranca || 0, 
+                data.ventasTerceros || 0, 
+                data.total || 0,
+                data.tipoOpera || '1', 
+                data.tipoIngreso || '1', 
+                data.anexo || '1'
             ]
         );
         res.status(201).json({ message: 'Venta Consumidor Final Certificada', id: result.insertId });
@@ -62,19 +79,12 @@ export const createVentaConsumidor = async (req, res) => {
 // --- 4. ACTUALIZAR VENTA ---
 export const updateVentaConsumidor = async (req, res) => {
     const { id } = req.params;
-    const {
-        fecha, claseDoc, tipoDoc, resolucion, serie,
-        controlDel, controlAl, docDel, docAl, maqRegistro,
-        exentas, exentasNoSujetasProp, noSujetas, gravadas,
-        expCentroAmerica, expFueraCentroAmerica, expServicios,
-        ventasZonaFranca, ventasTerceros, total,
-        tipoOpera, tipoIngreso, anexo
-    } = req.body;
+    const data = req.body;
 
     try {
         const [result] = await pool.query(
             `UPDATE consumidorfinal SET 
-            ConsFecha=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsNumResolu=?, ConsSerieDoc=?, 
+            iddeclaNIT=?, ConsFecha=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsNumResolu=?, ConsSerieDoc=?, 
             ConsNumContIntDEL=?, ConsNumContIntAL=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsNumMaqRegistro=?,
             ConsVtaExentas=?, ConsVtaIntExenNoSujProporcio=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, 
             ConsExpDentAreaCA=?, ConsExpFueraAreaCA=?, ConsExpServicios=?, 
@@ -82,12 +92,30 @@ export const updateVentaConsumidor = async (req, res) => {
             ConsTipoOpera=?, ConsTipoIngreso=?, ConsNumAnexo=?
             WHERE idconsfinal = ?`,
             [
-                fecha, claseDoc, tipoDoc, resolucion, serie,
-                controlDel, controlAl, docDel, docAl, maqRegistro,
-                exentas || 0, exentasNoSujetasProp || 0, noSujetas || 0, gravadas || 0,
-                expCentroAmerica || 0, expFueraCentroAmerica || 0, expServicios || 0,
-                ventasZonaFranca || 0, ventasTerceros || 0, total || 0,
-                tipoOpera, tipoIngreso, anexo, 
+                data.iddeclaNIT,
+                data.fecha, 
+                data.claseDoc || '4', 
+                data.tipoDoc || '01', 
+                data.resolucion || null, 
+                data.serie || null,
+                data.controlDel || null, 
+                data.controlAl || null, 
+                data.numero, // 🛡️ SE ACTUALIZA EL DTE (DEL)
+                data.numero, // 🛡️ SE ACTUALIZA EL DTE (AL)
+                data.maqRegistro || null,
+                data.exentas || 0, 
+                data.exentasNoSujetasProp || 0, 
+                data.noSujetas || 0, 
+                data.gravadas || 0,
+                data.expCentroAmerica || 0, 
+                data.expFueraCentroAmerica || 0, 
+                data.expServicios || 0,
+                data.ventasZonaFranca || 0, 
+                data.ventasTerceros || 0, 
+                data.total || 0,
+                data.tipoOpera || '1', 
+                data.tipoIngreso || '1', 
+                data.anexo || '1', 
                 id
             ]
         );

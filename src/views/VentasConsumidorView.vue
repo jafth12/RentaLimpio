@@ -1,13 +1,11 @@
 <template>
   <MainLayout>
     <div class="ventas-container">
-      
       <div class="header-section">
         <div class="title-box">
           <h1>🧾 Ventas Consumidor Final</h1>
           <p class="subtitle">Emisión de facturas para clientes finales</p>
         </div>
-        
         <div class="header-actions">
           <button @click="alternarVista" class="btn btn-primary">
             {{ mostrandoLista ? '➕ Nueva Venta' : '📋 Ver Historial' }}
@@ -16,7 +14,6 @@
       </div>
 
       <div class="main-content">
-        
         <div v-if="!mostrandoLista" class="card fade-in">
           <div class="card-header">
             <h2>{{ modoEdicion ? '✏️ Editar Factura' : '✨ Nueva Venta' }}</h2>
@@ -24,10 +21,8 @@
           </div>
 
           <form @submit.prevent="guardarVenta" class="form-body">
-            
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento</h3>
-              
               <div class="form-grid three-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
@@ -35,8 +30,17 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Número Documento <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.numero" class="form-control" placeholder="0000" required>
+                   <label class="form-label">Número DTE (Factura) <span class="text-danger">*</span></label>
+                   <div class="dte-mask-container">
+                      <span class="dte-prefix">DTE</span>
+                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
+                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
+                      <span class="dte-sep">P</span>
+                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
+                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
+                   </div>
+                   <small class="form-text text-muted text-xs">Ej: DTE-00-S-000-P-000...</small>
                 </div>
 
                 <div class="form-group">
@@ -48,13 +52,11 @@
 
             <div class="form-section">
               <h3 class="section-title">👤 Cliente</h3>
-              
               <div class="form-grid">
                 <div class="form-group">
                   <label class="form-label">Nombre Cliente <span class="text-danger">*</span></label>
                   <input type="text" v-model="formulario.cliente" class="form-control" placeholder="Cliente General o Nombre Específico" required>
                 </div>
-                
                 <div class="form-group">
                   <label class="form-label">DUI / NIT (Opcional)</label>
                   <input type="text" v-model="formulario.documentoCliente" class="form-control" placeholder="00000000-0">
@@ -64,48 +66,28 @@
 
             <div class="form-section bg-light">
               <h3 class="section-title">💰 Montos de la Operación</h3>
-              
               <div class="montos-wrapper">
-                
                 <div class="monto-group">
                   <label class="monto-label">Ventas Gravadas</label>
                   <div class="input-wrapper">
                     <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.gravadas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('gravadas')">
+                    <input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('gravadas')">
                   </div>
                 </div>
-
                 <div class="monto-group">
                   <label class="monto-label">Ventas Exentas</label>
                   <div class="input-wrapper">
                     <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.exentas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('exentas')">
+                    <input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('exentas')">
                   </div>
                 </div>
-
                 <div class="monto-group">
                   <label class="monto-label">Ventas No Sujetas</label>
                   <div class="input-wrapper">
                     <span class="currency">$</span>
-                    <input type="number" 
-                           v-model="formulario.noSujetas" 
-                           step="0.01" 
-                           class="form-control monto-input" 
-                           placeholder="0.00"
-                           @blur="formatearDecimal('noSujetas')">
+                    <input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('noSujetas')">
                   </div>
                 </div>
-
                 <div class="monto-group total-group">
                   <label class="monto-label">TOTAL VENTA</label>
                   <div class="input-wrapper">
@@ -113,7 +95,6 @@
                     <input :value="totalCalculado" type="text" class="form-control total-input" readonly>
                   </div>
                 </div>
-
               </div>
               
               <div class="form-grid four-cols mt-3">
@@ -122,7 +103,6 @@
                     <input type="number" v-model="formulario.retencion" step="0.01" class="form-control form-control-sm" placeholder="0.00">
                  </div>
               </div>
-
             </div>
 
             <div class="form-actions">
@@ -135,26 +115,15 @@
             <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
               {{ mensaje }}
             </div>
-
           </form>
         </div>
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
              <h3>📋 Historial de Ventas</h3>
-             
              <div class="history-filters">
-                <input type="text" 
-                       v-model="declaranteFiltro" 
-                       list="lista-decla-cf" 
-                       placeholder="🏢 Filtrar por NIT de Declarante..." 
-                       class="form-control filter-input">
-                <datalist id="lista-decla-cf">
-                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                     {{ d.declarante }}
-                   </option>
-                </datalist>
-
+                <input type="text" v-model="declaranteFiltro" list="lista-decla-cf" placeholder="🏢 Filtrar por NIT de Declarante..." class="form-control filter-input">
+                <datalist id="lista-decla-cf"><option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option></datalist>
                 <input type="text" v-model="filtro" placeholder="🔍 Buscar por cliente o número..." class="form-control search-list">
              </div>
           </div>
@@ -163,25 +132,16 @@
             <table class="table">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Anexo</th> 
-                  <th>Cliente</th>
-                  <th>N° Doc</th>
-                  <th class="text-right">Gravadas</th>
-                  <th class="text-right">Total</th>
-                  <th class="text-center">Acciones</th>
+                  <th>Fecha</th><th>Anexo</th><th>Cliente</th><th>N° Doc</th>
+                  <th class="text-right">Gravadas</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="venta in ventasFiltradas" :key="venta.id">
                   <td>{{ formatearFecha(venta.fecha) }}</td>
                   <td><span class="badge-anexo">Anexo 1</span></td> 
-                  <td>
-                    <div class="fw-bold text-dark">{{ venta.cliente }}</div>
-                  </td>
-                  <td>
-                    <span class="doc-number">{{ venta.numero }}</span>
-                  </td>
+                  <td><div class="fw-bold text-dark">{{ venta.cliente }}</div></td>
+                  <td><span class="doc-number">{{ venta.numero }}</span></td>
                   <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td>
                   <td class="text-right fw-bold text-success">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
                   <td class="text-center">
@@ -189,14 +149,11 @@
                     <button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
-                <tr v-if="ventasFiltradas.length === 0">
-                  <td colspan="7" class="text-center py-4 text-muted">No se encontraron ventas registradas para estos filtros.</td> 
-                </tr>
+                <tr v-if="ventasFiltradas.length === 0"><td colspan="7" class="text-center py-4 text-muted">No se encontraron ventas registradas para estos filtros.</td></tr>
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
   </MainLayout>
@@ -211,23 +168,31 @@ const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 const API_URL = `${BASE_URL}/api/ventas-consumidor`; 
 
-// --- ESTADOS ---
+// --- DTE MASK LOGIC ---
+const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+const handleLetraInput = (e) => {
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto();
+};
+const handleInputMask = (e, partName, maxLength) => {
+    let raw = e.target.value.replace(/\D/g, ''); 
+    if (raw.length > maxLength) raw = raw.slice(-maxLength);
+    const padded = raw.padStart(maxLength, '0');
+    ccfParts.value[partName] = padded; e.target.value = padded; actualizarNumeroCompleto();
+};
+const actualizarNumeroCompleto = () => {
+    const letra = ccfParts.value.letraSerie || 'S';
+    formulario.value.numero = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`;
+};
+
 const formulario = ref({
-    fecha: new Date().toISOString().split('T')[0],
-    numero: '',
-    serie: '',
-    cliente: 'Cliente General',
-    documentoCliente: '',
-    gravadas: '0.00',
-    exentas: '0.00',
-    noSujetas: '0.00',
-    retencion: '0.00',
-    total: '0.00'
+    fecha: new Date().toISOString().split('T')[0], numero: '', serie: '', cliente: 'Cliente General', documentoCliente: '',
+    gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', total: '0.00'
 });
 
 const listaVentas = ref([]); 
-const todosLosDeclarantes = ref([]); // 🛡️ NUEVO
-const declaranteFiltro = ref(''); // 🛡️ NUEVO
+const todosLosDeclarantes = ref([]);
+const declaranteFiltro = ref('');
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
 const idEdicion = ref(null);
@@ -236,37 +201,22 @@ const mensaje = ref('');
 const tipoMensaje = ref('');
 const filtro = ref('');
 
-// --- COMPUTADOS ---
 const totalCalculado = computed(() => {
-    const g = parseFloat(formulario.value.gravadas) || 0;
-    const e = parseFloat(formulario.value.exentas) || 0;
-    const n = parseFloat(formulario.value.noSujetas) || 0;
-    const r = parseFloat(formulario.value.retencion) || 0;
-    
+    const g = parseFloat(formulario.value.gravadas) || 0; const e = parseFloat(formulario.value.exentas) || 0;
+    const n = parseFloat(formulario.value.noSujetas) || 0; const r = parseFloat(formulario.value.retencion) || 0;
     return (g + e + n - r).toFixed(2);
 });
 
-// 🛡️ NUEVA LÓGICA DE FILTRADO DOBLE
 const ventasFiltradas = computed(() => {
     let filtrado = listaVentas.value || [];
-    
-    // 1. Filtrar por Declarante si el usuario escribió/seleccionó algo
-    if (declaranteFiltro.value) {
-        filtrado = filtrado.filter(v => v.iddeclaNIT === declaranteFiltro.value);
-    }
-
-    // 2. Filtrar por texto (Cliente/Numero)
+    if (declaranteFiltro.value) filtrado = filtrado.filter(v => v.iddeclaNIT === declaranteFiltro.value);
     if (filtro.value) {
         const txt = filtro.value.toLowerCase();
-        filtrado = filtrado.filter(v => 
-            (v.cliente && v.cliente.toLowerCase().includes(txt)) || 
-            (v.numero && v.numero.includes(txt))
-        );
+        filtrado = filtrado.filter(v => (v.cliente && v.cliente.toLowerCase().includes(txt)) || (v.numero && v.numero.includes(txt)));
     }
     return filtrado;
 });
 
-// --- MÉTODOS ---
 const formatearDecimal = (campo) => {
     const valor = parseFloat(formulario.value[campo]);
     formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
@@ -274,83 +224,53 @@ const formatearDecimal = (campo) => {
 
 const cargarVentas = async () => {
     try {
-        // 🛡️ CORRECCIÓN: Ruta en plural para los declarantes
         const resD = await axios.get(`${BASE_URL}/api/declarantes`);
         todosLosDeclarantes.value = resD.data || [];
-
-        // Simulación temporal si no tienes el endpoint listo, descomenta cuando tengas API
-        // const res = await axios.get(API_URL);
-        // listaVentas.value = res.data;
-        
-        // Datos dummy para visualizar el diseño (borrar al integrar backend)
         if (listaVentas.value.length === 0) {
-            listaVentas.value = [
-                { id: 1, iddeclaNIT: '06192901600027', fecha: '2023-10-25', cliente: 'Juan Pérez', numero: '0015', gravadas: '15.50', total: '15.50' },
-                { id: 2, iddeclaNIT: '06140108580017', fecha: '2023-10-26', cliente: 'Cliente General', numero: '0016', gravadas: '5.00', total: '5.00' }
-            ];
+            listaVentas.value = [{ id: 1, iddeclaNIT: '06192901600027', fecha: '2023-10-25', cliente: 'Juan Pérez', numero: 'DTE-03-S005P004-000000000141739', gravadas: '15.50', total: '15.50' }];
         }
-    } catch (error) { console.error("Error cargando datos", error); }
+    } catch (error) { console.error("Error", error); }
 };
 
 const guardarVenta = async () => {
+    actualizarNumeroCompleto(); // 🛡️ Sincroniza la UI con la DB
     cargando.value = true;
     formulario.value.total = totalCalculado.value; 
 
     try {
         if(modoEdicion.value) {
-            // await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
             const index = listaVentas.value.findIndex(v => v.id === idEdicion.value);
             if (index !== -1) listaVentas.value[index] = { ...formulario.value, id: idEdicion.value };
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Venta actualizada!';
+            tipoMensaje.value = 'success'; mensaje.value = '¡Venta actualizada!';
         } else {
-            // await axios.post(API_URL, formulario.value);
             listaVentas.value.unshift({ ...formulario.value, id: Date.now() });
-            
-            tipoMensaje.value = 'success';
-            mensaje.value = '¡Venta guardada exitosamente!';
+            tipoMensaje.value = 'success'; mensaje.value = '¡Venta guardada exitosamente!';
         }
-        
-        resetForm();
-        setTimeout(() => { 
-            mensaje.value = ''; 
-            mostrandoLista.value = true; 
-        }, 1500);
-    } catch (error) {
-        tipoMensaje.value = 'error';
-        mensaje.value = 'Error al procesar la venta.';
-    } finally {
-        cargando.value = false;
-    }
+        resetForm(); setTimeout(() => { mensaje.value = ''; mostrandoLista.value = true; }, 1500);
+    } catch (error) { tipoMensaje.value = 'error'; mensaje.value = 'Error al procesar la venta.'; } 
+    finally { cargando.value = false; }
 };
 
 const eliminarVenta = async (id) => {
     if(!confirm('¿Eliminar esta venta?')) return;
-    try {
-        // await axios.delete(`${API_URL}/${id}`);
-        listaVentas.value = listaVentas.value.filter(v => v.id !== id);
-    } catch (e) { alert('Error'); }
+    try { listaVentas.value = listaVentas.value.filter(v => v.id !== id); } catch (e) { alert('Error'); }
 };
 
 const prepararEdicion = (venta) => {
-    formulario.value = { ...venta };
-    idEdicion.value = venta.id;
-    modoEdicion.value = true;
-    mostrandoLista.value = false;
+    const cleanNumero = venta.numero ? venta.numero.replace(/-/g, '') : '';
+    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+    const match = cleanNumero.match(regex);
+    ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+
+    formulario.value = { ...venta }; idEdicion.value = venta.id; modoEdicion.value = true; mostrandoLista.value = false;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = {
-        fecha: new Date().toISOString().split('T')[0],
-        numero: '', serie: '', cliente: 'Cliente General', documentoCliente: '',
-        gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', total: '0.00'
-    };
-    modoEdicion.value = false;
-    idEdicion.value = null;
-    mensaje.value = '';
+    formulario.value = { fecha: new Date().toISOString().split('T')[0], numero: '', serie: '', cliente: 'Cliente General', documentoCliente: '', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', total: '0.00' };
+    ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
 
 const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
@@ -408,6 +328,16 @@ onMounted(cargarVentas);
 /* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 600px; }
 .filter-input { max-width: 280px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
+
+/* 🛡️ ESTILOS DE LA MÁSCARA DTE (NUEVO Y NECESARIO) */
+.dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
+.dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
+.dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
+.dte-sep { padding: 0 5px; color: #9ca3af; font-weight: bold; }
+.dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
+.w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
+.dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
+.text-xs { font-size: 0.75rem; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }

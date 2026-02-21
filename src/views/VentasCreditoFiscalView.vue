@@ -1,22 +1,17 @@
 <template>
   <MainLayout>
     <div class="ventas-container">
-      
       <div class="header-section">
         <div class="title-box">
           <h1>🏢 Ventas Crédito Fiscal</h1>
           <p class="subtitle">Emisión de Comprobantes de Crédito Fiscal (CCF)</p>
         </div>
-        
         <div class="header-actions">
-          <button @click="alternarVista" class="btn btn-primary">
-            {{ mostrandoLista ? '➕ Nuevo CCF' : '📋 Ver Historial' }}
-          </button>
+          <button @click="alternarVista" class="btn btn-primary">{{ mostrandoLista ? '➕ Nuevo CCF' : '📋 Ver Historial' }}</button>
         </div>
       </div>
 
       <div class="main-content">
-        
         <div v-if="!mostrandoLista" class="card fade-in">
           <div class="card-header">
             <h2>{{ modoEdicion ? '✏️ Editar CCF' : '✨ Nuevo Crédito Fiscal' }}</h2>
@@ -24,10 +19,8 @@
           </div>
 
           <form @submit.prevent="guardarVenta" class="form-body">
-            
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento</h3>
-              
               <div class="form-grid three-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
@@ -35,8 +28,17 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Número CCF <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.numero" class="form-control" placeholder="0000" required>
+                   <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
+                   <div class="dte-mask-container">
+                      <span class="dte-prefix">DTE</span>
+                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
+                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
+                      <span class="dte-sep">P</span>
+                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
+                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
+                   </div>
+                   <small class="form-text text-muted text-xs">Ej: DTE-00-S-000-P-000...</small>
                 </div>
 
                 <div class="form-group">
@@ -48,63 +50,25 @@
 
             <div class="form-section">
               <h3 class="section-title">🏢 Cliente (Contribuyente)</h3>
-              
               <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label">Nombre / Razón Social <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.cliente" class="form-control" placeholder="Nombre de la Empresa o Contribuyente" required>
-                </div>
-                
-                <div class="form-group">
-                  <label class="form-label">NRC (Registro) <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.nrc" class="form-control" placeholder="000000-0" required>
-                </div>
+                <div class="form-group"><label class="form-label">Nombre / Razón Social <span class="text-danger">*</span></label><input type="text" v-model="formulario.cliente" class="form-control" placeholder="Nombre de la Empresa o Contribuyente" required></div>
+                <div class="form-group"><label class="form-label">NRC (Registro) <span class="text-danger">*</span></label><input type="text" v-model="formulario.nrc" class="form-control" placeholder="000000-0" required></div>
               </div>
             </div>
 
             <div class="form-section bg-light">
               <h3 class="section-title">💰 Montos de la Operación</h3>
-              
               <div class="montos-wrapper">
-                <div class="monto-group">
-                  <label class="monto-label">Ventas Gravadas</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('gravadas')">
-                  </div>
-                </div>
-
-                <div class="monto-group">
-                  <label class="monto-label text-success">13% Débito Fiscal</label>
-                  <div class="input-wrapper">
-                    <span class="currency text-success">+</span>
-                    <input type="number" v-model="formulario.debitoFiscal" step="0.01" class="form-control monto-input text-success" placeholder="0.00" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')">
-                  </div>
-                </div>
-
-                <div class="monto-group">
-                  <label class="monto-label">Ventas Exentas</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('exentas')">
-                  </div>
-                </div>
-
-                <div class="monto-group total-group">
-                  <label class="monto-label">TOTAL A COBRAR</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input v-model="formulario.total" type="text" class="form-control total-input" readonly>
-                  </div>
-                </div>
+                <div class="monto-group"><label class="monto-label">Ventas Gravadas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('gravadas')"></div></div>
+                <div class="monto-group"><label class="monto-label text-success">13% Débito Fiscal</label><div class="input-wrapper"><span class="currency text-success">+</span><input type="number" v-model="formulario.debitoFiscal" step="0.01" class="form-control monto-input text-success" placeholder="0.00" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')"></div></div>
+                <div class="monto-group"><label class="monto-label">Ventas Exentas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" placeholder="0.00" @blur="formatearDecimal('exentas')"></div></div>
+                <div class="monto-group total-group"><label class="monto-label">TOTAL A COBRAR</label><div class="input-wrapper"><span class="currency">$</span><input v-model="formulario.total" type="text" class="form-control total-input" readonly></div></div>
               </div>
             </div>
 
             <div class="form-actions">
               <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
-                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar CCF' : '💾 Guardar CCF') }}
-              </button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">{{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar CCF' : '💾 Guardar CCF') }}</button>
             </div>
           </form>
         </div>
@@ -112,62 +76,26 @@
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
              <h3>📋 Historial de Créditos Fiscales</h3>
-             
              <div class="history-filters">
-                <input type="text" 
-                       v-model="declaranteFiltro" 
-                       list="lista-decla-ccf" 
-                       placeholder="🏢 Filtrar por NIT de Declarante..." 
-                       class="form-control filter-input">
-                <datalist id="lista-decla-ccf">
-                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                     {{ d.declarante }}
-                   </option>
-                </datalist>
-
+                <input type="text" v-model="declaranteFiltro" list="lista-decla-ccf" placeholder="🏢 Filtrar por NIT de Declarante..." class="form-control filter-input">
+                <datalist id="lista-decla-ccf"><option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option></datalist>
                 <input type="text" v-model="filtro" placeholder="🔍 Buscar por cliente o número..." class="form-control search-list">
              </div>
           </div>
-          
           <div class="table-responsive">
             <table class="table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Anexo</th>
-                  <th>Cliente (NRC)</th>
-                  <th>N° CCF</th>
-                  <th class="text-right">Gravado</th>
-                  <th class="text-right text-success">Débito 13%</th>
-                  <th class="text-right">Total</th>
-                  <th class="text-center">Acciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Fecha</th><th>Anexo</th><th>Cliente (NRC)</th><th>N° CCF</th><th class="text-right">Gravado</th><th class="text-right text-success">Débito 13%</th><th class="text-right">Total</th><th class="text-center">Acciones</th></tr></thead>
               <tbody>
                 <tr v-for="venta in ventasFiltradas" :key="venta.id">
-                  <td>{{ formatearFecha(venta.fecha) }}</td>
-                  <td><span class="badge-anexo">Anexo 2</span></td>
-                  <td>
-                    <div class="fw-bold text-dark">{{ venta.cliente }}</div>
-                    <small class="text-muted">{{ venta.nrc }}</small>
-                  </td>
-                  <td><span class="doc-number">{{ venta.numero }}</span></td>
-                  <td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-success">+${{ parseFloat(venta.debitoFiscal || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-dark">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
-                  <td class="text-center">
-                    <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button>
-                  </td>
+                  <td>{{ formatearFecha(venta.fecha) }}</td><td><span class="badge-anexo">Anexo 2</span></td><td><div class="fw-bold text-dark">{{ venta.cliente }}</div><small class="text-muted">{{ venta.nrc }}</small></td>
+                  <td><span class="doc-number">{{ venta.numero }}</span></td><td class="text-right text-muted">${{ parseFloat(venta.gravadas || 0).toFixed(2) }}</td><td class="text-right fw-bold text-success">+${{ parseFloat(venta.debitoFiscal || 0).toFixed(2) }}</td><td class="text-right fw-bold text-dark">${{ parseFloat(venta.total || 0).toFixed(2) }}</td>
+                  <td class="text-center"><button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button><button class="btn-icon text-danger" @click="eliminarVenta(venta.id)" title="Eliminar">🗑️</button></td>
                 </tr>
-                <tr v-if="ventasFiltradas.length === 0">
-                  <td colspan="8" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td>
-                </tr>
+                <tr v-if="ventasFiltradas.length === 0"><td colspan="8" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
               </tbody>
             </table>
           </div>
         </div>
-
       </div>
     </div>
   </MainLayout>
@@ -182,14 +110,45 @@ const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 const API_URL = `${BASE_URL}/api/ventas-credito`;
 
+// --- LÓGICA DE LA MÁSCARA DTE (NUEVO) ---
+const ccfParts = ref({ 
+    part1: '00', 
+    letraSerie: 'S', 
+    part2: '000', 
+    part3: '000', 
+    part4: '000000000000000' 
+});
+
+const handleLetraInput = (e) => { 
+    let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); 
+    ccfParts.value.letraSerie = val; 
+    e.target.value = val; 
+    actualizarNumeroCompleto(); 
+};
+
+const handleInputMask = (e, partName, maxLength) => { 
+    let raw = e.target.value.replace(/\D/g, ''); 
+    if (raw.length > maxLength) raw = raw.slice(-maxLength); 
+    const padded = raw.padStart(maxLength, '0'); 
+    ccfParts.value[partName] = padded; 
+    e.target.value = padded; 
+    actualizarNumeroCompleto(); 
+};
+
+const actualizarNumeroCompleto = () => { 
+    const letra = ccfParts.value.letraSerie || 'S'; 
+    formulario.value.numero = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; 
+};
+// ------------------------------------------
+
 const formulario = ref({
     fecha: new Date().toISOString().split('T')[0], numero: '', serie: '', cliente: '', nrc: '',
     gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', percepcion: '0.00', total: '0.00'
 });
 
 const listaVentas = ref([]); 
-const todosLosDeclarantes = ref([]); // 🛡️ NUEVO
-const declaranteFiltro = ref(''); // 🛡️ NUEVO
+const todosLosDeclarantes = ref([]); 
+const declaranteFiltro = ref(''); 
 const mostrandoLista = ref(false);
 const modoEdicion = ref(false);
 const idEdicion = ref(null);
@@ -218,7 +177,6 @@ const calcularTotalGeneral = () => {
 
 const recalcularTotal = () => { calcularTotalGeneral(); };
 
-// 🛡️ NUEVA LÓGICA DE FILTRADO DOBLE
 const ventasFiltradas = computed(() => {
     let filtrado = listaVentas.value || [];
     
@@ -227,12 +185,12 @@ const ventasFiltradas = computed(() => {
         filtrado = filtrado.filter(v => v.iddeclaNIT === declaranteFiltro.value);
     }
 
-    // 2. Filtrar por texto (Cliente/Numero)
+    // 2. Filtrar por texto (Cliente/Numero/NRC)
     if (filtro.value) {
         const txt = filtro.value.toLowerCase();
         filtrado = filtrado.filter(v => 
             (v.cliente && v.cliente.toLowerCase().includes(txt)) || 
-            (v.numero && v.numero.includes(txt)) ||
+            (v.numero && v.numero.toLowerCase().includes(txt)) ||
             (v.nrc && v.nrc.includes(txt))
         );
     }
@@ -246,24 +204,66 @@ const formatearDecimal = (campo) => {
 
 const cargarDatos = async () => {
     try {
-        // Descargamos la lista de declarantes para el Datalist
         const resD = await axios.get(`${BASE_URL}/api/declarantes`);
         todosLosDeclarantes.value = resD.data || [];
 
-        // Aquí iria tu petición real a API_URL
+        // Simulación. Aquí iría el get real a tu base de datos
         if (listaVentas.value.length === 0) {
             listaVentas.value = [
-                { id: 1, iddeclaNIT: '06192901600027', fecha: '2023-10-27', cliente: 'Distribuidora El Sol', nrc: '123456-7', numero: '0050', gravadas: '100.00', debitoFiscal: '13.00', total: '113.00' }
+                { id: 1, iddeclaNIT: '06192901600027', fecha: '2023-10-27', cliente: 'Distribuidora El Sol', nrc: '123456-7', numero: 'DTE-03-S005P004-000000000141739', gravadas: '100.00', debitoFiscal: '13.00', total: '113.00' }
             ];
         }
     } catch (error) { console.error("Error", error); }
 };
 
-const guardarVenta = async () => { /* Logica de guardado */ };
-const eliminarVenta = async (id) => { /* Logica de eliminacion */ };
-const prepararEdicion = (venta) => { formulario.value = { ...venta }; idEdicion.value = venta.id; modoEdicion.value = true; mostrandoLista.value = false; };
+const guardarVenta = async () => { 
+    actualizarNumeroCompleto(); // Se asegura de armar el número final DTE-XX...
+    cargando.value = true;
+    
+    // Aquí iría tu lógica axios.post o axios.put
+    if (modoEdicion.value) {
+        const index = listaVentas.value.findIndex(v => v.id === idEdicion.value);
+        if (index !== -1) listaVentas.value[index] = { ...formulario.value, id: idEdicion.value, iddeclaNIT: declaranteFiltro.value || '06192901600027' };
+    } else {
+        listaVentas.value.unshift({ ...formulario.value, id: Date.now(), iddeclaNIT: declaranteFiltro.value || '06192901600027' });
+    }
+
+    cargando.value = false;
+    resetForm();
+    mostrandoLista.value = true;
+};
+
+const eliminarVenta = async (id) => { 
+    if(confirm('¿Eliminar registro?')) {
+        listaVentas.value = listaVentas.value.filter(v => v.id !== id);
+    }
+};
+
+const prepararEdicion = (venta) => { 
+    // 🛡️ Extraemos el DTE en partes para que la máscara lo lea
+    const cleanNumero = venta.numero ? venta.numero.replace(/-/g, '') : '';
+    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+    const match = cleanNumero.match(regex);
+    
+    ccfParts.value = match 
+        ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } 
+        : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+
+    formulario.value = { ...venta }; 
+    idEdicion.value = venta.id; 
+    modoEdicion.value = true; 
+    mostrandoLista.value = false; 
+};
+
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
-const resetForm = () => { /* Logica de reset */ };
+
+const resetForm = () => { 
+    formulario.value = { fecha: new Date().toISOString().split('T')[0], numero: '', serie: '', cliente: '', nrc: '', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', retencion: '0.00', percepcion: '0.00', total: '0.00' };
+    ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    modoEdicion.value = false;
+    idEdicion.value = null;
+};
+
 const alternarVista = () => { if (modoEdicion) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
 
@@ -271,7 +271,7 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* Los mismos estilos que ya tenías... */
+/* --- ESTILO MATERIAL DESVANECIDO --- */
 .ventas-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
@@ -286,6 +286,7 @@ onMounted(cargarDatos);
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
 .three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .form-group { margin-bottom: 5px; }
 .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
 .form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
@@ -309,10 +310,21 @@ onMounted(cargarDatos);
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
 .text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-muted { color: #6b7280; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }
 
 /* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 600px; }
 .filter-input { max-width: 280px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
+
+/* 🛡️ ESTILOS DE LA MÁSCARA DTE (NUEVO Y NECESARIO) */
+.dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
+.dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
+.dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
+.dte-sep { padding: 0 5px; color: #9ca3af; font-weight: bold; }
+.dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
+.w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
+.dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
+.text-xs { font-size: 0.75rem; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }

@@ -27,14 +27,17 @@ export const createVentasCCF = async (req, res) => {
     try {
         const data = req.body;
 
-        // Validación de Auditoría: Campos de Identidad Obligatorios
-        if (!data.iddeclaNIT || !data.FiscNit || !data.FiscNumDoc) {
-            return res.status(400).json({ message: 'Auditoría: ID Declarante, NIT de Cliente y Número de Doc son obligatorios.' });
+        // 🛡️ Validación ajustada: Ahora esperamos "numero" (DTE) y "nrc"
+        if (!data.iddeclaNIT || !data.nrc || !data.numero) {
+            return res.status(400).json({ message: 'Auditoría: ID Declarante, NRC de Cliente y Número de Doc son obligatorios.' });
         }
 
-        // Procesamiento Numérico (Aseguramos que el dinero sea dinero)
-        const gravada = parseFloat(data.FiscVtaGravLocal) || 0;
-        const debito = data.FiscDebitoFiscal !== undefined ? parseFloat(data.FiscDebitoFiscal) : (gravada * 0.13);
+        // Procesamiento Numérico
+        const gravada = parseFloat(data.gravadas) || 0;
+        const debito = data.debitoFiscal !== undefined ? parseFloat(data.debitoFiscal) : (gravada * 0.13);
+        const exentas = parseFloat(data.exentas) || 0;
+        const noSujetas = parseFloat(data.noSujetas) || 0;
+        const total = parseFloat(data.total) || 0;
 
         const query = `
             INSERT INTO credfiscal 
@@ -48,19 +51,34 @@ export const createVentasCCF = async (req, res) => {
         `;
 
         const values = [
-            data.iddeclaNIT, data.FiscFecha, data.FisClasDoc || '4', data.FisTipoDoc || '03', 
-            data.FiscNumResol, data.FiscSerieDoc, data.FiscNumDoc, data.FiscNumContInter, 
-            data.FiscNit, data.FiscNomRazonDenomi, data.FiscNumDuiClien,
-            data.FiscVtaExen || 0, data.FiscVtaNoSujetas || 0, gravada, debito,
-            data.FiscVtaCtaTercNoDomici || 0, data.FiscDebFiscVtaCtaTerceros || 0, data.FiscTotalVtas || 0,
-            data.BusFiscTipoOperaRenta || '1', data.BusFiscTipoIngresoRenta || '1', data.FiscNumAnexo || '1'
+            data.iddeclaNIT, 
+            data.fecha, // Viene del frontend
+            data.FisClasDoc || '4', // 4 = DTE
+            data.FisTipoDoc || '03', // 03 = CCF
+            data.resolucion || null, 
+            data.serie || null, 
+            data.numero, // 🛡️ AQUÍ VA EL DTE UNIFICADO
+            data.FiscNumContInter || null, 
+            data.nrc, // 🛡️ NRC (NIT del cliente)
+            data.cliente, // 🛡️ NOMBRE DEL CLIENTE
+            data.FiscNumDuiClien || null,
+            exentas, 
+            noSujetas, 
+            gravada, 
+            debito,
+            data.FiscVtaCtaTercNoDomici || 0, 
+            data.FiscDebFiscVtaCtaTerceros || 0, 
+            total,
+            data.BusFiscTipoOperaRenta || '1', 
+            data.BusFiscTipoIngresoRenta || '1', 
+            data.FiscNumAnexo || '2' // 2 = Anexo 2 para CCF
         ];
 
         const [result] = await pool.query(query, values);
-        res.status(201).json({ message: 'Venta Pro Guardada y Certificada', id: result.insertId });
+        res.status(201).json({ message: 'Venta CCF Guardada Exitosamente', id: result.insertId });
 
     } catch (error) {
-        res.status(500).json({ message: 'Falla en la Persistencia Fiscal', error: error.message });
+        res.status(500).json({ message: 'Error en la Base de Datos', error: error.message });
     }
 };
 
@@ -69,9 +87,16 @@ export const updateVentasCCF = async (req, res) => {
     const { id } = req.params;
     try {
         const data = req.body;
+        
+        const gravada = parseFloat(data.gravadas) || 0;
+        const debito = parseFloat(data.debitoFiscal) || 0;
+        const exentas = parseFloat(data.exentas) || 0;
+        const noSujetas = parseFloat(data.noSujetas) || 0;
+        const total = parseFloat(data.total) || 0;
+
         const query = `
             UPDATE credfiscal SET 
-                FiscFecha=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, 
+                iddeclaNIT=?, FiscFecha=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, 
                 FiscNumDoc=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, FiscNumDuiClien=?, 
                 FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, 
                 FiscVtaCtaTercNoDomici=?, FiscDebFiscVtaCtaTerceros=?, FiscTotalVtas=?, 
@@ -80,11 +105,27 @@ export const updateVentasCCF = async (req, res) => {
         `;
 
         const values = [
-            data.FiscFecha, data.FisClasDoc, data.FisTipoDoc, data.FiscNumResol, data.FiscSerieDoc,
-            data.FiscNumDoc, data.FiscNumContInter, data.FiscNit, data.FiscNomRazonDenomi, data.FiscNumDuiClien,
-            data.FiscVtaExen, data.FiscVtaNoSujetas, data.FiscVtaGravLocal, data.FiscDebitoFiscal,
-            data.FiscVtaCtaTercNoDomici, data.FiscDebFiscVtaCtaTerceros, data.FiscTotalVtas,
-            data.BusFiscTipoOperaRenta, data.BusFiscTipoIngresoRenta, data.FiscNumAnexo,
+            data.iddeclaNIT,
+            data.fecha, 
+            data.FisClasDoc || '4', 
+            data.FisTipoDoc || '03', 
+            data.resolucion || null, 
+            data.serie || null,
+            data.numero, // 🛡️ ACTUALIZACIÓN DEL DTE
+            data.FiscNumContInter || null, 
+            data.nrc, // 🛡️ ACTUALIZACIÓN DEL NRC
+            data.cliente, // 🛡️ ACTUALIZACIÓN DEL CLIENTE
+            data.FiscNumDuiClien || null,
+            exentas, 
+            noSujetas, 
+            gravada, 
+            debito,
+            data.FiscVtaCtaTercNoDomici || 0, 
+            data.FiscDebFiscVtaCtaTerceros || 0, 
+            total,
+            data.BusFiscTipoOperaRenta || '1', 
+            data.BusFiscTipoIngresoRenta || '1', 
+            data.FiscNumAnexo || '2',
             id
         ];
 

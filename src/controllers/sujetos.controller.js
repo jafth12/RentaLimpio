@@ -16,37 +16,38 @@ export const createSujeto = async (req, res) => {
     const data = req.body;
 
     // Validación estricta de campos obligatorios
-    if (!data.fecha || !data.nit || !data.monto) {
-        return res.status(400).json({ message: 'Auditoría: Fecha, NIT y Monto son obligatorios.'});
+    if (!data.iddeclaNIT || !data.fecha || !data.nit || !data.monto) {
+        return res.status(400).json({ message: 'Auditoría: Declarante, Fecha, NIT y Monto son obligatorios.'});
     }
 
-    // Cálculo seguro de retención (10%) si no viene definida
+    // Cálculo seguro de retención
     const monto = parseFloat(data.monto) || 0;
     const retencion = data.retencion ? parseFloat(data.retencion) : (monto * 0.10);
 
     try {
         const [result] = await pool.query(
             `INSERT INTO comprassujexcluidos 
-            (ComprasSujExcluFecha, ComprasSujExcluTipoDoc, ComprasSujExcluNIT, ComprasSujExcluNom, 
+            (iddeclaNIT, ComprasSujExcluFecha, ComprasSujExcluTipoDoc, ComprasSujExcluNIT, ComprasSujExcluNom, 
              ComprasSujExcluSerieDoc, ComprasSujExcluNumDoc, 
              ComprasSujExcluMontoOpera, ComprasSujExcluMontoReten, 
              ComprasSujExcluTipoOpera, ComprasSujExcluClasificacion, ComprasSujExclusector, 
              ComprasSujExcluTipoCostoGast, ComprasSujExcluAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                data.iddeclaNIT, // 🛡️ GUARDADO DEL DECLARANTE (Para el filtro multitenant)
                 data.fecha, 
-                data.tipoDoc || 'FACTURA SUJETO EXCLUIDO', 
+                data.tipoDoc || '14', 
                 data.nit, 
-                data.nombre || '', // Evitamos undefined
-                data.serie || 'N/A', 
-                data.numeroDoc || '', 
+                data.nombre || '', 
+                data.serie || null, 
+                data.numeroDoc, // 🛡️ EL DTE UNIFICADO DESDE VUE
                 monto, 
                 retencion, 
                 data.tipoOp || '1', 
                 data.clasificacion || '2', 
-                data.sector || '2',
-                data.costoGasto || '1', 
-                data.anexo || '5'
+                data.sector || '4',
+                data.costoGasto || '2', 
+                data.anexo || '5' // Anexo de Sujetos
             ]
         );
         res.status(201).json({ message: 'Registro de Sujeto Excluido Certificado', id: result.insertId });
@@ -57,18 +58,14 @@ export const createSujeto = async (req, res) => {
 };
 
 // 3. ACTUALIZAR REGISTRO
-// src/controllers/sujetos.controller.js - UPDATE AUDITADO
-
 export const updateSujeto = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
 
     try {
-        // 1. Procesamiento numérico (Recalculo de seguridad)
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
-        // 2. Query con iddeclaNIT incluido (asumiendo que ya hicimos el ALTER TABLE)
         await pool.query(
             `UPDATE comprassujexcluidos SET 
                 iddeclaNIT = ?, ComprasSujExcluFecha = ?, ComprasSujExcluTipoDoc = ?, 
@@ -78,11 +75,20 @@ export const updateSujeto = async (req, res) => {
                 ComprasSujExcluTipoCostoGast = ?, ComprasSujExcluAnexo = ?
             WHERE idComSujExclui = ?`,
             [
-                data.iddeclaNIT, data.fecha, data.tipoDoc || '01', 
-                data.nit, data.nombre, data.serie || 'S/N', 
-                data.numeroDoc, monto, retencion, 
-                data.tipoOp || '1', data.clasificacion || '2', data.sector || '2',
-                data.costoGasto || '1', data.anexo || '5',
+                data.iddeclaNIT, // 🛡️ ACTUALIZACIÓN DEL DECLARANTE
+                data.fecha, 
+                data.tipoDoc || '14', 
+                data.nit, 
+                data.nombre, 
+                data.serie || null, 
+                data.numeroDoc, // 🛡️ DTE ACTUALIZADO
+                monto, 
+                retencion, 
+                data.tipoOp || '1', 
+                data.clasificacion || '2', 
+                data.sector || '4',
+                data.costoGasto || '2', 
+                data.anexo || '5',
                 id
             ]
         );

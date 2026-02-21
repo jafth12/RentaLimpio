@@ -14,15 +14,15 @@ export const getVentas = async (req, res) => {
 export const createVenta = async (req, res) => {
     const data = req.body;
 
-    // Validación de Auditoría: No permitimos registros sin identidad
-    if (!data.iddeclaNIT || !data.VtaGraTerFecha || !data.VtaGraTerNit) {
+    // Validación de Auditoría: Adaptada a los nombres del frontend
+    if (!data.iddeclaNIT || !data.fecha || !data.nitMandante) {
         return res.status(400).json({ message: 'Auditoría: ID Declarante, Fecha y NIT son obligatorios.'});
     }
 
     try {
-        // Aseguramos que el dinero llegue como número para la PowerEdge
-        const monto = parseFloat(data.VtaGraTerMontoOper) || 0;
-        const iva = data.VtaGraTerIVAOper ? parseFloat(data.VtaGraTerIVAOper) : (monto * 0.13);
+        // Aseguramos que el dinero llegue como número
+        const monto = parseFloat(data.gravadas) || 0; // En la vista es 'gravadas'
+        const iva = data.comision ? parseFloat(data.comision) : (monto * 0.13); // En la vista es 'comision'
 
         const [result] = await pool.query(
             `INSERT INTO vtagravterdomici 
@@ -33,11 +33,22 @@ export const createVenta = async (req, res) => {
              VtaGraTerFechaCompLiq, VtaGraTerDUI, VtaGraTerAnexo) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                data.iddeclaNIT, data.VtaGraTerNit, data.VtaGraTerNom, data.VtaGraTerFecha, 
-                data.LisVtaGraTerTipoDoc || '03', data.VtaGraTerNumSerie, data.VtaGraTerNumResolu, 
-                data.VtaGraTerNumDoc, monto, iva,
-                data.VtaGraTerSerieCompLiq, data.VtaGraTerResolCompLiq, data.VtaGraTerNumCompLiq, 
-                data.VtaGraTerFechaCompLiq, data.VtaGraTerDUI, data.VtaGraTerAnexo || '3'
+                data.iddeclaNIT, 
+                data.nitMandante, // 🛡️ Mapeado desde Vue
+                data.nombreMandante, // 🛡️ Mapeado desde Vue
+                data.fecha, // 🛡️ Mapeado desde Vue
+                data.LisVtaGraTerTipoDoc || '03', 
+                data.serie || null, // 🛡️ Mapeado desde Vue
+                data.VtaGraTerNumResolu || null, 
+                data.numero, // 🛡️ EL DTE UNIFICADO (Mapeado desde Vue)
+                monto, 
+                iva,
+                data.VtaGraTerSerieCompLiq || null, 
+                data.VtaGraTerResolCompLiq || null, 
+                data.VtaGraTerNumCompLiq || null, 
+                data.VtaGraTerFechaCompLiq || null, 
+                data.VtaGraTerDUI || null, 
+                data.VtaGraTerAnexo || '4' // 4 es el anexo de terceros
             ]
         );
         res.status(201).json({ message: 'Venta a Terceros Certificada', id: result.insertId });
@@ -49,27 +60,34 @@ export const createVenta = async (req, res) => {
 // Actualizar venta
 export const updateVenta = async (req, res) => {
     const { id } = req.params;
-    const {
-        VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc,
-        VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc,
-        VtaGraTerMontoOper, VtaGraTerIVAOper,
-        VtaGraTerSerieCompLiq, VtaGraTerNumCompLiq, VtaGraTerFechaCompLiq,
-        VtaGraTerAnexo
-    } = req.body;
+    const data = req.body;
 
     try {
+        const monto = parseFloat(data.gravadas) || 0;
+        const iva = parseFloat(data.comision) || 0;
+
         const [result] = await pool.query(
             `UPDATE vtagravterdomici SET 
-            VtaGraTerNit=?, VtaGraTerNom=?, VtaGraTerFecha=?, LisVtaGraTerTipoDoc=?, 
+            iddeclaNIT=?, VtaGraTerNit=?, VtaGraTerNom=?, VtaGraTerFecha=?, LisVtaGraTerTipoDoc=?, 
             VtaGraTerNumSerie=?, VtaGraTerNumResolu=?, VtaGraTerNumDoc=?, 
             VtaGraTerMontoOper=?, VtaGraTerIVAOper=?, 
             VtaGraTerSerieCompLiq=?, VtaGraTerNumCompLiq=?, VtaGraTerFechaCompLiq=?, VtaGraTerAnexo=?
             WHERE idVtaGravTerDomici = ?`,
             [
-                VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc,
-                VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc,
-                VtaGraTerMontoOper, VtaGraTerIVAOper,
-                VtaGraTerSerieCompLiq, VtaGraTerNumCompLiq, VtaGraTerFechaCompLiq, VtaGraTerAnexo, 
+                data.iddeclaNIT,
+                data.nitMandante, 
+                data.nombreMandante, 
+                data.fecha, 
+                data.LisVtaGraTerTipoDoc || '03',
+                data.serie || null, 
+                data.VtaGraTerNumResolu || null, 
+                data.numero, // 🛡️ DTE UNIFICADO ACTUALIZADO
+                monto, 
+                iva,
+                data.VtaGraTerSerieCompLiq || null, 
+                data.VtaGraTerNumCompLiq || null, 
+                data.VtaGraTerFechaCompLiq || null, 
+                data.VtaGraTerAnexo || '4', 
                 id
             ]
         );
