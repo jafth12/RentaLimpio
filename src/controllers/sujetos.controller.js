@@ -17,43 +17,44 @@ export const createSujeto = async (req, res) => {
 
     // Validación estricta de campos obligatorios
     if (!data.iddeclaNIT || !data.fecha || !data.nit || !data.monto) {
-        return res.status(400).json({ message: 'Auditoría: Declarante, Fecha, NIT y Monto son obligatorios.'});
+        return res.status(400).json({ message: 'Auditoría: Empresa, Fecha, NIT/DUI y Monto son obligatorios.'});
     }
 
-    // Cálculo seguro de retención
+    // Cálculo seguro de retención (10% en Sujetos Excluidos)
     const monto = parseFloat(data.monto) || 0;
-    const retencion = data.retencion ? parseFloat(data.retencion) : (monto * 0.10);
+    const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
     try {
         const [result] = await pool.query(
             `INSERT INTO comprassujexcluidos 
             (iddeclaNIT, ComprasSujExcluFecha, ComprasSujExcluTipoDoc, ComprasSujExcluNIT, ComprasSujExcluNom, 
-             ComprasSujExcluSerieDoc, ComprasSujExcluNumDoc, 
+             ComprasSujExcluSerieDoc, ComprasSujExcluNumDoc, ComprasSujExcluCodGeneracion,
              ComprasSujExcluMontoOpera, ComprasSujExcluMontoReten, 
              ComprasSujExcluTipoOpera, ComprasSujExcluClasificacion, ComprasSujExclusector, 
              ComprasSujExcluTipoCostoGast, ComprasSujExcluAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                data.iddeclaNIT, // 🛡️ GUARDADO DEL DECLARANTE (Para el filtro multitenant)
+                data.iddeclaNIT, 
                 data.fecha, 
                 data.tipoDoc || '14', 
                 data.nit, 
                 data.nombre || '', 
                 data.serie || null, 
-                data.numeroDoc, // 🛡️ EL DTE UNIFICADO DESDE VUE
+                data.numero_control, // 🛡️ DTE
+                data.uuid_dte,       // 🛡️ UUID de Generación
                 monto, 
                 retencion, 
                 data.tipoOp || '1', 
                 data.clasificacion || '2', 
                 data.sector || '4',
                 data.costoGasto || '2', 
-                data.anexo || '5' // Anexo de Sujetos
+                data.anexo || '5' 
             ]
         );
-        res.status(201).json({ message: 'Registro de Sujeto Excluido Certificado', id: result.insertId });
+        res.status(201).json({ message: 'Registro de Sujeto Excluido Guardado en BD', id: result.insertId });
     } catch (error) {
         console.error(error);
-        res.status(500).json({ message: 'Falla en la persistencia contable', error: error.message });
+        res.status(500).json({ message: 'Falla en la persistencia', error: error.message });
     }
 };
 
@@ -66,22 +67,24 @@ export const updateSujeto = async (req, res) => {
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
-        await pool.query(
+        const [result] = await pool.query(
             `UPDATE comprassujexcluidos SET 
                 iddeclaNIT = ?, ComprasSujExcluFecha = ?, ComprasSujExcluTipoDoc = ?, 
                 ComprasSujExcluNIT = ?, ComprasSujExcluNom = ?, ComprasSujExcluSerieDoc = ?, 
-                ComprasSujExcluNumDoc = ?, ComprasSujExcluMontoOpera = ?, ComprasSujExcluMontoReten = ?, 
+                ComprasSujExcluNumDoc = ?, ComprasSujExcluCodGeneracion = ?,
+                ComprasSujExcluMontoOpera = ?, ComprasSujExcluMontoReten = ?, 
                 ComprasSujExcluTipoOpera = ?, ComprasSujExcluClasificacion = ?, ComprasSujExclusector = ?, 
                 ComprasSujExcluTipoCostoGast = ?, ComprasSujExcluAnexo = ?
             WHERE idComSujExclui = ?`,
             [
-                data.iddeclaNIT, // 🛡️ ACTUALIZACIÓN DEL DECLARANTE
+                data.iddeclaNIT, 
                 data.fecha, 
                 data.tipoDoc || '14', 
                 data.nit, 
                 data.nombre, 
                 data.serie || null, 
-                data.numeroDoc, // 🛡️ DTE ACTUALIZADO
+                data.numero_control, // 🛡️ DTE ACTUALIZADO
+                data.uuid_dte,       // 🛡️ UUID ACTUALIZADO
                 monto, 
                 retencion, 
                 data.tipoOp || '1', 
@@ -93,9 +96,10 @@ export const updateSujeto = async (req, res) => {
             ]
         );
         
-        res.json({ message: 'Registro de Sujeto Excluido Actualizado y Auditado' });
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' });
+        res.json({ message: 'Registro Actualizado Exitosamente' });
     } catch (error) {
-        res.status(500).json({ message: 'Error de Integridad en Update', error: error.message });
+        res.status(500).json({ message: 'Error al actualizar', error: error.message });
     }
 };
 
@@ -104,9 +108,7 @@ export const deleteSujeto = async (req, res) => {
     const { id } = req.params;
     try {
         const [result] = await pool.query('DELETE FROM comprassujexcluidos WHERE idComSujExclui = ?', [id]);
-        
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado'});
-        
         res.json({ message: 'Eliminado correctamente' });
     } catch (error) {
         console.error(error);

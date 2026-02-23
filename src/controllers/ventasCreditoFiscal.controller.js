@@ -1,16 +1,16 @@
 import pool from '../config/db.js';
 
-// --- OBTENER TODAS LAS VENTAS ---
+// --- 1. OBTENER TODAS LAS VENTAS CCF ---
 export const getVentasCCF = async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY idCredFiscal DESC LIMIT 100');
+        const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY FiscFecha DESC');
         res.json(rows);
     } catch (error) {
-        return res.status(500).json({ message: 'Error al obtener ventas', error: error.message });
+        return res.status(500).json({ message: 'Error al obtener ventas CCF', error: error.message });
     }
 };
 
-// --- OBTENER UNA VENTA (PARA EDITAR) ---
+// --- 2. OBTENER UNA VENTA (PARA EDITAR) ---
 export const getVentaCCFById = async (req, res) => {
     const { id } = req.params;
     try {
@@ -22,124 +22,111 @@ export const getVentaCCFById = async (req, res) => {
     }
 };
 
-// --- CREAR VENTA ---
+// --- 3. CREAR NUEVA VENTA CCF ---
 export const createVentasCCF = async (req, res) => {
     try {
-        const data = req.body;
+        const d = req.body;
 
-        // 🛡️ Validación ajustada: Ahora esperamos "numero" (DTE) y "nrc"
-        if (!data.iddeclaNIT || !data.nrc || !data.numero) {
-            return res.status(400).json({ message: 'Auditoría: ID Declarante, NRC de Cliente y Número de Doc son obligatorios.' });
+        // Validación Obligatoria
+        if (!d.iddeclaNIT || !d.nrc || !d.numero_control) {
+            return res.status(400).json({ message: 'Auditoría: Empresa, NRC de Cliente y Número DTE son obligatorios.' });
         }
 
         // Procesamiento Numérico
-        const gravada = parseFloat(data.gravadas) || 0;
-        const debito = data.debitoFiscal !== undefined ? parseFloat(data.debitoFiscal) : (gravada * 0.13);
-        const exentas = parseFloat(data.exentas) || 0;
-        const noSujetas = parseFloat(data.noSujetas) || 0;
-        const total = parseFloat(data.total) || 0;
+        const gravada = parseFloat(d.gravadas) || 0;
+        const debito = d.debitoFiscal !== undefined ? parseFloat(d.debitoFiscal) : (gravada * 0.13);
+        const exentas = parseFloat(d.exentas) || 0;
+        const noSujetas = parseFloat(d.noSujetas) || 0;
+        const total = parseFloat(d.total) || 0;
 
         const query = `
             INSERT INTO credfiscal 
             (
-                iddeclaNIT, FiscFecha, FisClasDoc, FisTipoDoc, FiscNumResol, FiscSerieDoc, 
-                FiscNumDoc, FiscNumContInter, FiscNit, FiscNomRazonDenomi, FiscNumDuiClien, 
+                iddeclaNIT, FiscFecha, FisClasDoc, FisTipoDoc, FiscSerieDoc, 
+                FiscNumDoc, FiscCodGeneracion, FiscNumContInter, FiscNit, FiscNomRazonDenomi, 
                 FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, 
-                FiscVtaCtaTercNoDomici, FiscDebFiscVtaCtaTerceros, FiscTotalVtas, 
-                BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                FiscTotalVtas, BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo
+            ) VALUES (?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2')
         `;
 
         const values = [
-            data.iddeclaNIT, 
-            data.fecha, // Viene del frontend
-            data.FisClasDoc || '4', // 4 = DTE
-            data.FisTipoDoc || '03', // 03 = CCF
-            data.resolucion || null, 
-            data.serie || null, 
-            data.numero, // 🛡️ AQUÍ VA EL DTE UNIFICADO
-            data.FiscNumContInter || null, 
-            data.nrc, // 🛡️ NRC (NIT del cliente)
-            data.cliente, // 🛡️ NOMBRE DEL CLIENTE
-            data.FiscNumDuiClien || null,
+            d.iddeclaNIT, 
+            d.fecha, 
+            d.serie || null, 
+            d.numero_control, // 🛡️ DTE
+            d.uuid_dte,       // 🛡️ UUID en Cod Generacion
+            d.uuid_dte,       // 🛡️ UUID en Control Interno
+            d.nrc,            // 🛡️ NRC
+            d.cliente,        // 🛡️ NOMBRE DEL CLIENTE
             exentas, 
             noSujetas, 
             gravada, 
             debito,
-            data.FiscVtaCtaTercNoDomici || 0, 
-            data.FiscDebFiscVtaCtaTerceros || 0, 
             total,
-            data.BusFiscTipoOperaRenta || '1', 
-            data.BusFiscTipoIngresoRenta || '1', 
-            data.FiscNumAnexo || '2' // 2 = Anexo 2 para CCF
+            d.tipo_operacion || '1', 
+            d.tipo_ingreso || '1'
         ];
 
         const [result] = await pool.query(query, values);
-        res.status(201).json({ message: 'Venta CCF Guardada Exitosamente', id: result.insertId });
+        res.status(201).json({ message: 'CCF Guardado Exitosamente', id: result.insertId });
 
     } catch (error) {
+        console.error("Error BD:", error);
         res.status(500).json({ message: 'Error en la Base de Datos', error: error.message });
     }
 };
 
-// --- ACTUALIZAR VENTA ---
+// --- 4. ACTUALIZAR VENTA CCF ---
 export const updateVentasCCF = async (req, res) => {
     const { id } = req.params;
     try {
-        const data = req.body;
+        const d = req.body;
         
-        const gravada = parseFloat(data.gravadas) || 0;
-        const debito = parseFloat(data.debitoFiscal) || 0;
-        const exentas = parseFloat(data.exentas) || 0;
-        const noSujetas = parseFloat(data.noSujetas) || 0;
-        const total = parseFloat(data.total) || 0;
+        const gravada = parseFloat(d.gravadas) || 0;
+        const debito = d.debitoFiscal !== undefined ? parseFloat(d.debitoFiscal) : (gravada * 0.13);
+        const exentas = parseFloat(d.exentas) || 0;
+        const noSujetas = parseFloat(d.noSujetas) || 0;
+        const total = parseFloat(d.total) || 0;
 
         const query = `
             UPDATE credfiscal SET 
-                iddeclaNIT=?, FiscFecha=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, 
-                FiscNumDoc=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, FiscNumDuiClien=?, 
+                iddeclaNIT=?, FiscFecha=?, FiscSerieDoc=?, 
+                FiscNumDoc=?, FiscCodGeneracion=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, 
                 FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, 
-                FiscVtaCtaTercNoDomici=?, FiscDebFiscVtaCtaTerceros=?, FiscTotalVtas=?, 
-                BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?, FiscNumAnexo=?
+                FiscTotalVtas=?, BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?
             WHERE idCredFiscal = ?
         `;
 
         const values = [
-            data.iddeclaNIT,
-            data.fecha, 
-            data.FisClasDoc || '4', 
-            data.FisTipoDoc || '03', 
-            data.resolucion || null, 
-            data.serie || null,
-            data.numero, // 🛡️ ACTUALIZACIÓN DEL DTE
-            data.FiscNumContInter || null, 
-            data.nrc, // 🛡️ ACTUALIZACIÓN DEL NRC
-            data.cliente, // 🛡️ ACTUALIZACIÓN DEL CLIENTE
-            data.FiscNumDuiClien || null,
+            d.iddeclaNIT,
+            d.fecha, 
+            d.serie || null,
+            d.numero_control, // 🛡️ DTE
+            d.uuid_dte,       // 🛡️ UUID
+            d.uuid_dte,       // 🛡️ UUID
+            d.nrc,            // 🛡️ NRC
+            d.cliente,        // 🛡️ NOMBRE DEL CLIENTE
             exentas, 
             noSujetas, 
             gravada, 
             debito,
-            data.FiscVtaCtaTercNoDomici || 0, 
-            data.FiscDebFiscVtaCtaTerceros || 0, 
             total,
-            data.BusFiscTipoOperaRenta || '1', 
-            data.BusFiscTipoIngresoRenta || '1', 
-            data.FiscNumAnexo || '2',
+            d.tipo_operacion || '1', 
+            d.tipo_ingreso || '1', 
             id
         ];
 
         const [result] = await pool.query(query, values);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         
-        res.json({ message: 'Venta actualizada correctamente' });
+        res.json({ message: 'CCF actualizado correctamente' });
 
     } catch (error) {
         return res.status(500).json({ message: 'Error al actualizar', error: error.message });
     }
 };
 
-// --- ELIMINAR VENTA ---
+// --- 5. ELIMINAR VENTA CCF ---
 export const deleteVentasCCF = async (req, res) => {
     const { id } = req.params;
     try {
