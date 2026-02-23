@@ -72,11 +72,15 @@
                <p class="text-sm-hacienda">Genera los archivos oficiales para presentar la declaración mensual.</p>
                <div class="export-controls mt-2">
                   <button @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block mb-2" :disabled="!nitSeleccionado">
-                    📦 Descargar Anexos F07 (JSON)
+                    📦 Descargar Anexos F07 (JSON Consolidado)
                   </button>
 
-                  <button @click="descargarAnexo3CSV" class="btn btn-success btn-block" :disabled="!nitSeleccionado">
-                    📊 Descargar Anexo 3 Compras (CSV)
+                  <button 
+                     v-if="moduloSeleccionado !== 'todo'" 
+                     @click="descargarAnexoCSV" 
+                     class="btn btn-success btn-block" 
+                     :disabled="!nitSeleccionado">
+                    {{ textoBotonCSV }}
                   </button>
                </div>
             </div>
@@ -174,16 +178,14 @@
 
 <script setup>
 import MainLayout from '../layouts/MainLayout.vue';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router'; 
 
-// CONFIGURACIÓN
 const router = useRouter(); 
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
-// ESTADOS
 const moduloSeleccionado = ref('compras');
 const accion = ref('exportar');
 const mes = ref('Febrero'); 
@@ -192,13 +194,11 @@ const cargando = ref(false);
 const resultado = ref(null);
 const urlDescargaBlob = ref(null);
 
-// 🛡️ ESTADOS PARA MULTITENANT
 const declarantesDB = ref([]);
 const nitSeleccionado = ref(''); 
 
 const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-// CATÁLOGO DE MÓDULOS
 const modulos = [
   { id: 'todo', nombre: 'Backup Completo', icono: '📦' },
   { id: 'compras', nombre: 'Compras', icono: '🛒' },
@@ -207,7 +207,6 @@ const modulos = [
   { id: 'sujetos', nombre: 'Sujetos Excluidos', icono: '🚫' },
 ];
 
-// 🛡️ CARGAMOS LAS EMPRESAS AL INICIAR
 onMounted(async () => {
     try {
         const res = await axios.get(`${BASE_URL}/api/declarantes`);
@@ -217,7 +216,17 @@ onMounted(async () => {
     }
 });
 
-// LÓGICA PRINCIPAL DEL BACKUP
+// 🛡️ LÓGICA DINÁMICA DEL BOTÓN CSV
+const textoBotonCSV = computed(() => {
+    switch (moduloSeleccionado.value) {
+        case 'compras': return '📊 Descargar Anexo 3 Compras (CSV)';
+        case 'ventas_cf': return '📊 Descargar Anexo 1 Consumidor Final (CSV)';
+        case 'ventas_ccf': return '📊 Descargar Anexo 2 Crédito Fiscal (CSV)';
+        case 'sujetos': return '📊 Descargar Anexo 5 Sujetos Excluidos (CSV)';
+        default: return '📊 Descargar CSV';
+    }
+});
+
 const procesarAccion = async () => {
   if (accion.value === 'importar') {
     router.push('/lector-json'); 
@@ -327,8 +336,8 @@ const descargarAnexosHacienda = async () => {
     }
 };
 
-// 🛡️ NUEVO: DESCARGAR CSV DE COMPRAS
-const descargarAnexo3CSV = async () => {
+// 🛡️ LÓGICA DINÁMICA DE DESCARGA CSV SEGÚN EL MÓDULO ELEGIDO
+const descargarAnexoCSV = async () => {
     const m = mes.value;
     const a = anio.value;
     const nitEmpresa = nitSeleccionado.value;
@@ -338,30 +347,52 @@ const descargarAnexo3CSV = async () => {
         return;
     }
 
+    let endpoint = '';
+    let filename = '';
+
+    // Asignamos la ruta y el nombre dependiendo de la opción
+    switch (moduloSeleccionado.value) {
+        case 'compras': 
+            endpoint = '/api/reportes/anexo3-csv'; 
+            filename = `Anexo3_Compras_${nitEmpresa}_${m}_${a}.csv`; 
+            break;
+        case 'ventas_cf': 
+            endpoint = '/api/reportes/anexo1-csv'; 
+            filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; 
+            break;
+        case 'ventas_ccf': 
+            endpoint = '/api/reportes/anexo2-csv'; 
+            filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; 
+            break;
+        case 'sujetos': 
+            endpoint = '/api/reportes/anexo5-csv'; 
+            filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; 
+            break;
+        default: 
+            return;
+    }
+
     try {
         cargando.value = true;
-        // Petición para descargar un archivo (Blob)
-        const res = await axios.get(`${BASE_URL}/api/reportes/anexo3-csv`, {
+        const res = await axios.get(`${BASE_URL}${endpoint}`, {
             params: { nit: nitEmpresa, mes: m, anio: a },
             responseType: 'blob' 
         });
 
-        // Crear la URL temporal para el CSV
         const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
         
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', `Anexo3_Compras_${nitEmpresa}_${m}_${a}.csv`);
+        link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
         
-        // Limpieza
         link.remove();
         window.URL.revokeObjectURL(url);
         
     } catch (error) {
         console.error("Error descargando CSV:", error);
-        alert("🚨 No se pudo generar el CSV. Verifique que existan compras en ese periodo.");
+        alert("🚨 No se pudo generar el CSV. Verifique que existan registros en este mes.");
     } finally {
         cargando.value = false;
     }

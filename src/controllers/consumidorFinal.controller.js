@@ -24,98 +24,66 @@ export const getVentaConsumidorById = async (req, res) => {
     }
 };
 
-// --- 3. CREAR NUEVA VENTA ---
+// --- 3. CREAR NUEVA VENTA (CORREGIDO: Solo columnas reales) ---
 export const createVentaConsumidor = async (req, res) => {
-    const data = req.body;
-
-    // Validación: El frontend nos manda "numero", que es el DTE ya armado.
-    if (!data.fecha || !data.numero || !data.iddeclaNIT) {
-        return res.status(400).json({message: 'Auditoría: Fecha, Número de Documento e ID Declarante son obligatorios.'});
-    }
-    
+    const d = req.body;
     try {
         const [result] = await pool.query(
             `INSERT INTO consumidorfinal 
-            (iddeclaNIT, ConsFecha, ConsClaseDoc, ConsTipoDoc, ConsNumResolu, ConsSerieDoc, 
-             ConsNumContIntDEL, ConsNumContIntAL, ConsNumDocDEL, ConsNumDocAL, ConsNumMaqRegistro,
-             ConsVtaExentas, ConsVtaIntExenNoSujProporcio, ConsVtaNoSujetas, ConsVtaGravLocales, 
-             ConsExpDentAreaCA, ConsExpFueraAreaCA, ConsExpServicios, 
-             ConsVtaZonaFrancasDPA, ConsVtaCtaTercNoDomici, ConsTotalVta, 
-             ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
+            (iddeclaNIT, ConsFecha, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, 
+             ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, 
+             ConsTipoOpera, ConsTipoIngreso, ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, 
+             ConsTotalVta, ConsNumAnexo) 
+            VALUES (?, ?, '4', '01', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1')`, 
             [
-                data.iddeclaNIT, 
-                data.fecha, 
-                data.claseDoc || '4', // En el SV, 4 = DTE
-                data.tipoDoc || '01', 
-                data.resolucion || null, 
-                data.serie || null, 
-                data.controlDel || null, 
-                data.controlAl || null, 
-                data.numero, // 🛡️ AQUÍ GUARDAMOS EL DTE EN ConsNumDocDEL
-                data.numero, // 🛡️ Y EN ConsNumDocAL (Es el mismo en DTE)
-                data.maqRegistro || null,
-                data.exentas || 0, 
-                data.exentasNoSujetasProp || 0, 
-                data.noSujetas || 0, 
-                data.gravadas || 0,
-                data.expCentroAmerica || 0, 
-                data.expFueraCentroAmerica || 0, 
-                data.expServicios || 0,
-                data.ventasZonaFranca || 0, 
-                data.ventasTerceros || 0, 
-                data.total || 0,
-                data.tipoOpera || '1', 
-                data.tipoIngreso || '1', 
-                data.anexo || '1'
+                d.iddeclaNIT, 
+                d.fecha, 
+                d.serie || null,
+                d.numero_control, // DTE DEL
+                d.numero_control, // DTE AL
+                d.uuid_dte,       // UUID (Código Generación)
+                d.tipo_operacion || '1',
+                d.tipo_ingreso || '1',
+                d.exentas || 0, 
+                d.noSujetas || 0, 
+                d.gravadas || 0, 
+                d.total || 0
             ]
         );
-        res.status(201).json({ message: 'Venta Consumidor Final Certificada', id: result.insertId });
+        res.status(201).json({ message: 'Venta guardada en Base de Datos', id: result.insertId });
     } catch (error) {
-        res.status(500).json({ message: 'Falla en el Servidor de Datos', error: error.message});
+        console.error("Error en DB:", error);
+        res.status(500).json({ error: error.message });
     }
 };
 
-// --- 4. ACTUALIZAR VENTA ---
+// --- 4. ACTUALIZAR VENTA (CORREGIDO: Solo columnas reales) ---
 export const updateVentaConsumidor = async (req, res) => {
     const { id } = req.params;
-    const data = req.body;
+    const d = req.body;
 
     try {
         const [result] = await pool.query(
             `UPDATE consumidorfinal SET 
-            iddeclaNIT=?, ConsFecha=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsNumResolu=?, ConsSerieDoc=?, 
-            ConsNumContIntDEL=?, ConsNumContIntAL=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsNumMaqRegistro=?,
-            ConsVtaExentas=?, ConsVtaIntExenNoSujProporcio=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, 
-            ConsExpDentAreaCA=?, ConsExpFueraAreaCA=?, ConsExpServicios=?, 
-            ConsVtaZonaFrancasDPA=?, ConsVtaCtaTercNoDomici=?, ConsTotalVta=?, 
-            ConsTipoOpera=?, ConsTipoIngreso=?, ConsNumAnexo=?
+            iddeclaNIT=?, ConsFecha=?, ConsSerieDoc=?, 
+            ConsNumDocDEL=?, ConsNumDocAL=?, ConsCodGeneracion=?, 
+            ConsTipoOpera=?, ConsTipoIngreso=?, 
+            ConsVtaExentas=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, 
+            ConsTotalVta=?
             WHERE idconsfinal = ?`,
             [
-                data.iddeclaNIT,
-                data.fecha, 
-                data.claseDoc || '4', 
-                data.tipoDoc || '01', 
-                data.resolucion || null, 
-                data.serie || null,
-                data.controlDel || null, 
-                data.controlAl || null, 
-                data.numero, // 🛡️ SE ACTUALIZA EL DTE (DEL)
-                data.numero, // 🛡️ SE ACTUALIZA EL DTE (AL)
-                data.maqRegistro || null,
-                data.exentas || 0, 
-                data.exentasNoSujetasProp || 0, 
-                data.noSujetas || 0, 
-                data.gravadas || 0,
-                data.expCentroAmerica || 0, 
-                data.expFueraCentroAmerica || 0, 
-                data.expServicios || 0,
-                data.ventasZonaFranca || 0, 
-                data.ventasTerceros || 0, 
-                data.total || 0,
-                data.tipoOpera || '1', 
-                data.tipoIngreso || '1', 
-                data.anexo || '1', 
+                d.iddeclaNIT,
+                d.fecha, 
+                d.serie || null, 
+                d.numero_control, // 🛡️ DTE DEL
+                d.numero_control, // 🛡️ DTE AL
+                d.uuid_dte,       // 🛡️ UUID
+                d.tipo_operacion || '1', 
+                d.tipo_ingreso || '1', 
+                d.exentas || 0, 
+                d.noSujetas || 0, 
+                d.gravadas || 0,
+                d.total || 0,
                 id
             ]
         );
@@ -123,6 +91,7 @@ export const updateVentaConsumidor = async (req, res) => {
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         res.json({ message: 'Venta actualizada correctamente'});
     } catch (error) {
+        console.error("Error en DB:", error);
         return res.status(500).json({ message: 'Error al actualizar', error: error.message});
     }
 };
