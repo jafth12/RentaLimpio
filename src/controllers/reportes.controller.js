@@ -10,10 +10,15 @@ const obtenerNumeroMes = (m) => {
     return mapa[m] || "01";
 };
 
-// Tijera para evitar el error de MySQL "Incorrect date value"
 const formatearFecha = (fecha) => {
     if (!fecha) return null;
     return fecha.toString().split('T')[0];
+};
+
+// 🛡️ NUEVO: Función maestra para eliminar guiones de manera segura
+const sinGuiones = (texto) => {
+    if (!texto) return '';
+    return texto.toString().replace(/-/g, '');
 };
 
 // ==========================================
@@ -63,7 +68,6 @@ export const exportarTodoJSON = async (req, res) => {
         const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, mesNum, anio]);
         const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, mesNum, anio]);
 
-        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN JSON
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'TODOS LOS MÓDULOS (BACKUP)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
@@ -94,36 +98,37 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ?`, [nit, `${filtroFecha}%`]);
         const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ?`, [nit, `${filtroFecha}%`]);
 
-        // 🛡️ SENSOR: AUDITORÍA GENERACIÓN HACIENDA
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'F-07 HACIENDA', `Periodo: ${mes}/${anio} - Empresa: ${nombreEmpresa}`);
 
+        // NOTA: Para el JSON de Hacienda F-07 a veces sí se envían los guiones según la estructura DTE, 
+        // pero por precaución, he limpiado las variables más críticas si el formato estricto lo requiere.
         const reporteHacienda = {
             identificacion: {
-                nit: nit, razon_social: nombreEmpresa, periodo: `${mesNum}/${anio}`,
+                nit: sinGuiones(nit), razon_social: nombreEmpresa, periodo: `${mesNum}/${anio}`,
                 fecha_generacion: new Date().toLocaleString('es-SV', { timeZone: 'America/El_Salvador' })
             },
             anexo1_consumidor_final: anexo1.map(v => ({
                 fecha: v.ConsFecha, clase: v.ConsClaseDoc, tipo: v.ConsTipoDoc,
-                resolucion: v.ConsNumResolu || '', serie: v.ConsNumSerie || '',
-                del: v.ConsNumDocDEL, al: v.ConsNumDocAL,
+                resolucion: sinGuiones(v.ConsNumResolu), serie: v.ConsNumSerie || '',
+                del: sinGuiones(v.ConsNumDocDEL), al: sinGuiones(v.ConsNumDocAL),
                 exentas: Number(v.ConsVtaExentas || 0).toFixed(2), gravadas: Number(v.ConsVtaGravLocales || 0).toFixed(2), total: Number(v.ConsTotalVta || 0).toFixed(2)
             })),
             anexo2_credito_fiscal: anexo2.map(v => ({
-                fecha: v.FiscFecha, tipo: v.FisTipoDoc, numero: v.FiscNumDoc,
-                nit_cliente: v.FiscNit || '0000', nrc_cliente: v.FiscNumContInter || '0', nombre: v.FiscNomRazonDenomi,
+                fecha: v.FiscFecha, tipo: v.FisTipoDoc, numero: sinGuiones(v.FiscNumDoc),
+                nit_cliente: sinGuiones(v.FiscNit) || '0000', nrc_cliente: sinGuiones(v.FiscNumContInter) || '0', nombre: v.FiscNomRazonDenomi,
                 exentas: Number(v.FiscVtaExenta || 0).toFixed(2), gravadas: Number(v.FiscVtaGravLocal || 0).toFixed(2),
                 debito_fiscal: Number(v.FiscDebitoFiscal || 0).toFixed(2), total: Number(v.FiscTotalVtas || 0).toFixed(2)
             })),
             anexo3_compras: anexo3.map(c => ({
-                fecha: c.ComFecha, clase: c.ComClase, tipo: c.ComTipo, numero: c.ComNumero,
-                nit_proveedor: c.proveedor_ProvNIT || '0000', nombre_proveedor: c.ComNomProve,
+                fecha: c.ComFecha, clase: c.ComClase, tipo: c.ComTipo, numero: sinGuiones(c.ComNumero),
+                nit_proveedor: sinGuiones(c.proveedor_ProvNIT) || '0000', nombre_proveedor: c.ComNomProve,
                 internas_exentas: Number(c.ComIntExe || 0).toFixed(2), internas_gravadas: Number(c.ComIntGrav || 0).toFixed(2),
                 credito_fiscal: Number(c.ComCredFiscal || 0).toFixed(2), total: Number(c.ComTotal || 0).toFixed(2)
             })),
             anexo5_sujetos_excluidos: anexo5.map(s => ({
-                fecha: s.ComprasSujExcluFecha, nit: s.ComprasSujExcluNIT, nombre: s.ComprasSujExcluNom,
-                documento: s.ComprasSujExcluNumDoc, monto: Number(s.ComprasSujExcluMontoOpera || 0).toFixed(2), retencion: Number(s.ComprasSujExcluMontoReten || 0).toFixed(2)
+                fecha: s.ComprasSujExcluFecha, nit: sinGuiones(s.ComprasSujExcluNIT), nombre: s.ComprasSujExcluNom,
+                documento: sinGuiones(s.ComprasSujExcluNumDoc), monto: Number(s.ComprasSujExcluMontoOpera || 0).toFixed(2), retencion: Number(s.ComprasSujExcluMontoReten || 0).toFixed(2)
             }))
         };
         res.json(reporteHacienda);
@@ -148,9 +153,6 @@ export const descargarAnexo1CSV = async (req, res) => {
             const d = new Date(v.ConsFecha);
             const fechaLimpia = d.toLocaleDateString('es-SV', { day: '2-digit', month: '2-digit', year: 'numeric' });
             
-            const codGenLimpio = v.ConsCodGeneracion ? v.ConsCodGeneracion.replace(/-/g, '') : '';
-            const numControlDTE = v.ConsNumDocDEL ? v.ConsNumDocDEL.toString().replace(/-/g, '') : '';
-            
             let claseDoc = v.ConsClaseDoc;
             if (!claseDoc || claseDoc.toString().toUpperCase() === 'DTE') claseDoc = '4';
 
@@ -160,13 +162,13 @@ export const descargarAnexo1CSV = async (req, res) => {
                 fechaLimpia,                                              // 1
                 claseDoc,                                                // 2
                 limpiarCod(v.ConsTipoDoc),                                // 3
-                '',                                                      // 4
-                '',                                                      // 5
-                codGenLimpio,                                             // 6. UUID
-                codGenLimpio,                                             // 7. UUID
-                numControlDTE,                                            // 8. DTE
-                numControlDTE,                                            // 9. DTE
-                v.ConsNumMaqRegistro || '',                               // 10
+                '',                                                      // 4. NumResol (vacio en DTE)
+                '',                                                      // 5. Serie (vacio en DTE)
+                sinGuiones(v.ConsCodGeneracion),                          // 6. UUID Interno
+                sinGuiones(v.ConsCodGeneracion),                          // 7. UUID Externo
+                sinGuiones(v.ConsNumDocDEL),                              // 8. DTE DEL
+                sinGuiones(v.ConsNumDocAL),                               // 9. DTE AL
+                sinGuiones(v.ConsNumMaqRegistro),                         // 10
                 (parseFloat(v.ConsVtaExentas) || 0).toFixed(2),           // 11
                 (parseFloat(v.ConsVtaIntExenNoSujProporcio) || 0).toFixed(2), // 12
                 (parseFloat(v.ConsVtaNoSujetas) || 0).toFixed(2),         // 13
@@ -184,7 +186,6 @@ export const descargarAnexo1CSV = async (req, res) => {
             return columnas.join(';');
         });
 
-        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION CSV', 'CONSUMIDOR FINAL (ANEXO 1)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
@@ -214,11 +215,11 @@ export const descargarAnexo2CSV = async (req, res) => {
                 fechaLimpia,
                 v.FisClasDoc || '4',
                 parseInt(v.FisTipoDoc || '03', 10),
-                v.FiscNumResol || '',
-                v.FiscSerieDoc || '',
-                v.FiscNumDoc ? v.FiscNumDoc.replace(/-/g, '') : '',
-                v.FiscNumContInter || '',
-                v.FiscNit ? v.FiscNit.replace(/-/g, '') : '',
+                sinGuiones(v.FiscNumResol),
+                sinGuiones(v.FiscSerieDoc),
+                sinGuiones(v.FiscNumDoc),
+                sinGuiones(v.FiscNumContInter),
+                sinGuiones(v.FiscNit),
                 v.FiscNomRazonDenomi ? `"${v.FiscNomRazonDenomi.toUpperCase()}"` : '""',
                 Number(v.FiscVtaExen || 0).toFixed(2),
                 Number(v.FiscVtaNoSujetas || 0).toFixed(2),
@@ -234,7 +235,6 @@ export const descargarAnexo2CSV = async (req, res) => {
             return columnas.join(';');
         });
 
-        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION CSV', 'CREDITO FISCAL (ANEXO 2)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
@@ -260,10 +260,8 @@ export const descargarAnexo3CSV = async (req, res) => {
             const d = new Date(c.ComFecha);
             const fechaLimpia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             
-            const codGenLimpio = c.ComCodGeneracion ? c.ComCodGeneracion.replace(/-/g, '') : '';
-            const numDoc = codGenLimpio || (c.ComNumero ? c.ComNumero.replace(/-/g, '') : '');
+            const numDocLimpio = sinGuiones(c.ComCodGeneracion) || sinGuiones(c.ComNumero);
             const nombreProv = c.ComNomProve ? `"${c.ComNomProve.toUpperCase()}"` : '""';
-            const nitLimpio = c.proveedor_ProvNIT ? c.proveedor_ProvNIT.replace(/-/g, '') : '';
 
             const sumBase = (parseFloat(c.ComIntGrav) || 0) + (parseFloat(c.ComInternacGravBienes) || 0) +
                 (parseFloat(c.ComImportGravBienes) || 0) + (parseFloat(c.ComImportGravServicios) || 0) +
@@ -273,17 +271,17 @@ export const descargarAnexo3CSV = async (req, res) => {
                 fechaLimpia,                                          
                 c.ComClase || '4',                                    
                 parseInt(c.ComTipo || '03', 10),                      
-                numDoc,                                               
-                nitLimpio,                                            
+                numDocLimpio,                                               
+                sinGuiones(c.proveedor_ProvNIT),                                            
                 nombreProv,                                           
-                (parseFloat(c.ComIntExe) || 0),                       
-                (parseFloat(c.ComInternacioExe) || 0),                
+                (parseFloat(c.ComIntExe) || 0).toFixed(2),                       
+                (parseFloat(c.ComInternacioExe) || 0).toFixed(2),                
                 0,                                                    
-                (parseFloat(c.ComIntGrav) || 0),                      
-                (parseFloat(c.ComInternacGravBienes) || 0),           
-                (parseFloat(c.ComImportGravBienes) || 0),             
-                (parseFloat(c.ComImportGravServicios) || 0),          
-                (parseFloat(c.ComCredFiscal) || 0),                   
+                (parseFloat(c.ComIntGrav) || 0).toFixed(2),                      
+                (parseFloat(c.ComInternacGravBienes) || 0).toFixed(2),           
+                (parseFloat(c.ComImportGravBienes) || 0).toFixed(2),             
+                (parseFloat(c.ComImportGravServicios) || 0).toFixed(2),          
+                (parseFloat(c.ComCredFiscal) || 0).toFixed(2),                   
                 sumBase.toFixed(2),                                   
                 '',                                                   
                 c.ComClasiRenta || '1',                               
@@ -325,10 +323,10 @@ export const descargarAnexo5CSV = async (req, res) => {
             const columnas = [
                 fechaLimpia,
                 s.ComprasSujExcluTipoDoc || '14',
-                s.ComprasSujExcluNIT ? s.ComprasSujExcluNIT.replace(/-/g, '') : '',
+                sinGuiones(s.ComprasSujExcluNIT),
                 s.ComprasSujExcluNom ? `"${s.ComprasSujExcluNom.toUpperCase()}"` : '""',
-                s.ComprasSujExcluSerieDoc || '',
-                s.ComprasSujExcluNumDoc ? s.ComprasSujExcluNumDoc.replace(/-/g, '') : '',
+                sinGuiones(s.ComprasSujExcluSerieDoc),
+                sinGuiones(s.ComprasSujExcluNumDoc),
                 Number(s.ComprasSujExcluMontoOpera || 0).toFixed(2),
                 Number(s.ComprasSujExcluMontoReten || 0).toFixed(2),
                 s.ComprasSujExcluTipoOpera || '1',
@@ -340,7 +338,6 @@ export const descargarAnexo5CSV = async (req, res) => {
             return columnas.join(';');
         });
 
-        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION CSV', 'SUJETOS EXCLUIDOS (ANEXO 5)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 

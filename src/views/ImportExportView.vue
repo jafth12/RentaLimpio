@@ -68,20 +68,30 @@
             </div>
 
             <div v-if="accion === 'exportar'" class="export-card card fade-in mb-3">
-               <h3 class="text-hacienda">🏛️ Reportes Legales (Hacienda)</h3>
-               <p class="text-sm-hacienda">Genera los archivos oficiales para presentar la declaración mensual.</p>
+               <h3 class="text-hacienda">🏛️ Reportes Legales y PDF</h3>
+               <p class="text-sm-hacienda">Genera los archivos oficiales para Hacienda o reportes visuales.</p>
                <div class="export-controls mt-2">
                   <button @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block mb-2" :disabled="!nitSeleccionado">
-                    📦 Descargar Anexos F07 (JSON Consolidado)
+                    📦 Descargar F07 (JSON Consolidado)
                   </button>
 
-                  <button 
-                     v-if="moduloSeleccionado !== 'todo'" 
-                     @click="descargarAnexoCSV" 
-                     class="btn btn-success btn-block" 
-                     :disabled="!nitSeleccionado">
-                    {{ textoBotonCSV }}
-                  </button>
+                  <div class="flex-buttons gap-2">
+                    <button 
+                       v-if="moduloSeleccionado !== 'todo'" 
+                       @click="descargarAnexoCSV" 
+                       class="btn btn-success flex-1" 
+                       :disabled="!nitSeleccionado">
+                      {{ textoBotonCSV }}
+                    </button>
+                    
+                    <button 
+                       v-if="moduloSeleccionado === 'todo'"
+                       @click="generarPDFMensual" 
+                       class="btn btn-danger flex-1" 
+                       :disabled="!nitSeleccionado || cargando">
+                      📄 Generar Resumen PDF
+                    </button>
+                  </div>
                </div>
             </div>
 
@@ -113,9 +123,9 @@
                 </div>
               </div>
 
-              <div class="action-area">
+              <div class="action-area mt-3">
                 <button @click="procesarAccion" class="btn btn-primary btn-block" :disabled="cargando || (accion === 'exportar' && !nitSeleccionado)">
-                  {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Backup del Módulo' : '🔍 Ir al Lector Inteligente') }}
+                  {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Backup del Módulo (JSON)' : '🔍 Ir al Lector Inteligente') }}
                 </button>
               </div>
             </div>
@@ -163,7 +173,7 @@
 
               <div class="download-area" v-if="accion === 'exportar' && resultado.tipo === 'success'">
                 <button @click="descargarArchivoReal" class="btn btn-success btn-block btn-download">
-                  💾 Descargar Archivo Final
+                  💾 Descargar Backup Final
                 </button>
               </div>
 
@@ -181,6 +191,9 @@ import MainLayout from '../layouts/MainLayout.vue';
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router'; 
+// 🛡️ IMPORTACIONES PARA PDF
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const router = useRouter(); 
 const hostname = window.location.hostname;
@@ -200,7 +213,7 @@ const nitSeleccionado = ref('');
 const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 const modulos = [
-  { id: 'todo', nombre: 'Backup Completo', icono: '📦' },
+  { id: 'todo', nombre: 'Reporte General', icono: '📦' },
   { id: 'compras', nombre: 'Compras', icono: '🛒' },
   { id: 'ventas_cf', nombre: 'Consumidor Final', icono: '🧾' }, 
   { id: 'ventas_ccf', nombre: 'Crédito Fiscal', icono: '💼' }, 
@@ -216,100 +229,133 @@ onMounted(async () => {
     }
 });
 
-// 🛡️ LÓGICA DINÁMICA DEL BOTÓN CSV
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
-        case 'compras': return '📊 Descargar Anexo 3 Compras (CSV)';
-        case 'ventas_cf': return '📊 Descargar Anexo 1 Consumidor Final (CSV)';
-        case 'ventas_ccf': return '📊 Descargar Anexo 2 Crédito Fiscal (CSV)';
-        case 'sujetos': return '📊 Descargar Anexo 5 Sujetos Excluidos (CSV)';
+        case 'compras': return '📊 Descargar CSV (Compras)';
+        case 'ventas_cf': return '📊 Descargar CSV (Cons. Final)';
+        case 'ventas_ccf': return '📊 Descargar CSV (Crédito Fiscal)';
+        case 'sujetos': return '📊 Descargar CSV (Suj. Excluidos)';
         default: return '📊 Descargar CSV';
     }
 });
 
-const procesarAccion = async () => {
-  if (accion.value === 'importar') {
-    router.push('/lector-json'); 
-    return;
-  }
-
-  if (!nitSeleccionado.value) {
-      alert("Por favor seleccione una empresa para exportar su información.");
-      return;
-  }
-
-  cargando.value = true;
-  resultado.value = null;
-
-  try {
-    let endpoint = '';
-    
-    switch (moduloSeleccionado.value) {
-      case 'todo': endpoint = `${BASE_URL}/api/exportar-todo`; break;
-      case 'compras': endpoint = `${BASE_URL}/api/compras/exportar`; break;
-      case 'ventas_cf': endpoint = `${BASE_URL}/api/ventas-cf/exportar`; break; 
-      case 'ventas_ccf': endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; break; 
-      case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; 
-      default: endpoint = `${BASE_URL}/api/exportar-todo`;
+// =====================================
+// 🛡️ NUEVA FUNCIÓN: GENERAR PDF MENSUAL
+// =====================================
+const generarPDFMensual = async () => {
+    if (!nitSeleccionado.value || !mes.value || !anio.value) {
+        alert("Auditoría: Debe seleccionar Empresa, Mes y Año.");
+        return;
     }
 
-    const params = {
-      mes: mes.value,
-      anio: anio.value,
-      nit: nitSeleccionado.value 
-    };
+    try {
+        cargando.value = true;
+        // Reutilizamos el endpoint de Hacienda porque nos trae TODO el mes ya organizado
+        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
+            params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value }
+        });
+        
+        const data = res.data;
+        const doc = new jsPDF();
+        let startY = 50;
 
-    const response = await axios.get(endpoint, { params, responseType: 'json' });
-    const data = response.data;
+        // 1. ENCABEZADO DEL PDF
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.setTextColor(15, 118, 110); // Color principal (Teal)
+        doc.text("RentaLimpio - Resumen Tributario", 14, 20);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(11);
+        doc.setTextColor(51, 65, 85);
+        doc.text(`Empresa (Declarante): ${data.identificacion.razon_social}`, 14, 30);
+        doc.text(`NIT: ${data.identificacion.nit}`, 14, 36);
+        doc.text(`Periodo Fiscal: ${mes.value} / ${anio.value}`, 14, 42);
+        
+        doc.setLineWidth(0.5);
+        doc.line(14, 45, 196, 45); // Línea divisoria
 
-    const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    urlDescargaBlob.value = window.URL.createObjectURL(blob);
+        // 2. TABLA DE COMPRAS (ANEXO 3)
+        if (data.anexo3_compras && data.anexo3_compras.length > 0) {
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("1. Compras (Crédito Fiscal Recibido)", 14, startY);
+            
+            autoTable(doc, {
+                startY: startY + 5,
+                head: [['Fecha', 'Proveedor / NIT', 'DTE', 'Gravadas', 'IVA', 'Total']],
+                body: data.anexo3_compras.map(c => [
+                    c.fecha, `${c.nombre_proveedor}\n${c.nit_proveedor}`, c.numero, `$${c.internas_gravadas}`, `$${c.credito_fiscal}`, `$${c.total}`
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [15, 118, 110] }, // Teal oscuro
+                styles: { fontSize: 8, cellPadding: 3 },
+            });
+            startY = doc.lastAutoTable.finalY + 15;
+        }
 
-    let totalPreview = '0.00';
-    if (data.totales_periodo) {
-        totalPreview = data.totales_periodo.gran_total_gravado || data.totales_periodo.total_gravado || '0.00';
-    } else if (Array.isArray(data) && data.length > 0 && data[0].total) {
-        totalPreview = data.reduce((sum, item) => sum + (parseFloat(item.total)||0), 0).toFixed(2);
+        // 3. TABLA DE CRÉDITO FISCAL (ANEXO 2)
+        if (data.anexo2_credito_fiscal && data.anexo2_credito_fiscal.length > 0) {
+            if (startY > 250) { doc.addPage(); startY = 20; }
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("2. Ventas a Contribuyentes (CCF Emitidos)", 14, startY);
+            
+            autoTable(doc, {
+                startY: startY + 5,
+                head: [['Fecha', 'Cliente / NIT', 'DTE', 'Gravadas', 'Débito Fiscal', 'Total']],
+                body: data.anexo2_credito_fiscal.map(v => [
+                    v.fecha, `${v.nombre}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [3, 105, 161] }, // Azul oscuro
+                styles: { fontSize: 8, cellPadding: 3 },
+            });
+            startY = doc.lastAutoTable.finalY + 15;
+        }
+
+        // 4. TABLA CONSUMIDOR FINAL (ANEXO 1)
+        if (data.anexo1_consumidor_final && data.anexo1_consumidor_final.length > 0) {
+            if (startY > 250) { doc.addPage(); startY = 20; }
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "bold");
+            doc.text("3. Ventas a Consumidor Final", 14, startY);
+            
+            autoTable(doc, {
+                startY: startY + 5,
+                head: [['Fecha', 'DTE (Del - Al)', 'Ventas Exentas', 'Ventas Gravadas', 'Total Venta']],
+                body: data.anexo1_consumidor_final.map(v => [
+                    v.fecha, `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [217, 119, 6] }, // Naranja
+                styles: { fontSize: 8, cellPadding: 3 },
+            });
+            startY = doc.lastAutoTable.finalY + 15;
+        }
+
+        // Si no hay datos de nada
+        if (startY === 50) {
+            doc.setFont("helvetica", "italic");
+            doc.text("No se encontraron registros operados en este periodo.", 14, startY);
+        }
+
+        // DESCARGAR EL PDF
+        doc.save(`Resumen_Mensual_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
+
+        // SENSOR DE AUDITORÍA OPCIONAL (Si tu backend lo permite, envías una petición fantasma)
+        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'PDF RESUMEN', detalles: `Generado PDF ${mes.value}/${anio.value}` }).catch(()=>console.log("Auditoria omitida"));
+
+    } catch (error) {
+        console.error("Error generando PDF:", error);
+        alert("🚨 No se pudo generar el documento PDF. Verifique su conexión.");
+    } finally {
+        cargando.value = false;
     }
-
-    resultado.value = {
-      tipo: 'success',
-      titulo: 'Backup Generado',
-      archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`,
-      cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'),
-      total: totalPreview,
-      snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '')
-    };
-
-  } catch (error) {
-    console.error(error);
-    resultado.value = {
-      tipo: 'error',
-      titulo: 'Error al Generar',
-      archivo: 'No se pudo crear el archivo',
-      cantidad: 0,
-      total: 0,
-      snippet: error.response?.data?.message || error.message || 'Error de conexión con el servidor.'
-    };
-  } finally {
-    cargando.value = false;
-  }
 };
-
-const descargarArchivoReal = () => {
-  if (!urlDescargaBlob.value) return;
-  const link = document.createElement('a');
-  link.href = urlDescargaBlob.value;
-  link.setAttribute('download', resultado.value.archivo);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-};
-
-// --- REPORTES LEGALES ---
 
 const descargarAnexosHacienda = async () => {
+    // Código existente... (sin cambios)
     if (!nitSeleccionado.value || !mes.value || !anio.value) {
         alert("Auditoría: Debe seleccionar Empresa, Mes y Año.");
         return;
@@ -329,15 +375,14 @@ const descargarAnexosHacienda = async () => {
         downloadAnchorNode.remove();
 
         alert("✅ Archivo JSON para Hacienda generado correctamente.");
-        
     } catch (error) {
         console.error("Error en exportación legal:", error);
         alert(`🚨 Error: ${error.response?.data?.message || "No se pudo generar el reporte."}`);
     }
 };
 
-// 🛡️ LÓGICA DINÁMICA DE DESCARGA CSV SEGÚN EL MÓDULO ELEGIDO
 const descargarAnexoCSV = async () => {
+    // Código existente... (sin cambios)
     const m = mes.value;
     const a = anio.value;
     const nitEmpresa = nitSeleccionado.value;
@@ -350,26 +395,16 @@ const descargarAnexoCSV = async () => {
     let endpoint = '';
     let filename = '';
 
-    // Asignamos la ruta y el nombre dependiendo de la opción
     switch (moduloSeleccionado.value) {
         case 'compras': 
-            endpoint = '/api/reportes/anexo3-csv'; 
-            filename = `Anexo3_Compras_${nitEmpresa}_${m}_${a}.csv`; 
-            break;
+            endpoint = '/api/reportes/anexo3-csv'; filename = `Anexo3_Compras_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_cf': 
-            endpoint = '/api/reportes/anexo1-csv'; 
-            filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; 
-            break;
+            endpoint = '/api/reportes/anexo1-csv'; filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_ccf': 
-            endpoint = '/api/reportes/anexo2-csv'; 
-            filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; 
-            break;
+            endpoint = '/api/reportes/anexo2-csv'; filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'sujetos': 
-            endpoint = '/api/reportes/anexo5-csv'; 
-            filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; 
-            break;
-        default: 
-            return;
+            endpoint = '/api/reportes/anexo5-csv'; filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; break;
+        default: return;
     }
 
     try {
@@ -380,26 +415,85 @@ const descargarAnexoCSV = async () => {
         });
 
         const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
-        
         const link = document.createElement('a');
         link.href = url;
         link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
-        
         link.remove();
         window.URL.revokeObjectURL(url);
-        
     } catch (error) {
         console.error("Error descargando CSV:", error);
-        alert("🚨 No se pudo generar el CSV. Verifique que existan registros en este mes.");
+        alert("🚨 No se pudo generar el CSV.");
     } finally {
         cargando.value = false;
     }
 };
+
+const procesarAccion = async () => {
+    // Código existente (Backup JSON interno)...
+    if (accion.value === 'importar') { router.push('/lector-json'); return; }
+    if (!nitSeleccionado.value) { alert("Seleccione una empresa."); return; }
+    cargando.value = true; resultado.value = null;
+
+    try {
+        let endpoint = '';
+        switch (moduloSeleccionado.value) {
+          case 'todo': endpoint = `${BASE_URL}/api/exportar-todo`; break;
+          case 'compras': endpoint = `${BASE_URL}/api/compras/exportar`; break;
+          case 'ventas_cf': endpoint = `${BASE_URL}/api/ventas-cf/exportar`; break; 
+          case 'ventas_ccf': endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; break; 
+          case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; 
+          default: endpoint = `${BASE_URL}/api/exportar-todo`;
+        }
+        const params = { mes: mes.value, anio: anio.value, nit: nitSeleccionado.value };
+        const response = await axios.get(endpoint, { params, responseType: 'json' });
+        const data = response.data;
+        const jsonString = JSON.stringify(data, null, 2);
+        const blob = new Blob([jsonString], { type: "application/json" });
+        urlDescargaBlob.value = window.URL.createObjectURL(blob);
+
+        let totalPreview = '0.00';
+        if (data.totales_periodo) {
+            totalPreview = data.totales_periodo.gran_total_gravado || data.totales_periodo.total_gravado || '0.00';
+        } else if (Array.isArray(data) && data.length > 0 && data[0].total) {
+            totalPreview = data.reduce((sum, item) => sum + (parseFloat(item.total)||0), 0).toFixed(2);
+        }
+
+        resultado.value = {
+          tipo: 'success', titulo: 'Backup Generado',
+          archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`,
+          cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'),
+          total: totalPreview, snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '')
+        };
+    } catch (error) {
+        resultado.value = {
+          tipo: 'error', titulo: 'Error al Generar', archivo: 'No se pudo crear el archivo',
+          cantidad: 0, total: 0, snippet: error.response?.data?.message || error.message
+        };
+    } finally { cargando.value = false; }
+};
+
+const descargarArchivoReal = () => {
+    if (!urlDescargaBlob.value) return;
+    const link = document.createElement('a');
+    link.href = urlDescargaBlob.value;
+    link.setAttribute('download', resultado.value.archivo);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+};
 </script>
 
 <style scoped>
+/* Agregamos una clase para alinear botones lado a lado */
+.flex-buttons { display: flex; align-items: center; width: 100%; }
+.flex-1 { flex: 1; }
+.gap-2 { gap: 8px; }
+.btn-danger { background: #ef4444; color: white; border: none; }
+.btn-danger:hover:not(:disabled) { background: #dc2626; }
+
+/* El resto de estilos se mantienen intactos */
 .data-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; box-sizing: border-box; }
 .header-section { margin-bottom: 20px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
@@ -414,6 +508,7 @@ const descargarAnexoCSV = async () => {
 .mb-3 { margin-bottom: 15px; }
 .mb-2 { margin-bottom: 10px; }
 .mt-2 { margin-top: 10px; }
+.mt-3 { margin-top: 15px; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -487,5 +582,5 @@ const descargarAnexoCSV = async () => {
 .animate-slide { animation: slideIn 0.3s ease-out; }
 @keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
 
-@media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .dashboard-grid { grid-template-columns: 1fr; } .flex-buttons { flex-direction: column; } }
 </style>

@@ -177,10 +177,25 @@
              <h3>📋 Historial de Compras</h3>
              
              <div class="history-filters">
+                <input 
+                  type="number" 
+                  v-model="anioFiltro" 
+                  placeholder="Año (Ej. 2024)" 
+                  min="2000" 
+                  class="form-control filter-year"
+                  title="Escribe el año (2000 en adelante)"
+                >
+
+                <select v-model="mesFiltro" class="form-control filter-month">
+                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">
+                    {{ m.nombre }}
+                  </option>
+                </select>
+
                 <input type="text" 
                        v-model="declaranteFiltro" 
                        list="lista-decla-compras" 
-                       placeholder="🏢 Filtrar por NIT de Empresa..." 
+                       placeholder="🏢 Empresa..." 
                        class="form-control filter-input">
                 <datalist id="lista-decla-compras">
                    <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
@@ -188,7 +203,7 @@
                    </option>
                 </datalist>
 
-                <input type="text" v-model="filtroLista" placeholder="🔍 Buscar proveedor o DTE..." class="form-control search-list">
+                <input type="text" v-model="filtroLista" placeholder="🔍 DTE / Prov..." class="form-control search-list">
              </div>
           </div>
           
@@ -279,7 +294,16 @@ const mostrandoLista = ref(true);
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
 
-// Variables de Búsqueda y Filtro
+const mesesFiltroOptions = [
+  { nombre: 'Todos los Meses', valor: '' },
+  { nombre: 'Enero', valor: '01' }, { nombre: 'Febrero', valor: '02' }, { nombre: 'Marzo', valor: '03' },
+  { nombre: 'Abril', valor: '04' }, { nombre: 'Mayo', valor: '05' }, { nombre: 'Junio', valor: '06' },
+  { nombre: 'Julio', valor: '07' }, { nombre: 'Agosto', valor: '08' }, { nombre: 'Septiembre', valor: '09' },
+  { nombre: 'Octubre', valor: '10' }, { nombre: 'Noviembre', valor: '11' }, { nombre: 'Diciembre', valor: '12' }
+];
+
+const anioFiltro = ref(new Date().getFullYear().toString());
+const mesFiltro = ref(''); 
 const filtroLista = ref(''); 
 const declaranteFiltro = ref(''); 
 
@@ -340,7 +364,6 @@ const declarantesFiltrados = computed(() => {
   return todosLosDeclarantes.value.filter(d => d && (String(d.declarante || '').toLowerCase().includes(txt) || String(d.iddeclaNIT || '').includes(txt)));
 });
 
-// 🛡️ FILTRADO INTELIGENTE
 const comprasFiltradas = computed(() => {
   let filtrado = listaCompras.value || [];
   
@@ -348,6 +371,19 @@ const comprasFiltradas = computed(() => {
      filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value);
   }
   
+  if (anioFiltro.value) {
+      const anioStr = anioFiltro.value.toString();
+      filtrado = filtrado.filter(c => c.ComFecha && c.ComFecha.startsWith(anioStr));
+  }
+  
+  if (mesFiltro.value) {
+      filtrado = filtrado.filter(c => {
+          if (!c.ComFecha) return false;
+          const partes = c.ComFecha.split('-');
+          return partes.length >= 2 && partes[1] === mesFiltro.value;
+      });
+  }
+
   if (filtroLista.value) {
     const txt = filtroLista.value.toLowerCase().trim();
     filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt)));
@@ -357,10 +393,10 @@ const comprasFiltradas = computed(() => {
 
 const alternarVista = () => { 
   if (modoEdicion.value) {
-    cancelarEdicion(); // Si estaba editando, cancela y vuelve a la lista
+    cancelarEdicion(); 
   } else {
-    resetForm(); // Limpia el formulario
-    mostrandoLista.value = !mostrandoLista.value; // Alterna la vista
+    resetForm(); 
+    mostrandoLista.value = !mostrandoLista.value; 
   }
 };
 
@@ -399,7 +435,6 @@ const prepararEdicion = (compra) => {
   } else declaranteSeleccionado.value = null;
 
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
-  // 🛡️ CORRECCIÓN DEL ID PARA EDICIÓN
   idEdicion.value = compra.idCompras; 
   modoEdicion.value = true; 
   mostrandoLista.value = false; 
@@ -455,8 +490,7 @@ const guardarCompra = async () => {
 };
 
 const eliminarCompra = async (id) => { if(confirm('¿Eliminar registro?')) { try { await axios.delete(`${API_COMPRAS}/${id}`); await cargarDatos(); } catch (e) { alert('Error'); } } };
-const formatearFecha = (f) => f ? new Date(f).toLocaleDateString() : '---';
-const obtenerCodigo = (t) => t ? t.split('.')[0] : 'Doc';
+const formatearFecha = (f) => f ? new Date(f).toLocaleDateString('es-SV', { timeZone: 'UTC' }) : '---';
 
 onMounted(cargarDatos);
 </script>
@@ -470,6 +504,7 @@ onMounted(cargarDatos);
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
+.card-header h3 { font-size: 1.1rem; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
 .badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; }
 .form-section { margin-bottom: 30px; }
@@ -484,12 +519,9 @@ onMounted(cargarDatos);
 .input-error .form-control, .has-error .form-control { border-color: #ef4444; background-color: #fef2f2; }
 .error-msg { font-size: 0.75rem; color: #ef4444; margin-top: 4px; font-weight: 600; display: block; }
 .text-danger { color: #ef4444; }
-.input-group { display: flex; gap: 10px; }
-.year-input { max-width: 120px; }
 
 /* ESTILOS AÑADIDOS PARA UUID Y SELECTS */
 .uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
-.select-catalogo { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 600; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
 .btn-primary { background-color: #55C2B7; color: white; } 
@@ -529,8 +561,13 @@ onMounted(cargarDatos);
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
 /* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
-.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 600px; }
-.filter-input { max-width: 280px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
+.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.filter-year { max-width: 140px; font-weight: 600; color: #1f2937; background-color: #f9fafb; border-color: #d1d5db; }
+.filter-year:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+.filter-month { max-width: 160px; font-weight: 600; color: #374151; background-color: #f9fafb; border-color: #d1d5db; }
+.filter-month:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+.filter-input, .search-list { flex: 1; min-width: 150px; max-width: 280px; }
+.filter-input { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }
@@ -538,7 +575,7 @@ onMounted(cargarDatos);
   .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
   .header-actions { width: 100%; }
   .header-actions .btn { width: 100%; }
-  .history-filters { flex-direction: column; max-width: 100%; }
-  .filter-input { max-width: 100%; }
+  .history-filters { flex-direction: column; width: 100%; }
+  .filter-year, .filter-month, .filter-input, .search-list { max-width: 100%; width: 100%; }
 }
 </style>
