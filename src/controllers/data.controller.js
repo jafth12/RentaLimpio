@@ -121,7 +121,7 @@ export const importarTodoJSON = async (req, res) => {
                         ComMesDeclarado: c.ComMesDeclarado || 'Importado',
                         ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString(),
                         ComClasiRenta: limpiarCat(c.ComClasiRenta, '1'), 
-                        ComTipoCostoGastoRenta: limpiarCat(c.ComTipoCostoGastoRenta, '2'), 
+                        ComTipoCostoGasto: limpiarCat(c.ComTipoCostoGasto || c.ComTipoCostoGastoRenta, '2'), 
                         ComTipoOpeRenta: limpiarCat(c.ComTipoOpeRenta, '1'), 
                         ComAnexo: '3'
                     };

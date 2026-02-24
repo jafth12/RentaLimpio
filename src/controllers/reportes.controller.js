@@ -10,12 +10,12 @@ const obtenerNumeroMes = (m) => {
     return mapa[m] || "01";
 };
 
+// Tijera para evitar el error de MySQL "Incorrect date value"
 const formatearFecha = (fecha) => {
     if (!fecha) return null;
     return fecha.toString().split('T')[0];
 };
 
-// 🛡️ NUEVO: Función maestra para eliminar guiones de manera segura
 const sinGuiones = (texto) => {
     if (!texto) return '';
     return texto.toString().replace(/-/g, '');
@@ -27,7 +27,7 @@ const sinGuiones = (texto) => {
 export const exportarCompras = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
+        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha DESC', [nit, mes, anio]);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -35,7 +35,7 @@ export const exportarCompras = async (req, res) => {
 export const exportarVentasConsumidor = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ? ORDER BY ConsFecha DESC', [nit, obtenerNumeroMes(mes), anio]);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -43,7 +43,7 @@ export const exportarVentasConsumidor = async (req, res) => {
 export const exportarVentasCredito = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ? ORDER BY FiscFecha DESC', [nit, obtenerNumeroMes(mes), anio]);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -51,7 +51,7 @@ export const exportarVentasCredito = async (req, res) => {
 export const exportarSujetos = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ? ORDER BY ComprasSujExcluFecha DESC', [nit, obtenerNumeroMes(mes), anio]);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -63,11 +63,12 @@ export const exportarTodoJSON = async (req, res) => {
     try {
         const [declarante] = await pool.query('SELECT * FROM declarante WHERE iddeclaNIT = ?', [nit]);
         const mesNum = obtenerNumeroMes(mes);
-        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
-        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, mesNum, anio]);
-        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, mesNum, anio]);
-        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, mesNum, anio]);
+        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha DESC', [nit, mes, anio]);
+        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ? ORDER BY FiscFecha DESC', [nit, mesNum, anio]);
+        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ? ORDER BY ConsFecha DESC', [nit, mesNum, anio]);
+        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ? ORDER BY ComprasSujExcluFecha DESC', [nit, mesNum, anio]);
 
+        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN JSON
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'TODOS LOS MÓDULOS (BACKUP)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
@@ -93,16 +94,14 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const mesNum = obtenerNumeroMes(mes);
         const filtroFecha = `${anio}-${mesNum}`; 
 
-        const [anexo1] = await pool.query(`SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsFecha LIKE ?`, [nit, `${filtroFecha}%`]);
-        const [anexo2] = await pool.query(`SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscFecha LIKE ?`, [nit, `${filtroFecha}%`]);
-        const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ?`, [nit, `${filtroFecha}%`]);
-        const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ?`, [nit, `${filtroFecha}%`]);
+        const [anexo1] = await pool.query(`SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsFecha LIKE ? ORDER BY ConsFecha DESC`, [nit, `${filtroFecha}%`]);
+        const [anexo2] = await pool.query(`SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscFecha LIKE ? ORDER BY FiscFecha DESC`, [nit, `${filtroFecha}%`]);
+        const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ? ORDER BY ComFecha DESC`, [nit, `${filtroFecha}%`]);
+        const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ? ORDER BY ComprasSujExcluFecha DESC`, [nit, `${filtroFecha}%`]);
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'F-07 HACIENDA', `Periodo: ${mes}/${anio} - Empresa: ${nombreEmpresa}`);
 
-        // NOTA: Para el JSON de Hacienda F-07 a veces sí se envían los guiones según la estructura DTE, 
-        // pero por precaución, he limpiado las variables más críticas si el formato estricto lo requiere.
         const reporteHacienda = {
             identificacion: {
                 nit: sinGuiones(nit), razon_social: nombreEmpresa, periodo: `${mesNum}/${anio}`,
@@ -148,6 +147,9 @@ export const descargarAnexo1CSV = async (req, res) => {
         const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsFecha LIKE ?', [nit, `${filtroFecha}%`]);
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
+
+        // 🛡️ ORDENAMIENTO FORZADO EN JAVASCRIPT
+        rows.sort((a, b) => new Date(b.ConsFecha) - new Date(a.ConsFecha));
 
         const csvRows = rows.map(v => {
             const d = new Date(v.ConsFecha);
@@ -207,6 +209,9 @@ export const descargarAnexo2CSV = async (req, res) => {
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
 
+        // 🛡️ ORDENAMIENTO FORZADO EN JAVASCRIPT
+        rows.sort((a, b) => new Date(b.FiscFecha) - new Date(a.FiscFecha));
+
         const csvRows = rows.map(v => {
             const d = new Date(v.FiscFecha);
             const fechaLimpia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -255,6 +260,9 @@ export const descargarAnexo3CSV = async (req, res) => {
         const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ?', [nit, `${filtroFecha}%`]);
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay compras registradas para este periodo." });
+
+        // 🛡️ ORDENAMIENTO FORZADO EN JAVASCRIPT
+        rows.sort((a, b) => new Date(b.ComFecha) - new Date(a.ComFecha));
 
         const csvRows = rows.map(c => {
             const d = new Date(c.ComFecha);
@@ -315,6 +323,9 @@ export const descargarAnexo5CSV = async (req, res) => {
         const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ?', [nit, `${filtroFecha}%`]);
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
+
+        // 🛡️ ORDENAMIENTO FORZADO EN JAVASCRIPT
+        rows.sort((a, b) => new Date(b.ComprasSujExcluFecha) - new Date(a.ComprasSujExcluFecha));
 
         const csvRows = rows.map(s => {
             const d = new Date(s.ComprasSujExcluFecha);

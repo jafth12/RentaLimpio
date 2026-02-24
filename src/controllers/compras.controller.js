@@ -4,7 +4,6 @@ import { registrarAccion } from './historial.controller.js';
 // --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
     try {
-        // 🛡️ Ordenado de menor a mayor (ASC)
         const [rows] = await pool.query('SELECT * FROM compras ORDER BY ComFecha ASC');
         res.json(rows);
     } catch (error) {
@@ -28,7 +27,6 @@ export const getCompraById = async (req, res) => {
 export const createCompra = async (req, res) => {
     const d = req.body;
     try {
-        // Validación obligatoria
         if (!d.iddeclaNIT || !d.fecha || !d.numero_control || !d.nit_proveedor) {
             return res.status(400).json({ message: 'Empresa, Fecha, DTE y NIT del Proveedor son obligatorios.'});
         }
@@ -42,15 +40,15 @@ export const createCompra = async (req, res) => {
             `INSERT INTO compras 
             (iddeclaNIT, ComFecha, ComClase, ComTipo, ComNumero, ComCodGeneracion,
              proveedor_ProvNIT, ComNomProve, ComIntExe, ComIntGrav, ComCredFiscal, ComTotal,
-             ComClasiRenta, ComTipoCostoGastoRenta, ComTipoOpeRenta, ComAnexo) 
+             ComClasiRenta, ComTipoCostoGasto, ComTipoOpeRenta, ComAnexo) 
             VALUES (?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
             [
                 d.iddeclaNIT, 
                 d.fecha, 
-                d.numero_control,   // 🛡️ DTE
-                d.uuid_dte,         // 🛡️ UUID
-                d.nit_proveedor,    // NIT del proveedor
-                d.nombre_proveedor, // Nombre del proveedor
+                d.numero_control,   
+                d.uuid_dte,         
+                d.nit_proveedor,    
+                d.nombre_proveedor, 
                 exentas, 
                 gravadas, 
                 iva, 
@@ -62,7 +60,7 @@ export const createCompra = async (req, res) => {
         );
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-     registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.numero_control} - Total: $${total}`);
+        registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.numero_control} - Total: $${total}`);
         res.status(201).json({ message: 'Compra registrada en BD con éxito', id: result.insertId });
     } catch (error) {
         console.error("Error BD:", error);
@@ -84,13 +82,13 @@ export const updateCompra = async (req, res) => {
             `UPDATE compras SET 
             iddeclaNIT=?, ComFecha=?, ComNumero=?, ComCodGeneracion=?, 
             proveedor_ProvNIT=?, ComNomProve=?, ComIntExe=?, ComIntGrav=?, ComCredFiscal=?, ComTotal=?,
-            ComClasiRenta=?, ComTipoCostoGastoRenta=?, ComTipoOpeRenta=?
+            ComClasiRenta=?, ComTipoCostoGasto=?, ComTipoOpeRenta=?
             WHERE idCompras = ?`,
             [
                 d.iddeclaNIT, 
                 d.fecha, 
-                d.numero_control,   // 🛡️ DTE ACTUALIZADO
-                d.uuid_dte,         // 🛡️ UUID ACTUALIZADO
+                d.numero_control,   
+                d.uuid_dte,         
                 d.nit_proveedor, 
                 d.nombre_proveedor, 
                 exentas, 
@@ -104,8 +102,9 @@ export const updateCompra = async (req, res) => {
             ]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        
         const usuario = req.headers['x-usuario'] || 'Sistema';
-     registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
+        registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
         res.json({ message: 'Compra actualizada correctamente' });
     } catch (error) {
         console.error("Error BD:", error);
@@ -120,7 +119,7 @@ export const deleteCompra = async (req, res) => {
         const [result] = await pool.query('DELETE FROM compras WHERE idCompras = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
         const usuario = req.headers['x-usuario'] || 'Sistema';
-     registrarAccion(usuario, 'ELIMINACION', 'COMPRAS', `Registro ID Eliminado: ${id}`);
+        registrarAccion(usuario, 'ELIMINACION', 'COMPRAS', `Registro ID Eliminado: ${id}`);
         res.json({ message: 'Compra eliminada correctamente' });
     } catch (error) {
         res.status(500).json({ message: 'Error al eliminar', error: error.message });
