@@ -83,6 +83,9 @@ export const importarTodoJSON = async (req, res) => {
     const connection = await pool.getConnection();
     const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, duplicados: 0 };
 
+    // Función auxiliar para extraer solo el número del catálogo
+    const limpiarCat = (val, def) => val ? (val.toString().match(/\d+/) || [def])[0] : def;
+
     try {
         await connection.beginTransaction();
 
@@ -106,16 +109,20 @@ export const importarTodoJSON = async (req, res) => {
                         proveedor_ProvNIT: c.proveedor_ProvNIT,
                         ComNomProve: c.ComNomProve,
                         ComFecha: formatearFecha(c.ComFecha), 
-                        ComClase: c.ComClase,
-                        ComTipo: c.ComTipo,
+                        ComClase: c.ComClase || '4',
+                        ComTipo: limpiarCat(c.ComTipo, '03'),
                         ComNumero: c.ComNumero,
-                        ComCodGeneracion: c.ComCodGeneracion || null, // 🛡️ AHORA SÍ LO GUARDA
+                        ComCodGeneracion: c.ComCodGeneracion || null, 
                         ComIntExe: c.ComIntExe || 0,
                         ComIntGrav: c.ComIntGrav || 0,
                         ComCredFiscal: c.ComCredFiscal || 0,
                         ComTotal: c.ComTotal || 0,
                         ComMesDeclarado: c.ComMesDeclarado || 'Importado',
-                        ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString()
+                        ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString(),
+                        ComClasiRenta: limpiarCat(c.ComClasiRenta, '1'), 
+                        ComTipoCostoGastoRenta: limpiarCat(c.ComTipoCostoGastoRenta, '2'), 
+                        ComTipoOpeRenta: limpiarCat(c.ComTipoOpeRenta, '1'), 
+                        ComAnexo: '3'
                     };
                     await connection.query('INSERT INTO compras SET ?', nuevaCompra);
                     reporte.compras++;
@@ -135,16 +142,21 @@ export const importarTodoJSON = async (req, res) => {
                     const nuevoCCF = {
                         iddeclaNIT: nitDeclarante,
                         FiscFecha: formatearFecha(v.FiscFecha), 
-                        FisClasDoc: v.FisClasDoc,
-                        FisTipoDoc: v.FisTipoDoc,
+                        FisClasDoc: v.FisClasDoc || '4',
+                        FisTipoDoc: limpiarCat(v.FisTipoDoc, '03'),
                         FiscNumDoc: v.FiscNumDoc,
-                        FiscCodGeneracion: v.FiscCodGeneracion || null, // 🛡️ AHORA SÍ LO GUARDA
+                        FiscCodGeneracion: v.FiscCodGeneracion || null, 
+                        FiscNumContInter: v.FiscCodGeneracion || null, 
                         FiscNit: v.FiscNit,
                         FiscNomRazonDenomi: v.FiscNomRazonDenomi,
+                        FiscVtaExen: v.FiscVtaExen || 0,
+                        FiscVtaNoSujetas: v.FiscVtaNoSujetas || 0,
                         FiscVtaGravLocal: v.FiscVtaGravLocal || 0,
                         FiscDebitoFiscal: v.FiscDebitoFiscal || 0,
                         FiscTotalVtas: v.FiscTotalVtas || 0,
-                        FiscNumAnexo: v.FiscNumAnexo || '2'
+                        BusFiscTipoOperaRenta: limpiarCat(v.BusFiscTipoOperaRenta, '1'),
+                        BusFiscTipoIngresoRenta: limpiarCat(v.BusFiscTipoIngresoRenta, '1'),
+                        FiscNumAnexo: '2'
                     };
                     await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
                     reporte.ventas_ccf++;
@@ -164,14 +176,19 @@ export const importarTodoJSON = async (req, res) => {
                     const nuevoCF = {
                         iddeclaNIT: nitDeclarante,
                         ConsFecha: formatearFecha(v.ConsFecha), 
-                        ConsClaseDoc: v.ConsClaseDoc,
-                        ConsTipoDoc: v.ConsTipoDoc,
+                        ConsClaseDoc: v.ConsClaseDoc || '4',
+                        ConsTipoDoc: limpiarCat(v.ConsTipoDoc, '01'),
                         ConsNumDocDEL: v.ConsNumDocDEL,
-                        ConsNumDocAL: v.ConsNumDocAL,
-                        ConsCodGeneracion: v.ConsCodGeneracion || null, // 🛡️ AHORA SÍ LO GUARDA
+                        ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL,
+                        ConsCodGeneracion: v.ConsCodGeneracion || null,
+                        ConsNomRazonCliente: v.ConsNomRazonCliente || 'Cliente General',
+                        ConsVtaExentas: v.ConsVtaExentas || 0,
+                        ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0,
                         ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
                         ConsTotalVta: v.ConsTotalVta || 0,
-                        ConsNumAnexo: v.ConsNumAnexo || '1'
+                        ConsTipoOpera: limpiarCat(v.ConsTipoOpera, '1'),
+                        ConsTipoIngreso: limpiarCat(v.ConsTipoIngreso, '1'),
+                        ConsNumAnexo: '1'
                     };
                     await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
                     reporte.ventas_cf++;
@@ -193,11 +210,16 @@ export const importarTodoJSON = async (req, res) => {
                         ComprasSujExcluNIT: s.ComprasSujExcluNIT,
                         ComprasSujExcluNom: s.ComprasSujExcluNom,
                         ComprasSujExcluFecha: formatearFecha(s.ComprasSujExcluFecha), 
+                        ComprasSujExcluTipoDoc: limpiarCat(s.ComprasSujExcluTipoDoc, '14'),
                         ComprasSujExcluNumDoc: s.ComprasSujExcluNumDoc,
-                        ComprasSujExcluCodGeneracion: s.ComprasSujExcluCodGeneracion || null, // 🛡️ AHORA SÍ LO GUARDA
+                        ComprasSujExcluCodGeneracion: s.ComprasSujExcluCodGeneracion || null, 
                         ComprasSujExcluMontoOpera: s.ComprasSujExcluMontoOpera || 0,
                         ComprasSujExcluMontoReten: s.ComprasSujExcluMontoReten || 0,
-                        ComprasSujExcluAnexo: s.ComprasSujExcluAnexo || '5'
+                        ComprasSujExcluTipoOpera: limpiarCat(s.ComprasSujExcluTipoOpera, '1'),
+                        ComprasSujExcluClasificacion: limpiarCat(s.ComprasSujExcluClasificacion, '2'),
+                        ComprasSujExclusector: limpiarCat(s.ComprasSujExclusector, '4'),
+                        ComprasSujExcluTipoCostoGast: limpiarCat(s.ComprasSujExcluTipoCostoGast, '2'),
+                        ComprasSujExcluAnexo: '5'
                     };
                     await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
                     reporte.sujetos++;

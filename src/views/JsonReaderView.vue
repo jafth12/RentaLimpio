@@ -277,7 +277,8 @@ const clasificarDTE = (dte) => {
         ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero,
         ConsCodGeneracion: codGen,
         ConsVtaGravLocales: gravado, ConsTotalVta: total,
-        ConsClaseDoc: 'DTE', ConsTipoDoc: '01. FACTURA', ConsNumAnexo: '1'
+        ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL',
+        ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1' // 🛡️ CORREGIDO: Ahora manda 4 y 01
       };
     } else if (tipoDte === '14') { 
       resultado.modulo = 'sujetos_excluidos';
@@ -288,6 +289,7 @@ const clasificarDTE = (dte) => {
         ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
         ComprasSujExcluMontoOpera: total,
         ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
+        ComprasSujExcluTipoDoc: '14', // 🛡️ CORREGIDO
         ComprasSujExcluAnexo: '5'
       };
     }

@@ -1,77 +1,120 @@
 import pool from '../config/db.js';
 
-const obtenerMesDesdeFecha = (fecha) => {
-    if (!fecha) return 'Desconocido';
-    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const numeroMes = parseInt(fecha.split('-')[1]) - 1; 
-    return meses[numeroMes] || 'Desconocido';
-};
-
+// --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
     try {
-        const [rows] = await pool.query(`SELECT c.*, p.ProvNombre FROM compras c LEFT JOIN proveedor p ON c.proveedor_ProvNIT = p.ProvNIT ORDER BY c.idcompras DESC`);
+        // 🛡️ Ordenado de menor a mayor (ASC)
+        const [rows] = await pool.query('SELECT * FROM compras ORDER BY ComFecha ASC');
         res.json(rows);
-    } catch (error) { res.status(500).json({ error: error.message }); }
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al obtener compras', error: error.message });
+    }
 };
 
-export const createCompra = async (req, res) => {
-    const data = req.body;
-    const mesFinal = data.mesDeclarado || obtenerMesDesdeFecha(data.fecha);
-    const anioFinal = data.anioDeclarado || data.fecha.split('-')[0];
-    
+// --- 2. OBTENER UNA COMPRA POR ID ---
+export const getCompraById = async (req, res) => {
+    const { id } = req.params;
     try {
+        const [rows] = await pool.query('SELECT * FROM compras WHERE idCompras = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        res.json(rows[0]);
+    } catch (error) {
+        return res.status(500).json({ message: 'Error al obtener la compra', error: error.message });
+    }
+};
+
+// --- 3. CREAR NUEVA COMPRA ---
+export const createCompra = async (req, res) => {
+    const d = req.body;
+    try {
+        // Validación obligatoria
+        if (!d.iddeclaNIT || !d.fecha || !d.numero_control || !d.nit_proveedor) {
+            return res.status(400).json({ message: 'Empresa, Fecha, DTE y NIT del Proveedor son obligatorios.'});
+        }
+
+        const gravadas = parseFloat(d.gravadas) || 0;
+        const iva = d.iva !== undefined ? parseFloat(d.iva) : (gravadas * 0.13);
+        const exentas = parseFloat(d.exentas) || 0;
+        const total = parseFloat(d.total) || 0;
+
         const [result] = await pool.query(
-            `INSERT INTO compras (
-                ComFecha, ComClase, ComTipo, ComNumero, proveedor_ProvNIT, 
-                ComNomProve, iddeclaNIT, ComIntExe, ComIntGrav, ComCredFiscal, 
-                ComTotal, ComTipoOpeRenta, ComClasiRenta, ComSecNum, 
-                ComTipoCostoGasto, ComMesDeclarado, ComAnioDeclarado, ComOtroAtributo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            `INSERT INTO compras 
+            (iddeclaNIT, ComFecha, ComClase, ComTipo, ComNumero, ComCodGeneracion,
+             proveedor_ProvNIT, ComNomProve, ComIntExe, ComIntGrav, ComCredFiscal, ComTotal,
+             ComClasiRenta, ComTipoCostoGastoRenta, ComTipoOpeRenta, ComAnexo) 
+            VALUES (?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
             [
-                data.fecha, data.claseDocumento, data.tipoDocumento, data.numero, data.nitProveedor,
-                data.nombreProveedor, data.iddeclaNIT, data.internasExentas || 0, data.internasGravadas || 0, data.iva || 0,
-                data.total || 0, data.tipoOperacion, data.clasificacion, data.sector,
-                data.tipoCostoGasto, mesFinal, anioFinal, data.otroAtributo || 0
+                d.iddeclaNIT, 
+                d.fecha, 
+                d.numero_control,   // 🛡️ DTE
+                d.uuid_dte,         // 🛡️ UUID
+                d.nit_proveedor,    // NIT del proveedor
+                d.nombre_proveedor, // Nombre del proveedor
+                exentas, 
+                gravadas, 
+                iva, 
+                total,
+                d.clasificacion || '1', 
+                d.costo_gasto || '2', 
+                d.tipo_operacion || '1'
             ]
         );
-        res.status(201).json({ message: 'Registro Contable Guardado Correctamente', id: result.insertId });
-    } catch (error) { res.status(500).json({ error: "Falla de Auditoría: " + error.message }); }
+        res.status(201).json({ message: 'Compra registrada en BD con éxito', id: result.insertId });
+    } catch (error) {
+        console.error("Error BD:", error);
+        res.status(500).json({ error: error.message });
+    }
 };
 
+// --- 4. ACTUALIZAR COMPRA ---
 export const updateCompra = async (req, res) => {
     const { id } = req.params;
-    const data = req.body;
+    const d = req.body;
     try {
-        await pool.query(
+        const gravadas = parseFloat(d.gravadas) || 0;
+        const iva = d.iva !== undefined ? parseFloat(d.iva) : (gravadas * 0.13);
+        const exentas = parseFloat(d.exentas) || 0;
+        const total = parseFloat(d.total) || 0;
+
+        const [result] = await pool.query(
             `UPDATE compras SET 
-             ComFecha=?, ComClase=?, ComTipo=?, ComNumero=?, ComIntExe=?, 
-             ComIntGrav=?, ComCredFiscal=?, ComTotal=?, ComTipoOpeRenta=?, 
-              ComClasiRenta=?, ComSecNum=?, ComTipoCostoGasto=?, ComOtroAtributo=?,
-             ComNomProve=?, proveedor_ProvNIT=?, iddeclaNIT=?
-             WHERE idcompras=?`, 
-        [
-        data.fecha, data.claseDocumento, data.tipoDocumento, data.numero, data.internasExentas,
-        data.internasGravadas, data.iva, data.total, data.tipoOperacion,
-        data.clasificacion, data.sector, data.tipoCostoGasto, data.otroAtributo,
-        data.nombreProveedor, data.nitProveedor, data.iddeclaNIT, id
-        ]
-);
-        res.json({ message: 'Registro Actualizado y Auditado' });
-    } catch (error) { res.status(500).json({ error: "Error Crítico al Actualizar: " + error.message }); }
+            iddeclaNIT=?, ComFecha=?, ComNumero=?, ComCodGeneracion=?, 
+            proveedor_ProvNIT=?, ComNomProve=?, ComIntExe=?, ComIntGrav=?, ComCredFiscal=?, ComTotal=?,
+            ComClasiRenta=?, ComTipoCostoGastoRenta=?, ComTipoOpeRenta=?
+            WHERE idCompras = ?`,
+            [
+                d.iddeclaNIT, 
+                d.fecha, 
+                d.numero_control,   // 🛡️ DTE ACTUALIZADO
+                d.uuid_dte,         // 🛡️ UUID ACTUALIZADO
+                d.nit_proveedor, 
+                d.nombre_proveedor, 
+                exentas, 
+                gravadas, 
+                iva, 
+                total,
+                d.clasificacion || '1', 
+                d.costo_gasto || '2', 
+                d.tipo_operacion || '1',
+                id
+            ]
+        );
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        res.json({ message: 'Compra actualizada correctamente' });
+    } catch (error) {
+        console.error("Error BD:", error);
+        res.status(500).json({ message: 'Error al actualizar', error: error.message });
+    }
 };
 
+// --- 5. ELIMINAR COMPRA ---
 export const deleteCompra = async (req, res) => {
     const { id } = req.params;
     try {
-        await pool.query('DELETE FROM compras WHERE idcompras = ?', [id]);
-        res.json({ message: 'Eliminado' });
-    } catch (error) { res.status(500).json({ error: error.message }); }
-};
-
-export const exportarComprasJSON = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [rows] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT=? AND ComMesDeclarado=? AND ComAnioDeclarado=?`, [nit, mes, anio]);
-        res.json({ lista_compras: rows });
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        const [result] = await pool.query('DELETE FROM compras WHERE idCompras = ?', [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        res.json({ message: 'Compra eliminada correctamente' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al eliminar', error: error.message });
+    }
 };

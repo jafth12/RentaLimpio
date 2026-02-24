@@ -26,14 +26,14 @@
           <form @submit.prevent="guardarCompra" class="form-body">
             
             <div class="form-section">
-              <h3 class="section-title">👤 Datos del Emisor</h3>
+              <h3 class="section-title">👤 Datos de Identificación</h3>
               
               <div class="form-grid">
                 <div class="form-group" :class="{ 'has-error': errores.declarante }">
-                  <label class="form-label">Declarante <span class="text-danger">*</span></label>
+                  <label class="form-label">Su Empresa (Receptor) <span class="text-danger">*</span></label>
                   
                   <div v-if="!declaranteSeleccionado" class="search-box">
-                    <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar declarante..." class="form-control" @focus="mostrarSugerenciasDeclarante = true">
+                    <input type="text" v-model="busquedaDeclarante" placeholder="🔍 Buscar empresa..." class="form-control" @focus="mostrarSugerenciasDeclarante = true">
                     <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="suggestions-list">
                       <li v-for="d in declarantesFiltrados" :key="d.iddeclaNIT" @click="seleccionarDeclarante(d)">
                         <span class="font-bold">{{ d.declarante }}</span>
@@ -44,7 +44,7 @@
                   
                   <div v-else class="selected-item">
                     <div class="selected-info">
-                      <span class="icon">👤</span>
+                      <span class="icon">🏢</span>
                       <div>
                         <strong>{{ declaranteSeleccionado.declarante }}</strong>
                         <small>{{ declaranteSeleccionado.iddeclaNIT }}</small>
@@ -56,7 +56,7 @@
                 </div>
 
                 <div class="form-group" :class="{ 'has-error': errores.proveedor }">
-                  <label class="form-label">Proveedor <span class="text-danger">*</span></label>
+                  <label class="form-label">Proveedor (Emisor) <span class="text-danger">*</span></label>
                   
                   <div v-if="!proveedorSeleccionado" class="search-box">
                     <input type="text" v-model="busqueda" placeholder="🔍 Buscar proveedor..." class="form-control" @focus="mostrarSugerencias = true">
@@ -70,7 +70,7 @@
 
                   <div v-else class="selected-item">
                     <div class="selected-info">
-                      <span class="icon">🏢</span>
+                      <span class="icon">🚚</span>
                       <div>
                         <strong>{{ proveedorSeleccionado.ProvNombre }}</strong>
                         <small>{{ proveedorSeleccionado.ProvNIT }}</small>
@@ -84,23 +84,18 @@
             </div>
 
             <div class="form-section">
-              <h3 class="section-title">📄 Detalles del Documento</h3>
+              <h3 class="section-title">📄 Detalles del Documento Recibido</h3>
               
               <div class="form-grid three-cols">
-                
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
                   <input type="date" v-model="formulario.fecha" class="form-control" required>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Periodo</label>
-                  <div class="input-group">
-                    <select v-model="formulario.mesDeclarado" class="form-control">
-                      <option v-for="m in opcionesMeses" :key="m" :value="m">{{ m }}</option>
-                    </select>
-                    <input type="number" v-model="formulario.anioDeclarado" class="form-control year-input" placeholder="Año">
-                  </div>
+                  <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
+                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+                   <small class="text-muted text-xs">Código de 36 caracteres del DTE.</small>
                 </div>
 
                 <div class="form-group">
@@ -114,7 +109,7 @@
                       <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
                       <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
                    </div>
-                   <small class="form-text text-muted">Ej: DTE-00-S-000-P-000...</small>
+                   <small class="form-text text-muted text-xs">Número del comprobante del proveedor.</small>
                 </div>
               </div>
 
@@ -147,15 +142,15 @@
                 </div>
 
                 <div class="monto-group">
-                  <label class="monto-label">13% IVA <span class="text-xs text-muted">(Editable)</span></label>
+                  <label class="monto-label text-success">13% IVA (Crédito Fiscal)</label>
                   <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" v-model="formulario.iva" step="0.01" class="form-control monto-input" @input="calcularTotalManual" @blur="formatearDecimal('iva')">
+                    <span class="currency text-success">+</span>
+                    <input type="number" v-model="formulario.iva" step="0.01" class="form-control monto-input text-success" @input="calcularTotalManual" @blur="formatearDecimal('iva')">
                   </div>
                 </div>
 
                 <div class="monto-group total-group">
-                  <label class="monto-label">TOTAL A PAGAR</label>
+                  <label class="monto-label">TOTAL FACTURA</label>
                   <div class="input-wrapper">
                     <span class="currency">$</span>
                     <input type="number" v-model="formulario.total" step="0.01" class="form-control total-input" readonly>
@@ -185,7 +180,7 @@
                 <input type="text" 
                        v-model="declaranteFiltro" 
                        list="lista-decla-compras" 
-                       placeholder="🏢 Filtrar por NIT de Declarante..." 
+                       placeholder="🏢 Filtrar por NIT de Empresa..." 
                        class="form-control filter-input">
                 <datalist id="lista-decla-compras">
                    <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
@@ -204,13 +199,13 @@
                   <th>Fecha</th>
                   <th>Anexo</th>
                   <th>Proveedor</th>
-                  <th>Documento</th>
+                  <th>Documento CCF</th>
                   <th class="text-right">Total</th>
                   <th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="c in comprasFiltradas" :key="c.idcompras">
+                <tr v-for="c in comprasFiltradas" :key="c.idCompras">
                   <td>{{ formatearFecha(c.ComFecha) }}</td>
                   <td><span class="badge-anexo">Anexo 3</span></td>
                   <td>
@@ -218,13 +213,12 @@
                     <small class="text-muted">{{ c.proveedor_ProvNIT }}</small>
                   </td>
                   <td>
-                    <span class="badge badge-light">{{ obtenerCodigo(c.ComTipo) }}</span>
                     <span class="doc-number">{{ c.ComNumero }}</span>
                   </td>
                   <td class="text-right fw-bold text-success">${{ parseFloat(c.ComTotal || 0).toFixed(2) }}</td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(c)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idCompras)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
                 <tr v-if="comprasFiltradas.length === 0">
@@ -261,14 +255,12 @@ const opcionesOperacion = ["1. GRAVADA", "2. NO GRAVADA O EXENTA", "3. EXCLUIDO 
 const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. COSTO", "2. GASTO", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECURIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
-const opcionesMeses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 const formulario = ref({ 
     fecha: new Date().toISOString().split('T')[0], 
-    mesDeclarado: opcionesMeses[new Date().getMonth()], 
-    anioDeclarado: new Date().getFullYear(),
-    numero: '', duiProveedor: '',
+    numero_control: '', 
+    uuid_dte: '',
     claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
@@ -283,13 +275,13 @@ const listaCompras = ref([]);
 const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
-const mostrandoLista = ref(false); 
+const mostrandoLista = ref(true); 
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
 
 // Variables de Búsqueda y Filtro
 const filtroLista = ref(''); 
-const declaranteFiltro = ref(''); // 🛡️ NUEVO FILTRO PARA EL HISTORIAL
+const declaranteFiltro = ref(''); 
 
 const busqueda = ref('');
 const proveedorSeleccionado = ref(null);
@@ -310,7 +302,7 @@ const handleInputMask = (e, partName, maxLength) => {
 };
 const actualizarNumeroCompleto = () => {
     const letra = ccfParts.value.letraSerie || 'S';
-    formulario.value.numero = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`;
+    formulario.value.numero_control = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`;
 };
 
 const extraerSoloCodigo = (t) => t ? t.split(/[\.\s]+/)[0] : '';
@@ -348,16 +340,14 @@ const declarantesFiltrados = computed(() => {
   return todosLosDeclarantes.value.filter(d => d && (String(d.declarante || '').toLowerCase().includes(txt) || String(d.iddeclaNIT || '').includes(txt)));
 });
 
-// 🛡️ NUEVO FILTRADO INTELIGENTE
+// 🛡️ FILTRADO INTELIGENTE
 const comprasFiltradas = computed(() => {
   let filtrado = listaCompras.value || [];
   
-  // Paso 1: Filtrar por Declarante (Si seleccionaron alguno)
   if (declaranteFiltro.value) {
      filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value);
   }
   
-  // Paso 2: Filtrar por la barra de búsqueda de texto
   if (filtroLista.value) {
     const txt = filtroLista.value.toLowerCase().trim();
     filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt)));
@@ -365,7 +355,15 @@ const comprasFiltradas = computed(() => {
   return filtrado;
 });
 
-const alternarVista = () => { if (modoEdicion) cancelarEdicion(); mostrandoLista.value = !mostrandoLista.value; };
+const alternarVista = () => { 
+  if (modoEdicion.value) {
+    cancelarEdicion(); // Si estaba editando, cancela y vuelve a la lista
+  } else {
+    resetForm(); // Limpia el formulario
+    mostrandoLista.value = !mostrandoLista.value; // Alterna la vista
+  }
+};
+
 const seleccionarProveedor = (p) => { proveedorSeleccionado.value = p; mostrarSugerencias.value = false; busqueda.value = ''; errores.value.proveedor = false; };
 const quitarProveedor = () => proveedorSeleccionado.value = null;
 const seleccionarDeclarante = (d) => { declaranteSeleccionado.value = d; mostrarSugerenciasDeclarante.value = false; busquedaDeclarante.value = ''; errores.value.declarante = false; };
@@ -373,9 +371,17 @@ const quitarDeclarante = () => declaranteSeleccionado.value = null;
 
 const prepararEdicion = (compra) => {
   let fSegura = compra.ComFecha ? new Date(compra.ComFecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+  
+  const rawNum = compra.ComNumero || '';
+  const cleanNumero = rawNum.replace(/-/g, '');
+  const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+  const match = cleanNumero.match(regex);
+  ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+
   formulario.value = {
-    fecha: fSegura, mesDeclarado: compra.ComMesDeclarado || opcionesMeses[new Date().getMonth()], anioDeclarado: compra.ComAnioDeclarado || new Date().getFullYear(),
-    numero: compra.ComNumero || '', duiProveedor: compra.ComDuiProve || '',
+    fecha: fSegura, 
+    numero_control: rawNum, 
+    uuid_dte: compra.ComCodGeneracion || '',
     claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase), tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
     tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion), clasificacion: recuperarOpcionCompleta(compra.ComClasiRenta, opcionesClasificacion), 
     sector: recuperarOpcionCompleta(compra.ComSecNum, opcionesSector), tipoCostoGasto: recuperarOpcionCompleta(compra.ComTipoCostoGasto, opcionesCostoGasto),
@@ -384,11 +390,6 @@ const prepararEdicion = (compra) => {
     iva: parseFloat(compra.ComCredFiscal || 0).toFixed(2), total: parseFloat(compra.ComTotal || 0).toFixed(2), otroAtributo: parseFloat(compra.ComOtroAtributo || 0).toFixed(2)
   };
   
-  const cleanNumero = compra.ComNumero ? compra.ComNumero.replace(/-/g, '') : '';
-  const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
-  const match = cleanNumero.match(regex);
-  ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
-
   const prov = todosLosProveedores.value.find(p => p.ProvNIT === compra.proveedor_ProvNIT);
   proveedorSeleccionado.value = prov || { ProvNIT: compra.proveedor_ProvNIT, ProvNombre: compra.ComNomProve || 'Histórico' };
   
@@ -398,13 +399,17 @@ const prepararEdicion = (compra) => {
   } else declaranteSeleccionado.value = null;
 
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
-  modoEdicion.value = true; idEdicion.value = compra.idcompras; mostrandoLista.value = false; 
+  // 🛡️ CORRECCIÓN DEL ID PARA EDICIÓN
+  idEdicion.value = compra.idCompras; 
+  modoEdicion.value = true; 
+  mostrandoLista.value = false; 
 };
 
-const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; };
+const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; mostrandoLista.value = true; };
 const resetForm = () => {
   formulario.value.fecha = new Date().toISOString().split('T')[0];
-  formulario.value.numero = ''; formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; formulario.value.iva = '0.00';
+  formulario.value.numero_control = ''; formulario.value.uuid_dte = '';
+  formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; formulario.value.iva = '0.00'; formulario.value.internasExentas = '0.00';
   ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
   proveedorSeleccionado.value = null; declaranteSeleccionado.value = null;
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
@@ -422,7 +427,7 @@ const guardarCompra = async () => {
   errores.value.proveedor = !proveedorSeleccionado.value;
   errores.value.declarante = !declaranteSeleccionado.value;
   errores.value.fecha = !formulario.value.fecha;
-  errores.value.numero = !formulario.value.numero; 
+  errores.value.numero = !formulario.value.numero_control; 
   errores.value.internas = formulario.value.internasGravadas === '' || parseFloat(formulario.value.internasGravadas) < 0;
 
   if (Object.values(errores.value).some(v => v)) { alert("Complete los campos obligatorios."); return; }
@@ -431,11 +436,11 @@ const guardarCompra = async () => {
   const payload = { 
       ...formulario.value, 
       claseDocumento: extraerSoloCodigo(formulario.value.claseDocumento), tipoDocumento: extraerSoloCodigo(formulario.value.tipoDocumento),
-      tipoOperacion: extraerSoloCodigo(formulario.value.tipoOperacion), clasificacion: extraerSoloCodigo(formulario.value.clasificacion),
-      sector: extraerSoloCodigo(formulario.value.sector), tipoCostoGasto: extraerSoloCodigo(formulario.value.tipoCostoGasto),
-      nitProveedor: proveedorSeleccionado.value.ProvNIT, nombreProveedor: proveedorSeleccionado.value.ProvNombre,
+      tipo_operacion: extraerSoloCodigo(formulario.value.tipoOperacion), clasificacion: extraerSoloCodigo(formulario.value.clasificacion),
+      sector: extraerSoloCodigo(formulario.value.sector), costo_gasto: extraerSoloCodigo(formulario.value.tipoCostoGasto),
+      nit_proveedor: proveedorSeleccionado.value.ProvNIT, nombre_proveedor: proveedorSeleccionado.value.ProvNombre,
       iddeclaNIT: declaranteSeleccionado.value.iddeclaNIT,
-      internasGravadas: parseFloat(formulario.value.internasGravadas)||0, internasExentas: parseFloat(formulario.value.internasExentas)||0,
+      gravadas: parseFloat(formulario.value.internasGravadas)||0, exentas: parseFloat(formulario.value.internasExentas)||0,
       iva: parseFloat(formulario.value.iva)||0, total: parseFloat(formulario.value.total)||0
   };
 
@@ -444,7 +449,7 @@ const guardarCompra = async () => {
     else await axios.post(API_COMPRAS, payload);
     mensaje.value = modoEdicion.value ? '¡Actualizado!' : '¡Guardado con éxito!'; tipoMensaje.value = 'success';
     await cargarDatos(); 
-    setTimeout(() => { mensaje.value = ''; if (modoEdicion.value) cancelarEdicion(); else resetForm(); mostrandoLista.value = true; }, 1500);
+    setTimeout(() => { mensaje.value = ''; resetForm(); mostrandoLista.value = true; }, 1500);
   } catch (error) { tipoMensaje.value = 'error'; mensaje.value = error.response?.data?.message || 'Error al guardar'; } 
   finally { cargando.value = false; }
 };
@@ -481,6 +486,11 @@ onMounted(cargarDatos);
 .text-danger { color: #ef4444; }
 .input-group { display: flex; gap: 10px; }
 .year-input { max-width: 120px; }
+
+/* ESTILOS AÑADIDOS PARA UUID Y SELECTS */
+.uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
+.select-catalogo { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 600; }
+
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
 .btn-primary { background-color: #55C2B7; color: white; } 
 .btn-success { background-color: #10b981; color: white; }

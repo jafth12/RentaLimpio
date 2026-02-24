@@ -3,7 +3,7 @@ import pool from "../config/db.js";
 // Obtener todas las ventas
 export const getVentas = async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM vtagravterdomici ORDER BY VtaGraTerFecha DESC');
+        const [rows] = await pool.query('SELECT * FROM vtagravterdomici ORDER BY VtaGraTerFecha ASC');
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener registros', error: error.message });

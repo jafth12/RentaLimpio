@@ -3,7 +3,8 @@ import pool from '../config/db.js';
 // --- 1. OBTENER TODAS LAS VENTAS CCF ---
 export const getVentasCCF = async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY FiscFecha DESC');
+        // 🛡️ Cambiado de DESC a ASC (De menor a mayor)
+        const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY FiscFecha ASC');
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener ventas CCF', error: error.message });

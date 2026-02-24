@@ -3,7 +3,8 @@ import pool from "../config/db.js";
 // --- 1. OBTENER TODAS LAS VENTAS ---
 export const getVentasConsumidor = async (req, res) => { 
     try {
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal ORDER BY ConsFecha DESC');
+        // 🛡️ Cambiado de DESC a ASC (De menor a mayor)
+        const [rows] = await pool.query('SELECT * FROM consumidorfinal ORDER BY ConsFecha ASC');
         res.json(rows); 
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener ventas', error: error.message });

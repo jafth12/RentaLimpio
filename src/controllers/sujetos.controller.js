@@ -3,7 +3,8 @@ import pool from "../config/db.js";
 // 1. OBTENER REGISTROS
 export const getSujetos = async (req, res) => {
     try {
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos ORDER BY ComprasSujExcluFecha DESC');
+        // 🛡️ Cambiado de DESC a ASC (De menor a mayor)
+        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos ORDER BY ComprasSujExcluFecha ASC');
         res.json(rows);
     } catch (error) {
         console.error(error);
