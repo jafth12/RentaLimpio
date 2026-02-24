@@ -16,6 +16,8 @@ import ImportExportView from '../views/ImportExportView.vue';
 import JsonReaderView from '../views/JsonReaderView.vue';
 import ClientesView from '../views/ClientesView.vue';
 import DeclarantesView from '../views/DeclarantesView.vue';
+// 🛡️ IMPORTAR LA NUEVA VISTA DE HISTORIAL
+import HistorialView from '../views/HistorialView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -28,7 +30,8 @@ const router = createRouter({
         {
             path: '/inicio',
             name: 'home',
-            component: HomeView
+            component: HomeView,
+            meta: { requiresAuth: true } // Añadido para que la vista inicio esté protegida
         },
         {
             path: '',
@@ -56,7 +59,7 @@ const router = createRouter({
         },
         {
             path: '/venta-consumidor',
-            name: 'Venta consumidor Final',
+            name: 'venta-consumidor',
             component: VentasConsumidorView,
             meta: { requiresAuth: true }
         },
@@ -75,7 +78,8 @@ const router = createRouter({
         {
             path: '/ventas-terceros',
             name: 'ventas-terceros',
-            component: VentasTercerosView
+            component: VentasTercerosView,
+            meta: { requiresAuth: true }
         },
         {
           path: '/importar-exportar',
@@ -86,11 +90,12 @@ const router = createRouter({
          {
              path: '/lector-json',
              name: 'lector-json',
-            component: JsonReaderView
+            component: JsonReaderView,
+            meta: { requiresAuth: true }
         },
          { 
             path: '/clientes-menu', 
-            name: 'Gestion de Clientes',
+            name: 'clientes-menu',
             component: ClientesView, 
             meta:{ requiresAuth: true } 
         },
@@ -100,10 +105,16 @@ const router = createRouter({
             component: DeclarantesView,
             meta: { requiresAuth: true }
         },
+        
+        // 🛡️ RUTA DE HISTORIAL AGREGADA (Oculta para usuarios no admin en el layout)
+        {
+            path: '/historial',
+            name: 'historial',
+            component: HistorialView,
+            meta: { requiresAuth: true } 
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
-        // Se eliminaron las rutas que ya tienen módulos activos arriba
-
         { path: '/retencion-1-declarante', name: 'Retencion 1% al Declarante', component: EnConstruccion },
         { path: '/retencion-13-terceros', name: 'Retencion 13% a Terceros', component: EnConstruccion },
         { path: '/retencion-1-terceros', name: 'Retencion 1% a Terceros', component: EnConstruccion },
@@ -112,19 +123,6 @@ const router = createRouter({
         { path: '/anticipo-2-por-declarante', name: 'Anticipo 2% por el Declarante', component: EnConstruccion },
         { path: '/percepcion-1-por-declarante', name: 'Percepcion 1% al por el Declarante', component: EnConstruccion },
         { path: '/percepcion-1-al-declarante', name: 'Percepcion 1% al Declarante', component: EnConstruccion },
-
-        { path: '/crear-empleado', name: 'CrearEmpleado', component: EnConstruccion },
-        { path: '/modificar-empleado', name: 'ModificarEmpleado', component: EnConstruccion },
-        { path: '/eliminar-empleado', name: 'EliminarEmpleado', component: EnConstruccion },
-
-        { path: '/crear-usuario', name: 'CrearUsuario', component: EnConstruccion },
-        { path: '/eliminar-usuario', name: 'EliminarUsuario', component: EnConstruccion },
-
-        { path: '/crear-empleado', name: 'CrearEmpleado', component: EnConstruccion },
-        { path: '/modificar-empleado', name: 'ModificarEmpleado', component: EnConstruccion },
-        { path: '/eliminar-empleado', name: 'EliminarEmpleado', component: EnConstruccion },
-        { path: '/crear-usuario', name: 'CrearUsuario', component: EnConstruccion },
-        { path: '/eliminar-usuario', name: 'EliminarUsuario', component: EnConstruccion },
 
         { path: '/documentos-anulados', name: 'Documentos Anulados', component: EnConstruccion },
 

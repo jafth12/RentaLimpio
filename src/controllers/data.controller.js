@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarAccion } from './historial.controller.js';
 
 // ==========================================
 // FUNCIONES AUXILIARES
@@ -228,11 +229,18 @@ export const importarTodoJSON = async (req, res) => {
         }
 
         await connection.commit();
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'IMPORTACION JSON', 'MÚLTIPLES MÓDULOS', reporte);
         res.json({ message: "Importación finalizada con éxito.", detalle: reporte });
 
     } catch (e) {
         await connection.rollback();
         console.error("Error Importación:", e.message);
+        
+        // 🛡️ SENSOR DE ERROR: Registra si la importación falló
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ERROR IMPORTACION', 'MÚLTIPLES MÓDULOS', { error: e.message });
+
         res.status(400).json({ message: "Error: " + e.message });
     } finally { connection.release(); }
 };

@@ -1,7 +1,9 @@
 export const requireAdmin = (req, res, next) => {
-    const userRole = req.headers['user-role'];
+    // 🛡️ CORREGIDO: Leer el header exacto en minúsculas
+    const userRole = req.headers['x-user-role'];
 
-    console.log(` Verificando seguridad. Rol recibido: ${userRole || 'Ninguno'}`);
+    console.log(`Verificando seguridad. Rol recibido: ${userRole || 'Ninguno'}`);
+    
     if (userRole === 'admin') {
         next();
     } else {

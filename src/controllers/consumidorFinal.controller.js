@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
 
 // --- 1. OBTENER TODAS LAS VENTAS ---
 export const getVentasConsumidor = async (req, res) => { 
@@ -51,6 +52,11 @@ export const createVentaConsumidor = async (req, res) => {
                 d.total || 0
             ]
         );
+        
+        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'CREACION', 'CONSUMIDOR FINAL', `DTE: ${d.numero_control} - Total: $${d.total || 0}`);
+        
         res.status(201).json({ message: 'Venta guardada en Base de Datos', id: result.insertId });
     } catch (error) {
         console.error("Error en DB:", error);
@@ -90,6 +96,11 @@ export const updateVentaConsumidor = async (req, res) => {
         );
           
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
+        
+        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'MODIFICACION', 'CONSUMIDOR FINAL', `DTE Actualizado: ${d.numero_control} - Total: $${d.total || 0}`);
+        
         res.json({ message: 'Venta actualizada correctamente'});
     } catch (error) {
         console.error("Error en DB:", error);
@@ -103,6 +114,11 @@ export const deleteVentaConsumidor = async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM consumidorfinal WHERE idconsfinal = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({message: 'Venta no encontrada' });
+        
+        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ELIMINACION', 'CONSUMIDOR FINAL', `Registro ID Eliminado: ${id}`);
+        
         res.json({ message: 'Venta eliminada correctamente' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al eliminar', error: error.message });

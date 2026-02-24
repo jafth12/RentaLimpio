@@ -1,8 +1,10 @@
 import pool from "../config/db.js";
+import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
 
 // Obtener todas las ventas
 export const getVentas = async (req, res) => {
     try {
+        // 🛡️ Ordenado de menor a mayor (ASC)
         const [rows] = await pool.query('SELECT * FROM vtagravterdomici ORDER BY VtaGraTerFecha ASC');
         res.json(rows);
     } catch (error) {
@@ -51,6 +53,11 @@ export const createVenta = async (req, res) => {
                 data.VtaGraTerAnexo || '4' // 4 es el anexo de terceros
             ]
         );
+
+        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'CREACION', 'VENTA TERCEROS', `DTE: ${data.numero} - Mandante: ${data.nombreMandante} - Monto: $${monto}`);
+
         res.status(201).json({ message: 'Venta a Terceros Certificada', id: result.insertId });
     } catch (error) {
         res.status(500).json({ message: 'Falla en la Integridad de Datos', error: error.message });
@@ -93,6 +100,11 @@ export const updateVenta = async (req, res) => {
         );
 
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' });
+
+        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'MODIFICACION', 'VENTA TERCEROS', `DTE Actualizado: ${data.numero} - Monto: $${monto}`);
+
         res.json({ message: 'Actualizado correctamente' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al actualizar', error: error.message });
@@ -106,6 +118,11 @@ export const deleteVenta = async (req, res) => {
         const [result] = await pool.query('DELETE FROM vtagravterdomici WHERE idVtaGravTerDomici = ?', [id]);
         
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado'});
+
+        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ELIMINACION', 'VENTA TERCEROS', `Registro ID Eliminado: ${id}`);
+
         res.json({ message: 'Eliminado correctamente' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al eliminar', error: error.message });

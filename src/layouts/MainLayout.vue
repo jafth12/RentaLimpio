@@ -19,6 +19,8 @@
             <div class="divider"></div>
             <router-link to="/admin-usuarios" class="menu-item">👨‍💻 Gestión de Usuarios</router-link>
             <router-link to="/documentos-anulados" class="menu-item">🚫 Documentos Anulados</router-link>
+            <div class="divider"></div>
+            <router-link to="/historial" class="menu-item font-bold">📜 Historial de Auditoría</router-link>
           </div>
         </div>
 
@@ -176,6 +178,7 @@ const cerrarSesion = () => {
 .menu-item:hover { background-color: #f1f5f9; color: #0d9488; padding-left: 25px; }
 .group-title { font-size: 0.75rem; color: #9ca3af; padding: 5px 20px; font-weight: bold; text-transform: uppercase; }
 .divider { height: 1px; background: #e2e8f0; margin: 5px 0; }
+.font-bold { font-weight: 700; color: #0f172a; } /* Agregado para resaltar el historial */
 
 /* USUARIO */
 .user-box { display: flex; align-items: center; gap: 15px; }

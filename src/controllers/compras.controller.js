@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarAccion } from './historial.controller.js';
 
 // --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
@@ -59,6 +60,9 @@ export const createCompra = async (req, res) => {
                 d.tipo_operacion || '1'
             ]
         );
+        
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+     registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.numero_control} - Total: $${total}`);
         res.status(201).json({ message: 'Compra registrada en BD con éxito', id: result.insertId });
     } catch (error) {
         console.error("Error BD:", error);
@@ -100,6 +104,8 @@ export const updateCompra = async (req, res) => {
             ]
         );
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+     registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
         res.json({ message: 'Compra actualizada correctamente' });
     } catch (error) {
         console.error("Error BD:", error);
@@ -113,6 +119,8 @@ export const deleteCompra = async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM compras WHERE idCompras = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+     registrarAccion(usuario, 'ELIMINACION', 'COMPRAS', `Registro ID Eliminado: ${id}`);
         res.json({ message: 'Compra eliminada correctamente' });
     } catch (error) {
         res.status(500).json({ message: 'Error al eliminar', error: error.message });

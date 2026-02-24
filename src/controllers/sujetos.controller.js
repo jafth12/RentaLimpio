@@ -1,9 +1,10 @@
 import pool from "../config/db.js";
+import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
 
 // 1. OBTENER REGISTROS
 export const getSujetos = async (req, res) => {
     try {
-        // 🛡️ Cambiado de DESC a ASC (De menor a mayor)
+        // 🛡️ Ordenado de menor a mayor (ASC)
         const [rows] = await pool.query('SELECT * FROM comprassujexcluidos ORDER BY ComprasSujExcluFecha ASC');
         res.json(rows);
     } catch (error) {
@@ -52,6 +53,11 @@ export const createSujeto = async (req, res) => {
                 data.anexo || '5' 
             ]
         );
+        
+        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'CREACION', 'SUJETOS EXCLUIDOS', `DTE: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
+
         res.status(201).json({ message: 'Registro de Sujeto Excluido Guardado en BD', id: result.insertId });
     } catch (error) {
         console.error(error);
@@ -98,6 +104,11 @@ export const updateSujeto = async (req, res) => {
         );
         
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' });
+        
+        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'MODIFICACION', 'SUJETOS EXCLUIDOS', `DTE Actualizado: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
+
         res.json({ message: 'Registro Actualizado Exitosamente' });
     } catch (error) {
         res.status(500).json({ message: 'Error al actualizar', error: error.message });
@@ -110,6 +121,11 @@ export const deleteSujeto = async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM comprassujexcluidos WHERE idComSujExclui = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado'});
+        
+        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ELIMINACION', 'SUJETOS EXCLUIDOS', `Registro ID Eliminado: ${id}`);
+
         res.json({ message: 'Eliminado correctamente' });
     } catch (error) {
         console.error(error);

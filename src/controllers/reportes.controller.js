@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarAccion } from './historial.controller.js';
 
 // --- FUNCIONES AUXILIARES ---
 const obtenerNumeroMes = (m) => {
@@ -8,6 +9,71 @@ const obtenerNumeroMes = (m) => {
     };
     return mapa[m] || "01";
 };
+
+// Tijera para evitar el error de MySQL "Incorrect date value"
+const formatearFecha = (fecha) => {
+    if (!fecha) return null;
+    return fecha.toString().split('T')[0];
+};
+
+// ==========================================
+// 1. EXPORTACIONES INDIVIDUALES JSON (Backup)
+// ==========================================
+export const exportarCompras = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    try {
+        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+export const exportarVentasConsumidor = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    try {
+        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+export const exportarVentasCredito = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    try {
+        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+export const exportarSujetos = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    try {
+        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, obtenerNumeroMes(mes), anio]);
+        res.json(rows);
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+export const exportarTodoJSON = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    if (!nit) return res.status(400).json({ message: "Se requiere NIT para el backup." });
+
+    try {
+        const [declarante] = await pool.query('SELECT * FROM declarante WHERE iddeclaNIT = ?', [nit]);
+        const mesNum = obtenerNumeroMes(mes);
+        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
+        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, mesNum, anio]);
+        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, mesNum, anio]);
+        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, mesNum, anio]);
+
+        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN JSON
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION JSON', 'TODOS LOS MÓDULOS (BACKUP)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
+
+        res.json({
+            backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() },
+            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos }
+        });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
 
 // --- 0. GENERADOR DEL JSON GENERAL DE HACIENDA (F-07) ---
 export const generarAnexosHaciendaJSON = async (req, res) => {
@@ -27,6 +93,10 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const [anexo2] = await pool.query(`SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscFecha LIKE ?`, [nit, `${filtroFecha}%`]);
         const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ?`, [nit, `${filtroFecha}%`]);
         const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ?`, [nit, `${filtroFecha}%`]);
+
+        // 🛡️ SENSOR: AUDITORÍA GENERACIÓN HACIENDA
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION JSON', 'F-07 HACIENDA', `Periodo: ${mes}/${anio} - Empresa: ${nombreEmpresa}`);
 
         const reporteHacienda = {
             identificacion: {
@@ -88,10 +158,10 @@ export const descargarAnexo1CSV = async (req, res) => {
 
             const columnas = [
                 fechaLimpia,                                              // 1
-                claseDoc,                                                 // 2
+                claseDoc,                                                // 2
                 limpiarCod(v.ConsTipoDoc),                                // 3
-                '',                                                       // 4
-                '',                                                       // 5
+                '',                                                      // 4
+                '',                                                      // 5
                 codGenLimpio,                                             // 6. UUID
                 codGenLimpio,                                             // 7. UUID
                 numControlDTE,                                            // 8. DTE
@@ -113,6 +183,10 @@ export const descargarAnexo1CSV = async (req, res) => {
             ];
             return columnas.join(';');
         });
+
+        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION CSV', 'CONSUMIDOR FINAL (ANEXO 1)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo1_ConsumidorFinal_${mes}_${anio}.csv"`);
@@ -159,6 +233,10 @@ export const descargarAnexo2CSV = async (req, res) => {
             ];
             return columnas.join(';');
         });
+
+        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION CSV', 'CREDITO FISCAL (ANEXO 2)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo2_CreditoFiscal_${mes}_${anio}.csv"`);
@@ -220,6 +298,10 @@ export const descargarAnexo3CSV = async (req, res) => {
         const csvContent = '\uFEFF' + csvRows.join('\n');
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo3_Compras_${mes}_${anio}.csv"`);
+        
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION CSV', 'COMPRAS (ANEXO 3)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
+        
         res.status(200).send(csvContent);
     } catch (error) { res.status(500).json({ error: 'Error interno del servidor' }); }
 };
@@ -257,6 +339,10 @@ export const descargarAnexo5CSV = async (req, res) => {
             ];
             return columnas.join(';');
         });
+
+        // 🛡️ SENSOR: AUDITORÍA EXPORTACIÓN CSV
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'EXPORTACION CSV', 'SUJETOS EXCLUIDOS (ANEXO 5)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo5_SujetosExcluidos_${mes}_${anio}.csv"`);

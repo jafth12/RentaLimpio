@@ -12,6 +12,7 @@ import adminRoutes from './src/routes/admin.routes.js'
 import declarantesRoutes from './src/routes/declarantes.routes.js';
 import dataRoutes from './src/routes/data.routes.js';
 import reportesRoutes from './src/routes/reportes.routes.js';
+import historialRoutes from './src/routes/historial.routes.js';
 
 // MÓDULOS DE VENTAS
 import ventasCFRoutes from './src/routes/ventasCF.routes.js'; 
@@ -39,6 +40,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api', ventasTercerosRoutes);
 app.use('/api', dataRoutes);
 app.use('/api/reportes', reportesRoutes);
+app.use('/api/historial', historialRoutes);
 
 app.get('/', (req, res) => {
     res.send('<h1>¡Sistema de Renta Activo! 🇸🇻</h1>');

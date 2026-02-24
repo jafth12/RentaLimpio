@@ -8,9 +8,14 @@ import axios from 'axios'
 axios.interceptors.request.use(
   (config) => {
     const rol = sessionStorage.getItem('rolUsuario');
+    const usuario = sessionStorage.getItem('nombreUsuario') || sessionStorage.getItem('usuario') || 'Admin';
+    
     if (rol) {
-      config.headers['User-Role'] = rol;
+      config.headers['x-user-role'] = rol; // 🛡️ CORREGIDO (Seguridad)
     }
+    // 🛡️ Agregado para el sistema de Auditoría
+    config.headers['x-usuario'] = usuario;
+    
     return config;
   },
   (error) => {

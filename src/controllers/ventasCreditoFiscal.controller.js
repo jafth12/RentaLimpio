@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
 
 // --- 1. OBTENER TODAS LAS VENTAS CCF ---
 export const getVentasCCF = async (req, res) => {
@@ -69,6 +70,11 @@ export const createVentasCCF = async (req, res) => {
         ];
 
         const [result] = await pool.query(query, values);
+        
+        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'CREACION', 'CREDITO FISCAL', `DTE: ${d.numero_control} - Total: $${total}`);
+
         res.status(201).json({ message: 'CCF Guardado Exitosamente', id: result.insertId });
 
     } catch (error) {
@@ -120,6 +126,10 @@ export const updateVentasCCF = async (req, res) => {
         const [result] = await pool.query(query, values);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         
+        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'MODIFICACION', 'CREDITO FISCAL', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
+
         res.json({ message: 'CCF actualizado correctamente' });
 
     } catch (error) {
@@ -133,6 +143,11 @@ export const deleteVentasCCF = async (req, res) => {
     try {
         const [result] = await pool.query('DELETE FROM credfiscal WHERE idCredFiscal = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
+        
+        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ELIMINACION', 'CREDITO FISCAL', `Registro ID Eliminado: ${id}`);
+
         res.json({ message: 'Venta eliminada correctamente' });
     } catch (error) {
         return res.status(500).json({ message: 'Error al eliminar', error: error.message });
