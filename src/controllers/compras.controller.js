@@ -15,7 +15,7 @@ export const getCompras = async (req, res) => {
 export const getCompraById = async (req, res) => {
     const { id } = req.params;
     try {
-        const [rows] = await pool.query('SELECT * FROM compras WHERE idCompras = ?', [id]);
+        const [rows] = await pool.query('SELECT * FROM compras WHERE idcompras = ?', [id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Compra no encontrada' });
         res.json(rows[0]);
     } catch (error) {
@@ -27,40 +27,60 @@ export const getCompraById = async (req, res) => {
 export const createCompra = async (req, res) => {
     const d = req.body;
     try {
-        if (!d.iddeclaNIT || !d.fecha || !d.numero_control || !d.nit_proveedor) {
-            return res.status(400).json({ message: 'Empresa, Fecha, DTE y NIT del Proveedor son obligatorios.'});
+        if (!d.iddeclaNIT || !d.ComFecha || !d.ComNumero || !d.proveedor_ProvNIT || !d.ComMesDeclarado) {
+            return res.status(400).json({ message: 'Empresa, Fecha, Mes, DTE y NIT del Proveedor son obligatorios.'});
         }
 
-        const gravadas = parseFloat(d.gravadas) || 0;
-        const iva = d.iva !== undefined ? parseFloat(d.iva) : (gravadas * 0.13);
-        const exentas = parseFloat(d.exentas) || 0;
-        const total = parseFloat(d.total) || 0;
+        // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE (Proporción 2 a 1)
+        const montoCombustible = parseFloat(d.ComOtroAtributo) || 0;
+        let montoFovial = 0;
+        let montoCotrans = 0;
+
+        if (montoCombustible > 0) {
+            // Fovial = $0.20, Cotrans = $0.10. Representan 2/3 y 1/3 del impuesto total
+            montoFovial = parseFloat((montoCombustible * 2 / 3).toFixed(2));
+            montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
+        }
 
         const [result] = await pool.query(
             `INSERT INTO compras 
-            (iddeclaNIT, ComFecha, ComClase, ComTipo, ComNumero, ComCodGeneracion,
-             proveedor_ProvNIT, ComNomProve, ComIntExe, ComIntGrav, ComCredFiscal, ComTotal,
-             ComClasiRenta, ComTipoCostoGasto, ComTipoOpeRenta, ComAnexo) 
-            VALUES (?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
+            (iddeclaNIT, ComFecha, ComMesDeclarado, ComAnioDeclarado, ComClase, ComTipo, ComNumero, ComCodGeneracion,
+             proveedor_ProvNIT, ComNomProve, ComIntExe, ComInternacioExe, ComImpExeNoSujetas, 
+             ComIntGrav, ComInternacGravBienes, ComImportGravBienes, ComImportGravServicios, 
+             ComCredFiscal, comFovial, comCotran, ComOtroAtributo, ComTotal, ComClasiRenta, ComTipoCostoGasto, ComTipoOpeRenta, ComSecNum, ComAnexo) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
             [
                 d.iddeclaNIT, 
-                d.fecha, 
-                d.numero_control,   
-                d.uuid_dte,         
-                d.nit_proveedor,    
-                d.nombre_proveedor, 
-                exentas, 
-                gravadas, 
-                iva, 
-                total,
-                d.clasificacion || '1', 
-                d.costo_gasto || '2', 
-                d.tipo_operacion || '1'
+                d.ComFecha,
+                d.ComMesDeclarado,
+                d.ComAnioDeclarado,
+                d.ComClase || '4',
+                d.ComTipo || '03',
+                d.ComNumero,   
+                d.ComCodGeneracion,         
+                d.proveedor_ProvNIT,    
+                d.ComNomProve, 
+                d.ComIntExe || 0,
+                d.ComInternacioExe || 0,
+                d.ComImpExeNoSujetas || 0,
+                d.ComIntGrav || 0,
+                d.ComInternacGravBienes || 0,
+                d.ComImportGravBienes || 0,
+                d.ComImportGravServicios || 0,
+                d.ComCredFiscal || 0,
+                montoFovial,
+                montoCotrans,
+                montoCombustible,
+                d.ComTotal || 0,
+                d.ComClasiRenta || '1', 
+                d.ComTipoCostoGasto || '2', 
+                d.ComTipoOpeRenta || '1',
+                d.ComSecNum || '2'
             ]
         );
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.numero_control} - Total: $${total}`);
+        registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.ComNumero} - Total: $${d.ComTotal}`);
         res.status(201).json({ message: 'Compra registrada en BD con éxito', id: result.insertId });
     } catch (error) {
         console.error("Error BD:", error);
@@ -73,38 +93,58 @@ export const updateCompra = async (req, res) => {
     const { id } = req.params;
     const d = req.body;
     try {
-        const gravadas = parseFloat(d.gravadas) || 0;
-        const iva = d.iva !== undefined ? parseFloat(d.iva) : (gravadas * 0.13);
-        const exentas = parseFloat(d.exentas) || 0;
-        const total = parseFloat(d.total) || 0;
+        // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE (Proporción 2 a 1)
+        const montoCombustible = parseFloat(d.ComOtroAtributo) || 0;
+        let montoFovial = 0;
+        let montoCotrans = 0;
+
+        if (montoCombustible > 0) {
+            montoFovial = parseFloat((montoCombustible * 2 / 3).toFixed(2));
+            montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
+        }
 
         const [result] = await pool.query(
             `UPDATE compras SET 
-            iddeclaNIT=?, ComFecha=?, ComNumero=?, ComCodGeneracion=?, 
-            proveedor_ProvNIT=?, ComNomProve=?, ComIntExe=?, ComIntGrav=?, ComCredFiscal=?, ComTotal=?,
-            ComClasiRenta=?, ComTipoCostoGasto=?, ComTipoOpeRenta=?
-            WHERE idCompras = ?`,
+            iddeclaNIT=?, ComFecha=?, ComMesDeclarado=?, ComAnioDeclarado=?, ComClase=?, ComTipo=?, ComNumero=?, ComCodGeneracion=?, 
+            proveedor_ProvNIT=?, ComNomProve=?, ComIntExe=?, ComInternacioExe=?, ComImpExeNoSujetas=?,
+            ComIntGrav=?, ComInternacGravBienes=?, ComImportGravBienes=?, ComImportGravServicios=?,
+            ComCredFiscal=?, comFovial=?, comCotran=?, ComOtroAtributo=?, ComTotal=?, ComClasiRenta=?, ComTipoCostoGasto=?, ComTipoOpeRenta=?, ComSecNum=?
+            WHERE idcompras = ?`,
             [
                 d.iddeclaNIT, 
-                d.fecha, 
-                d.numero_control,   
-                d.uuid_dte,         
-                d.nit_proveedor, 
-                d.nombre_proveedor, 
-                exentas, 
-                gravadas, 
-                iva, 
-                total,
-                d.clasificacion || '1', 
-                d.costo_gasto || '2', 
-                d.tipo_operacion || '1',
+                d.ComFecha,
+                d.ComMesDeclarado,
+                d.ComAnioDeclarado,
+                d.ComClase,
+                d.ComTipo,
+                d.ComNumero,   
+                d.ComCodGeneracion,         
+                d.proveedor_ProvNIT,    
+                d.ComNomProve, 
+                d.ComIntExe || 0,
+                d.ComInternacioExe || 0,
+                d.ComImpExeNoSujetas || 0,
+                d.ComIntGrav || 0,
+                d.ComInternacGravBienes || 0,
+                d.ComImportGravBienes || 0,
+                d.ComImportGravServicios || 0,
+                d.ComCredFiscal || 0,
+                montoFovial,
+                montoCotrans,
+                montoCombustible,
+                d.ComTotal || 0,
+                d.ComClasiRenta || '1', 
+                d.ComTipoCostoGasto || '2', 
+                d.ComTipoOpeRenta || '1',
+                d.ComSecNum || '2',
                 id
             ]
         );
+        
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
+        registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.ComNumero} - Total: $${d.ComTotal}`);
         res.json({ message: 'Compra actualizada correctamente' });
     } catch (error) {
         console.error("Error BD:", error);
@@ -116,8 +156,9 @@ export const updateCompra = async (req, res) => {
 export const deleteCompra = async (req, res) => {
     const { id } = req.params;
     try {
-        const [result] = await pool.query('DELETE FROM compras WHERE idCompras = ?', [id]);
+        const [result] = await pool.query('DELETE FROM compras WHERE idcompras = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
+        
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'ELIMINACION', 'COMPRAS', `Registro ID Eliminado: ${id}`);
         res.json({ message: 'Compra eliminada correctamente' });

@@ -86,38 +86,51 @@
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento Recibido</h3>
               
-              <div class="form-grid three-cols">
+              <div class="form-grid four-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
                   <input type="date" v-model="formulario.fecha" class="form-control" required>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
-                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
-                   <small class="text-muted text-xs">Código de 36 caracteres del DTE.</small>
+                  <label class="form-label">Mes a Declarar <span class="text-danger">*</span></label>
+                  <select v-model="formulario.mesDeclarado" class="form-control" required>
+                    <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+                  </select>
                 </div>
 
                 <div class="form-group">
-                   <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
-                   <div class="dte-mask-container" :class="{ 'input-error': errores.numero }">
-                      <span class="dte-prefix">DTE</span>
-                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
-                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
-                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
-                      <span class="dte-sep">P</span>
-                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
-                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
-                   </div>
-                   <small class="form-text text-muted text-xs">Número del comprobante del proveedor.</small>
+                  <label class="form-label">Año a Declarar <span class="text-danger">*</span></label>
+                  <input type="number" v-model="formulario.anioDeclarado" class="form-control" min="2000" required>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Código (UUID) <span class="text-danger">*</span></label>
+                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX..." required>
                 </div>
               </div>
 
-              <div class="form-grid four-cols mt-3">
+              <div class="form-group mt-3">
+                 <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
+                 <div class="dte-mask-container" :class="{ 'input-error': errores.numero }">
+                    <span class="dte-prefix">DTE</span>
+                    <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                    <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
+                    <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
+                    <span class="dte-sep">P</span>
+                    <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
+                    <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
+                 </div>
+              </div>
+
+              <div class="form-grid three-cols mt-3">
                  <div class="form-group"><label class="form-label">Clase</label><select v-model="formulario.claseDocumento" class="form-control"><option v-for="op in opcionesClase" :key="op" :value="op">{{ op }}</option></select></div>
                  <div class="form-group"><label class="form-label">Tipo</label><select v-model="formulario.tipoDocumento" class="form-control"><option v-for="op in opcionesTipo" :key="op" :value="op">{{ op }}</option></select></div>
                  <div class="form-group"><label class="form-label">Operación</label><select v-model="formulario.tipoOperacion" class="form-control"><option v-for="op in opcionesOperacion" :key="op" :value="op">{{ op }}</option></select></div>
+                 
+                 <div class="form-group"><label class="form-label">Clasificación</label><select v-model="formulario.clasificacion" class="form-control"><option v-for="op in opcionesClasificacion" :key="op" :value="op">{{ op }}</option></select></div>
                  <div class="form-group"><label class="form-label">Sector</label><select v-model="formulario.sector" class="form-control"><option v-for="op in opcionesSector" :key="op" :value="op">{{ op }}</option></select></div>
+                 <div class="form-group"><label class="form-label">Costo/Gasto</label><select v-model="formulario.tipoCostoGasto" class="form-control"><option v-for="op in opcionesCostoGasto" :key="op" :value="op">{{ op }}</option></select></div>
               </div>
             </div>
 
@@ -142,15 +155,23 @@
                 </div>
 
                 <div class="monto-group">
-                  <label class="monto-label text-success">13% IVA (Crédito Fiscal)</label>
+                  <label class="monto-label text-success">13% IVA (Créd. Fiscal)</label>
                   <div class="input-wrapper">
                     <span class="currency text-success">+</span>
-                    <input type="number" v-model="formulario.iva" step="0.01" class="form-control monto-input text-success" @input="calcularTotalManual" @blur="formatearDecimal('iva')">
+                    <input type="number" v-model="formulario.iva" step="0.01" class="form-control monto-input text-success" @input="calcularTotalGeneral" @blur="formatearDecimal('iva')">
                   </div>
                 </div>
 
-                <div class="monto-group total-group">
-                  <label class="monto-label">TOTAL FACTURA</label>
+                <div class="monto-group">
+                  <label class="monto-label text-warning" title="Ingresa el total de recargo por combustible">Otros Montos (Combustible)</label>
+                  <div class="input-wrapper">
+                    <span class="currency text-warning">+</span>
+                    <input type="number" v-model="formulario.otroAtributo" step="0.01" class="form-control monto-input text-warning" @input="calcularTotalGeneral" @blur="formatearDecimal('otroAtributo')">
+                  </div>
+                </div>
+
+                <div class="monto-group total-group" style="flex: 100%;">
+                  <label class="monto-label" title="Suma Gravadas + Exentas + IVA + Otros Montos">TOTAL FACTURA</label>
                   <div class="input-wrapper">
                     <span class="currency">$</span>
                     <input type="number" v-model="formulario.total" step="0.01" class="form-control total-input" readonly>
@@ -177,30 +198,15 @@
              <h3>📋 Historial de Compras</h3>
              
              <div class="history-filters">
-                <input 
-                  type="number" 
-                  v-model="anioFiltro" 
-                  placeholder="Año (Ej. 2024)" 
-                  min="2000" 
-                  class="form-control filter-year"
-                  title="Escribe el año (2000 en adelante)"
-                >
+                <input type="number" v-model="anioFiltro" placeholder="Año" min="2000" class="form-control filter-year" title="Escribe el año">
 
                 <select v-model="mesFiltro" class="form-control filter-month">
-                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">
-                    {{ m.nombre }}
-                  </option>
+                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
                 </select>
 
-                <input type="text" 
-                       v-model="declaranteFiltro" 
-                       list="lista-decla-compras" 
-                       placeholder="🏢 Empresa..." 
-                       class="form-control filter-input">
+                <input type="text" v-model="declaranteFiltro" list="lista-decla-compras" placeholder="🏢 Empresa..." class="form-control filter-input">
                 <datalist id="lista-decla-compras">
-                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                     {{ d.declarante }}
-                   </option>
+                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
                 </datalist>
 
                 <input type="text" v-model="filtroLista" placeholder="🔍 DTE / Prov..." class="form-control search-list">
@@ -220,7 +226,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="c in comprasFiltradas" :key="c.idCompras">
+                <tr v-for="c in comprasFiltradas" :key="c.idcompras">
                   <td>{{ formatearFecha(c.ComFecha) }}</td>
                   <td><span class="badge-anexo">Anexo 3</span></td>
                   <td>
@@ -233,7 +239,7 @@
                   <td class="text-right fw-bold text-success">${{ parseFloat(c.ComTotal || 0).toFixed(2) }}</td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(c)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idCompras)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
                 <tr v-if="comprasFiltradas.length === 0">
@@ -271,16 +277,22 @@ const opcionesClasificacion = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTER
 const opcionesSector = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. INDUSTRIA", "2. COMERCIO", "3. AGROPECURIA", "4. SERVICIOS PROFESIONES, ARTES Y OFICIOS", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXEPCIONES"];
 const opcionesCostoGasto = ["0. CUANDO SE TRATE DE PERIODOS TRIBUTARIOS ANTERIORES", "1. GASTO DE VENTA SIN DONACION", "2. GASTO DE ADMINISTRACION SIN DONACION", "3. GASTOS FINANCIEROS SIN DONACION", "4. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS/IMPORTACIONES", "5. COSTO DE ARTICULOS PRODUCIDOS/COMPRADOS INTERNO", "6. COSTOS INDIRECTOS DE FABRICACION", "7. MANO DE OBRA", "8. OPERACIONES INFORMADAS EN MAS DE 1 ANEXO", "9. EXCEPCIONES"];
 
+const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
 const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+
+// Se eliminaron las variables fovial y cotrans del formulario
 const formulario = ref({ 
     fecha: new Date().toISOString().split('T')[0], 
+    mesDeclarado: mesesOptions[new Date().getMonth()],
+    anioDeclarado: new Date().getFullYear().toString(),
     numero_control: '', 
     uuid_dte: '',
     claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
     internasExentas: '0.00', internacionalesExentas: '0.00', importacionesNoSujetas: '0.00',
-    iva: '0.00', total: '0.00', otroAtributo: '0.00'
+    iva: '0.00', otroAtributo: '0.00', total: '0.00'
 });
 
 const errores = ref({ proveedor: false, declarante: false, fecha: false, numero: false, internas: false });
@@ -332,24 +344,32 @@ const actualizarNumeroCompleto = () => {
 const extraerSoloCodigo = (t) => t ? t.split(/[\.\s]+/)[0] : '';
 const recuperarOpcionCompleta = (c, l) => { if (!c) return l[0]; const enc = l.find(op => op.split(/[\.\s]+/)[0] == String(c).trim()); return enc || c; };
 
+// 🎯 Calcula el TOTAL sumando TODAS las partes (Gravadas + Exentas + IVA + Otros Montos)
 const calcularTotalGeneral = () => {
     const baseGravada = (parseFloat(formulario.value.internasGravadas) || 0) + (parseFloat(formulario.value.internacionalesGravBienes) || 0) + (parseFloat(formulario.value.importacionesGravBienes) || 0) + (parseFloat(formulario.value.importacionesGravServicios) || 0);
     const sumExentas = (parseFloat(formulario.value.internasExentas) || 0) + (parseFloat(formulario.value.internacionalesExentas) || 0) + (parseFloat(formulario.value.importacionesNoSujetas) || 0);
     const iva = parseFloat(formulario.value.iva) || 0;
-    const otro = parseFloat(formulario.value.otroAtributo) || 0;
-    formulario.value.total = (baseGravada + sumExentas + iva + otro).toFixed(2);
+    const otrosMontos = parseFloat(formulario.value.otroAtributo) || 0;
+    
+    formulario.value.total = (baseGravada + sumExentas + iva + otrosMontos).toFixed(2);
 };
 
+// Al cambiar las compras gravadas: Calcula IVA y recalcula el Total
 watch(() => [formulario.value.internasGravadas, formulario.value.internacionalesGravBienes, formulario.value.importacionesGravBienes, formulario.value.importacionesGravServicios], (vals) => {
     const [intG, intlG, impG, impS] = vals.map(v => parseFloat(v) || 0);
     const baseGravada = intG + intlG + impG + impS;
+    
     formulario.value.iva = (baseGravada * 0.13).toFixed(2);
+    
     if(intG > 0) errores.value.internas = false;
     calcularTotalGeneral();
 });
-watch(() => [formulario.value.internasExentas, formulario.value.internacionalesExentas, formulario.value.importacionesNoSujetas, formulario.value.otroAtributo], () => { calcularTotalGeneral(); });
 
-const calcularTotalManual = () => { calcularTotalGeneral(); };
+// Observador general para actualizar el total al cambiar exentas o el monto de combustible
+watch(() => [formulario.value.internasExentas, formulario.value.internacionalesExentas, formulario.value.importacionesNoSujetas, formulario.value.otroAtributo], () => { 
+    calcularTotalGeneral(); 
+});
+
 const formatearDecimal = (c) => { const v = parseFloat(formulario.value[c]); formulario.value[c] = !isNaN(v) ? v.toFixed(2) : '0.00'; };
 
 const proveedoresFiltrados = computed(() => {
@@ -366,39 +386,14 @@ const declarantesFiltrados = computed(() => {
 
 const comprasFiltradas = computed(() => {
   let filtrado = listaCompras.value || [];
-  
-  if (declaranteFiltro.value) {
-     filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value);
-  }
-  
-  if (anioFiltro.value) {
-      const anioStr = anioFiltro.value.toString();
-      filtrado = filtrado.filter(c => c.ComFecha && c.ComFecha.startsWith(anioStr));
-  }
-  
-  if (mesFiltro.value) {
-      filtrado = filtrado.filter(c => {
-          if (!c.ComFecha) return false;
-          const partes = c.ComFecha.split('-');
-          return partes.length >= 2 && partes[1] === mesFiltro.value;
-      });
-  }
-
-  if (filtroLista.value) {
-    const txt = filtroLista.value.toLowerCase().trim();
-    filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt)));
-  }
+  if (declaranteFiltro.value) { filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value); }
+  if (anioFiltro.value) { const anioStr = anioFiltro.value.toString(); filtrado = filtrado.filter(c => c.ComFecha && c.ComFecha.startsWith(anioStr)); }
+  if (mesFiltro.value) { filtrado = filtrado.filter(c => { if (!c.ComFecha) return false; const partes = c.ComFecha.split('-'); return partes.length >= 2 && partes[1] === mesFiltro.value; }); }
+  if (filtroLista.value) { const txt = filtroLista.value.toLowerCase().trim(); filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt))); }
   return filtrado;
 });
 
-const alternarVista = () => { 
-  if (modoEdicion.value) {
-    cancelarEdicion(); 
-  } else {
-    resetForm(); 
-    mostrandoLista.value = !mostrandoLista.value; 
-  }
-};
+const alternarVista = () => { if (modoEdicion.value) { cancelarEdicion(); } else { resetForm(); mostrandoLista.value = !mostrandoLista.value; } };
 
 const seleccionarProveedor = (p) => { proveedorSeleccionado.value = p; mostrarSugerencias.value = false; busqueda.value = ''; errores.value.proveedor = false; };
 const quitarProveedor = () => proveedorSeleccionado.value = null;
@@ -407,7 +402,6 @@ const quitarDeclarante = () => declaranteSeleccionado.value = null;
 
 const prepararEdicion = (compra) => {
   let fSegura = compra.ComFecha ? new Date(compra.ComFecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-  
   const rawNum = compra.ComNumero || '';
   const cleanNumero = rawNum.replace(/-/g, '');
   const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
@@ -416,14 +410,26 @@ const prepararEdicion = (compra) => {
 
   formulario.value = {
     fecha: fSegura, 
+    mesDeclarado: compra.ComMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
+    anioDeclarado: compra.ComAnioDeclarado || fSegura.substring(0,4),
     numero_control: rawNum, 
     uuid_dte: compra.ComCodGeneracion || '',
-    claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase), tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
-    tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion), clasificacion: recuperarOpcionCompleta(compra.ComClasiRenta, opcionesClasificacion), 
-    sector: recuperarOpcionCompleta(compra.ComSecNum, opcionesSector), tipoCostoGasto: recuperarOpcionCompleta(compra.ComTipoCostoGasto, opcionesCostoGasto),
-    internasGravadas: parseFloat(compra.ComIntGrav || 0).toFixed(2), internacionalesGravBienes: parseFloat(compra.ComInternacGravBienes || 0).toFixed(2), importacionesGravBienes: parseFloat(compra.ComImportGravBienes || 0).toFixed(2), importacionesGravServicios: parseFloat(compra.ComImportGravServicios || 0).toFixed(2),
-    internasExentas: parseFloat(compra.ComIntExe || 0).toFixed(2), internacionalesExentas: parseFloat(compra.ComInternacioExe || 0).toFixed(2), importacionesNoSujetas: parseFloat(compra.ComImpExeNoSujetas || 0).toFixed(2),
-    iva: parseFloat(compra.ComCredFiscal || 0).toFixed(2), total: parseFloat(compra.ComTotal || 0).toFixed(2), otroAtributo: parseFloat(compra.ComOtroAtributo || 0).toFixed(2)
+    claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase), 
+    tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
+    tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion), 
+    clasificacion: recuperarOpcionCompleta(compra.ComClasiRenta, opcionesClasificacion), 
+    sector: recuperarOpcionCompleta(compra.ComSecNum, opcionesSector), 
+    tipoCostoGasto: recuperarOpcionCompleta(compra.ComTipoCostoGasto, opcionesCostoGasto),
+    internasGravadas: parseFloat(compra.ComIntGrav || 0).toFixed(2), 
+    internacionalesGravBienes: parseFloat(compra.ComInternacGravBienes || 0).toFixed(2), 
+    importacionesGravBienes: parseFloat(compra.ComImportGravBienes || 0).toFixed(2), 
+    importacionesGravServicios: parseFloat(compra.ComImportGravServicios || 0).toFixed(2),
+    internasExentas: parseFloat(compra.ComIntExe || 0).toFixed(2), 
+    internacionalesExentas: parseFloat(compra.ComInternacioExe || 0).toFixed(2), 
+    importacionesNoSujetas: parseFloat(compra.ComImpExeNoSujetas || 0).toFixed(2),
+    iva: parseFloat(compra.ComCredFiscal || 0).toFixed(2), 
+    otroAtributo: parseFloat(compra.ComOtroAtributo || 0).toFixed(2), 
+    total: parseFloat(compra.ComTotal || 0).toFixed(2)
   };
   
   const prov = todosLosProveedores.value.find(p => p.ProvNIT === compra.proveedor_ProvNIT);
@@ -435,16 +441,20 @@ const prepararEdicion = (compra) => {
   } else declaranteSeleccionado.value = null;
 
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
-  idEdicion.value = compra.idCompras; 
+  idEdicion.value = compra.idcompras; 
   modoEdicion.value = true; 
   mostrandoLista.value = false; 
 };
 
 const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; mostrandoLista.value = true; };
+
 const resetForm = () => {
   formulario.value.fecha = new Date().toISOString().split('T')[0];
+  formulario.value.mesDeclarado = mesesOptions[new Date().getMonth()];
+  formulario.value.anioDeclarado = new Date().getFullYear().toString();
   formulario.value.numero_control = ''; formulario.value.uuid_dte = '';
-  formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; formulario.value.iva = '0.00'; formulario.value.internasExentas = '0.00';
+  formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; 
+  formulario.value.iva = '0.00'; formulario.value.internasExentas = '0.00'; formulario.value.otroAtributo = '0.00';
   ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
   proveedorSeleccionado.value = null; declaranteSeleccionado.value = null;
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
@@ -468,15 +478,34 @@ const guardarCompra = async () => {
   if (Object.values(errores.value).some(v => v)) { alert("Complete los campos obligatorios."); return; }
 
   cargando.value = true;
+
+  // Solo se manda ComOtroAtributo. El backend lo recibe y se encarga de separar el Fovial y Cotrans.
   const payload = { 
-      ...formulario.value, 
-      claseDocumento: extraerSoloCodigo(formulario.value.claseDocumento), tipoDocumento: extraerSoloCodigo(formulario.value.tipoDocumento),
-      tipo_operacion: extraerSoloCodigo(formulario.value.tipoOperacion), clasificacion: extraerSoloCodigo(formulario.value.clasificacion),
-      sector: extraerSoloCodigo(formulario.value.sector), costo_gasto: extraerSoloCodigo(formulario.value.tipoCostoGasto),
-      nit_proveedor: proveedorSeleccionado.value.ProvNIT, nombre_proveedor: proveedorSeleccionado.value.ProvNombre,
+      ComFecha: formulario.value.fecha,
+      ComMesDeclarado: formulario.value.mesDeclarado,
+      ComAnioDeclarado: formulario.value.anioDeclarado,
+      ComNumero: formulario.value.numero_control,
+      ComCodGeneracion: formulario.value.uuid_dte,
+      ComClase: extraerSoloCodigo(formulario.value.claseDocumento),
+      ComTipo: extraerSoloCodigo(formulario.value.tipoDocumento),
+      ComTipoOpeRenta: extraerSoloCodigo(formulario.value.tipoOperacion),
+      ComClasiRenta: extraerSoloCodigo(formulario.value.clasificacion),
+      ComSecNum: extraerSoloCodigo(formulario.value.sector),
+      ComTipoCostoGasto: extraerSoloCodigo(formulario.value.tipoCostoGasto),
+      proveedor_ProvNIT: proveedorSeleccionado.value.ProvNIT,
+      ComNomProve: proveedorSeleccionado.value.ProvNombre,
       iddeclaNIT: declaranteSeleccionado.value.iddeclaNIT,
-      gravadas: parseFloat(formulario.value.internasGravadas)||0, exentas: parseFloat(formulario.value.internasExentas)||0,
-      iva: parseFloat(formulario.value.iva)||0, total: parseFloat(formulario.value.total)||0
+      ComIntGrav: parseFloat(formulario.value.internasGravadas) || 0,
+      ComInternacGravBienes: parseFloat(formulario.value.internacionalesGravBienes) || 0,
+      ComImportGravBienes: parseFloat(formulario.value.importacionesGravBienes) || 0,
+      ComImportGravServicios: parseFloat(formulario.value.importacionesGravServicios) || 0,
+      ComIntExe: parseFloat(formulario.value.internasExentas) || 0,
+      ComInternacioExe: parseFloat(formulario.value.internacionalesExentas) || 0,
+      ComImpExeNoSujetas: parseFloat(formulario.value.importacionesNoSujetas) || 0,
+      ComCredFiscal: parseFloat(formulario.value.iva) || 0,
+      ComOtroAtributo: parseFloat(formulario.value.otroAtributo) || 0, 
+      ComTotal: parseFloat(formulario.value.total) || 0,
+      ComAnexo: '3'
   };
 
   try {
@@ -519,8 +548,8 @@ onMounted(cargarDatos);
 .input-error .form-control, .has-error .form-control { border-color: #ef4444; background-color: #fef2f2; }
 .error-msg { font-size: 0.75rem; color: #ef4444; margin-top: 4px; font-weight: 600; display: block; }
 .text-danger { color: #ef4444; }
+.text-warning { color: #d97706; }
 
-/* ESTILOS AÑADIDOS PARA UUID Y SELECTS */
 .uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
@@ -560,7 +589,6 @@ onMounted(cargarDatos);
 .alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
-/* 🛡️ ESTILOS DEL NUEVO FILTRO DE HISTORIAL */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .filter-year { max-width: 140px; font-weight: 600; color: #1f2937; background-color: #f9fafb; border-color: #d1d5db; }
 .filter-year:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }

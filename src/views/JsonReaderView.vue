@@ -126,6 +126,7 @@
                       <th>Documento</th>
                       <th>Proveedor</th>
                       <th class="text-right">IVA Extraído</th>
+                      <th class="text-right">Otros (Comb.)</th>
                       <th class="text-right">Total</th>
                     </tr>
                   </thead>
@@ -135,6 +136,7 @@
                       <td><span class="doc-number">{{ item.ComNumero || item.numero }}</span></td>
                       <td class="fw-bold text-dark">{{ item.ComNomProve || item.proveedor_nombre }}</td>
                       <td class="text-right fw-bold text-warning">${{ (parseFloat(item.ComCredFiscal) || 0).toFixed(2) }}</td>
+                      <td class="text-right fw-bold text-secondary">${{ (parseFloat(item.ComOtroAtributo) || 0).toFixed(2) }}</td>
                       <td class="text-right fw-bold text-dark">${{ (parseFloat(item.ComTotal || item.valores?.total) || 0).toFixed(2) }}</td>
                     </tr>
                   </tbody>
@@ -167,9 +169,7 @@ const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
 
-// 🛡️ CORRECCIÓN: Declaramos la referencia del input file para poder resetearlo
 const fileInput = ref(null);
-
 const declarantesDB = ref([]); 
 
 const limpiarNit = (texto) => texto ? texto.toString().replace(/[^0-9]/g, '') : '';
@@ -229,9 +229,20 @@ const clasificarDTE = (dte) => {
   const total = parseFloat(resumen.totalPagar) || 0;
   
   let iva = parseFloat(resumen.totalIva) || 0;
-  if (iva === 0 && resumen.tributos) {
+  
+  // 🕵️‍♂️ DETECTOR DE TRIBUTOS (IVA, FOVIAL, COTRANS)
+  let fovial = 0;
+  let cotrans = 0;
+
+  if (resumen.tributos) {
     const tribIva = resumen.tributos.find(t => t.codigo === '20'); 
     if (tribIva) iva = parseFloat(tribIva.valor) || 0;
+
+    const tribFovial = resumen.tributos.find(t => t.codigo === 'D1');
+    const tribCotrans = resumen.tributos.find(t => t.codigo === 'C8');
+    
+    if (tribFovial) fovial = parseFloat(tribFovial.valor) || 0;
+    if (tribCotrans) cotrans = parseFloat(tribCotrans.valor) || 0;
   }
   
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
@@ -258,7 +269,11 @@ const clasificarDTE = (dte) => {
       ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total,
       ComClase: '4', ComAnexo: '3',
       ComMesDeclarado: 'Importado',
-      ComAnioDeclarado: new Date().getFullYear().toString()
+      ComAnioDeclarado: new Date().getFullYear().toString(),
+      // Mapeamos los impuestos de combustible
+      comFovial: fovial,
+      comCotran: cotrans,
+      ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) // Suma total combustible
     };
   } else if (soyEmisor) {
     if (tipoDte === '03') { 
@@ -278,7 +293,7 @@ const clasificarDTE = (dte) => {
         ConsCodGeneracion: codGen,
         ConsVtaGravLocales: gravado, ConsTotalVta: total,
         ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL',
-        ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1' // 🛡️ CORREGIDO: Ahora manda 4 y 01
+        ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1'
       };
     } else if (tipoDte === '14') { 
       resultado.modulo = 'sujetos_excluidos';
@@ -289,7 +304,7 @@ const clasificarDTE = (dte) => {
         ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
         ComprasSujExcluMontoOpera: total,
         ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
-        ComprasSujExcluTipoDoc: '14', // 🛡️ CORREGIDO
+        ComprasSujExcluTipoDoc: '14',
         ComprasSujExcluAnexo: '5'
       };
     }
@@ -302,7 +317,6 @@ const cargarArchivo = (event) => {
 
   if (!miNit.value || miNit.value.length < 5) {
     alert("⚠️ Por favor, ingresa TU NIT principal primero.");
-    // 🛡️ CORRECCIÓN: Reseteamos el input usando la referencia oficial
     if (fileInput.value) fileInput.value.value = '';
     return;
   }
@@ -354,7 +368,6 @@ const enviarAlBackend = async () => {
 const limpiar = () => {
   datosProcesados.value = false;
   payloadFinal.value = null;
-  // 🛡️ CORRECCIÓN: Limpiamos la memoria del input para que puedas re-seleccionar el mismo archivo si quieres
   if (fileInput.value) {
     fileInput.value.value = '';
   }
@@ -483,6 +496,7 @@ const limpiar = () => {
 .text-center { text-align: center; }
 .text-warning { color: #d97706; }
 .text-dark { color: #1f2937; }
+.text-secondary { color: #6b7280; }
 .text-muted { color: #6b7280; }
 .text-sm { font-size: 0.85rem; }
 .text-xs { font-size: 0.75rem; }

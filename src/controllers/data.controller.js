@@ -105,6 +105,27 @@ export const importarTodoJSON = async (req, res) => {
                 );
 
                 if (dup.length === 0) {
+                    // 🕵️‍♂️ DETECTOR MÁGICO DE TRIBUTOS (Combustible)
+                    let fovial = parseFloat(c.comFovial) || 0;
+                    let cotrans = parseFloat(c.comCotran) || 0;
+                    let otro = parseFloat(c.ComOtroAtributo) || 0;
+
+                    // Revisamos si el JSON tiene la sección de tributos de Hacienda
+                    const listaTributos = (c.resumen && c.resumen.tributos) ? c.resumen.tributos : (c.tributos || []);
+                    
+                    if (listaTributos.length > 0) {
+                        const tribFovial = listaTributos.find(t => t.codigo === 'D1');
+                        const tribCotrans = listaTributos.find(t => t.codigo === 'C8');
+                        
+                        if (tribFovial) fovial = parseFloat(tribFovial.valor);
+                        if (tribCotrans) cotrans = parseFloat(tribCotrans.valor);
+                        
+                        // Consolidamos la suma para el campo visual "Otro Atributo"
+                        if (fovial > 0 || cotrans > 0) {
+                            otro = parseFloat((fovial + cotrans).toFixed(2));
+                        }
+                    }
+
                     const nuevaCompra = {
                         iddeclaNIT: nitDeclarante,
                         proveedor_ProvNIT: c.proveedor_ProvNIT,
@@ -117,6 +138,9 @@ export const importarTodoJSON = async (req, res) => {
                         ComIntExe: c.ComIntExe || 0,
                         ComIntGrav: c.ComIntGrav || 0,
                         ComCredFiscal: c.ComCredFiscal || 0,
+                        comFovial: fovial,            // <-- Dato Extraído o heredado
+                        comCotran: cotrans,           // <-- Dato Extraído o heredado
+                        ComOtroAtributo: otro,        // <-- Total de combustible consolidado
                         ComTotal: c.ComTotal || 0,
                         ComMesDeclarado: c.ComMesDeclarado || 'Importado',
                         ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString(),
