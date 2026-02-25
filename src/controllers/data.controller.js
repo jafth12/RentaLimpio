@@ -182,7 +182,6 @@ export const importarTodoJSON = async (req, res) => {
                         ConsNumDocDEL: v.ConsNumDocDEL,
                         ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL,
                         ConsCodGeneracion: v.ConsCodGeneracion || null,
-                        ConsNomRazonCliente: v.ConsNomRazonCliente || 'Cliente General',
                         ConsVtaExentas: v.ConsVtaExentas || 0,
                         ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0,
                         ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
