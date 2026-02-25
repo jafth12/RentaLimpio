@@ -68,15 +68,14 @@
             </div>
 
             <div v-if="accion === 'exportar'" class="export-card card fade-in mb-3">
-               <h3 class="text-hacienda">🏛️ Reportes Legales y PDF</h3>
-               <p class="text-sm-hacienda">Genera los archivos oficiales para Hacienda, o Libros Físicos.</p>
+               <h3 class="text-hacienda">🏛️ Reportes Legales</h3>
+               <p class="text-sm-hacienda">Genera archivos para Hacienda, Libros Físicos o tablas en Excel.</p>
                <div class="export-controls mt-2">
                   <button v-if="moduloSeleccionado === 'todo'" @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block mb-2" :disabled="!nitSeleccionado">
                     📦 Descargar F07 (JSON Consolidado)
                   </button>
 
-                  <div class="flex-buttons gap-2">
-                    
+                  <div class="flex-buttons gap-2 mt-2">
                     <button 
                        v-if="moduloSeleccionado !== 'todo'" 
                        @click="descargarAnexoCSV" 
@@ -84,13 +83,21 @@
                        :disabled="!nitSeleccionado">
                       {{ textoBotonCSV }}
                     </button>
+
+                    <button 
+                       v-if="moduloSeleccionado !== 'todo'"
+                       @click="generarLibroContableExcel" 
+                       class="btn btn-primary flex-1" 
+                       :disabled="!nitSeleccionado || cargando">
+                      📊 Libro (Excel)
+                    </button>
                     
                     <button 
                        v-if="moduloSeleccionado !== 'todo'"
                        @click="generarLibroContablePDF" 
                        class="btn btn-purple flex-1" 
                        :disabled="!nitSeleccionado || cargando">
-                      🖨️ Imprimir Libro (PDF)
+                      🖨️ Libro (PDF)
                     </button>
 
                     <button 
@@ -100,7 +107,6 @@
                        :disabled="!nitSeleccionado || cargando">
                       📄 Generar Resumen PDF
                     </button>
-
                   </div>
                </div>
             </div>
@@ -134,7 +140,7 @@
               </div>
 
               <div class="action-area mt-3">
-                <button @click="procesarAccion" class="btn btn-primary btn-block" :disabled="cargando || (accion === 'exportar' && !nitSeleccionado)">
+                <button @click="procesarAccion" class="btn btn-dark btn-block" :disabled="cargando || (accion === 'exportar' && !nitSeleccionado)">
                   {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Backup del Módulo (JSON)' : '🔍 Ir al Lector Inteligente') }}
                 </button>
               </div>
@@ -203,6 +209,7 @@ import axios from 'axios';
 import { useRouter } from 'vue-router'; 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import XLSX from 'xlsx-js-style'; 
 
 const router = useRouter(); 
 const hostname = window.location.hostname;
@@ -240,16 +247,204 @@ onMounted(async () => {
 
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
-        case 'compras': return '📊 Descargar CSV (Compras)';
-        case 'ventas_cf': return '📊 Descargar CSV (Cons. Final)';
-        case 'ventas_ccf': return '📊 Descargar CSV (Crédito Fiscal)';
-        case 'sujetos': return '📊 Descargar CSV (Suj. Excluidos)';
-        default: return '📊 Descargar CSV';
+        case 'compras': return '📋 CSV (Compras)';
+        case 'ventas_cf': return '📋 CSV (Cons. Final)';
+        case 'ventas_ccf': return '📋 CSV (Crédito Fiscal)';
+        case 'sujetos': return '📋 CSV (Sujetos)';
+        default: return '📋 CSV';
     }
 });
 
 // =======================================================
-// 🛡️ NUEVA FUNCIÓN: GENERAR LIBRO CONTABLE FÍSICO (HORIZONTAL)
+// 🎨 FUNCIÓN AUXILIAR PARA DISEÑO DE EXCEL (CORREGIDA PARA 2 DECIMALES)
+// =======================================================
+const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
+    return fila.map((celda, index) => {
+        let estilo = { font: { name: "Arial" }, alignment: { vertical: "center" } };
+        let celdaObj = { v: celda }; // Objeto celda para Excel
+
+        if (esCabecera) {
+            estilo.font.bold = true;
+            estilo.font.color = { rgb: "FFFFFF" };
+            estilo.fill = { fgColor: { rgb: "1E3A8A" } };
+            estilo.alignment.horizontal = "center";
+            estilo.alignment.wrapText = true; 
+            estilo.border = { top: { style: "medium", color: { rgb: "1E3A8A" } }, bottom: { style: "medium", color: { rgb: "1E3A8A" } } };
+            celdaObj.t = 's'; // Tipo: String
+        } else if (esTotal) {
+            estilo.font.bold = true;
+            estilo.fill = { fgColor: { rgb: "E2E8F0" } };
+            estilo.border = { top: { style: "thin", color: { rgb: "94A3B8" } }, bottom: { style: "double", color: { rgb: "64748B" } } };
+            
+            if (typeof celda === 'number') {
+                celdaObj.t = 'n'; // Tipo: Number
+                estilo.alignment.horizontal = "right";
+                if (index > 0) celdaObj.z = '"$"#,##0.00'; // 🛡️ FUERZA LOS 2 DECIMALES SIEMPRE (.20)
+            } else {
+                celdaObj.t = 's'; // Tipo: String
+                if (celda === 'TOTALES:') estilo.alignment.horizontal = "right";
+            }
+        } else {
+            estilo.border = { bottom: { style: "thin", color: { rgb: "F1F5F9" } } };
+            
+            if (typeof celda === 'number') {
+                celdaObj.t = 'n'; // Tipo: Number
+                if (index === 0) {
+                    estilo.alignment.horizontal = "center"; // Es la columna "N°", no lleva decimales
+                } else {
+                    estilo.alignment.horizontal = "right";
+                    celdaObj.z = '"$"#,##0.00'; // 🛡️ FUERZA LOS 2 DECIMALES SIEMPRE (.20)
+                }
+            } else {
+                celdaObj.t = 's'; // Tipo: String
+                estilo.alignment.horizontal = "left";
+            }
+        }
+        
+        celdaObj.s = estilo; // Asignamos el diseño
+        return celdaObj;
+    });
+};
+
+// =======================================================
+// 🛡️ GENERAR LIBRO CONTABLE EN EXCEL (.XLSX)
+// =======================================================
+const generarLibroContableExcel = async () => {
+    if (!nitSeleccionado.value || !mes.value || !anio.value) {
+        alert("Seleccione Empresa, Mes y Año.");
+        return;
+    }
+
+    try {
+        cargando.value = true;
+        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
+            params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value }
+        });
+        
+        const data = res.data;
+        const nombreEmpresa = data.identificacion.razon_social;
+        
+        let tituloLibro = "";
+        let headTabla = [];
+        let bodyTabla = [];
+        let totales = {};
+
+        if (moduloSeleccionado.value === 'compras') {
+            tituloLibro = "LIBRO DE COMPRAS";
+            headTabla = ['N°', 'Fecha', 'N° Doc.', 'NIT\nProveedor', 'Proveedor', 'Exentas', 'Imp/Int\nExentas', 'Gravadas', 'Imp/Int\nGravadas', 'IVA', 'Percibido', 'Suj.\nExclu.', 'Total'];
+            
+            const registros = data.anexo3_compras ? data.anexo3_compras.slice().reverse() : []; 
+            
+            bodyTabla = registros.map((c, idx) => {
+                const exen = parseFloat(c.internas_exentas || 0);
+                const impExen = parseFloat(c.importaciones_exentas || 0);
+                const grav = parseFloat(c.internas_gravadas || 0);
+                const impGrav = parseFloat(c.importaciones_gravadas || 0);
+                const iva = parseFloat(c.credito_fiscal || 0);
+                const percibido = parseFloat(c.iva_percibido || 0);
+                const sujetos = parseFloat(c.sujetos_excluidos || 0);
+                const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0); 
+                const total = exen + grav + iva + otros;
+
+                totales.exen = (totales.exen || 0) + exen;
+                totales.impExen = (totales.impExen || 0) + impExen;
+                totales.grav = (totales.grav || 0) + grav;
+                totales.impGrav = (totales.impGrav || 0) + impGrav;
+                totales.iva = (totales.iva || 0) + iva;
+                totales.percibido = (totales.percibido || 0) + percibido;
+                totales.sujetos = (totales.sujetos || 0) + sujetos;
+                totales.total = (totales.total || 0) + total;
+
+                return [idx + 1, c.fecha, c.numero, c.nit_proveedor, c.nombre_proveedor, exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
+            });
+            bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.impExen, totales.grav, totales.impGrav, totales.iva, totales.percibido, totales.sujetos, totales.total]);
+
+        } else if (moduloSeleccionado.value === 'ventas_cf') {
+            tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
+            headTabla = ['N°', 'Fecha', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas'];
+            const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice().reverse() : [];
+
+            bodyTabla = registros.map((v, idx) => {
+                const exen = parseFloat(v.exentas || 0);
+                const grav = parseFloat(v.gravadas || 0);
+                const total = parseFloat(v.total || 0);
+
+                totales.exen = (totales.exen || 0) + exen;
+                totales.grav = (totales.grav || 0) + grav;
+                totales.total = (totales.total || 0) + total;
+
+                return [ idx + 1, v.fecha, `${v.del} - ${v.al}`, exen, grav, total ];
+            });
+            bodyTabla.push(['', '', 'TOTALES:', totales.exen, totales.grav, totales.total]);
+
+        } else if (moduloSeleccionado.value === 'ventas_ccf') {
+            tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
+            headTabla = ['N°', 'Fecha', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total'];
+            const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice().reverse() : [];
+
+            bodyTabla = registros.map((v, idx) => {
+                const exen = parseFloat(v.exentas || 0);
+                const grav = parseFloat(v.gravadas || 0);
+                const iva = parseFloat(v.debito_fiscal || 0);
+                const total = parseFloat(v.total || 0);
+
+                totales.exen = (totales.exen || 0) + exen;
+                totales.grav = (totales.grav || 0) + grav;
+                totales.iva = (totales.iva || 0) + iva;
+                totales.total = (totales.total || 0) + total;
+
+                return [idx + 1, v.fecha, v.numero, v.nit_cliente, v.nombre, exen, grav, iva, total];
+            });
+            bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.grav, totales.iva, totales.total]);
+
+        } else if (moduloSeleccionado.value === 'sujetos') {
+            tituloLibro = "LIBRO DE COMPRAS A SUJETOS EXCLUIDOS";
+            headTabla = ['N°', 'Fecha', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto\nOperación', 'Retención'];
+            const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice().reverse() : [];
+
+            bodyTabla = registros.map((s, idx) => {
+                const monto = parseFloat(s.monto || 0);
+                const retencion = parseFloat(s.retencion || 0);
+
+                totales.monto = (totales.monto || 0) + monto;
+                totales.retencion = (totales.retencion || 0) + retencion;
+
+                return [ idx + 1, s.fecha, s.documento, s.nit, s.nombre, monto, retencion ];
+            });
+            bodyTabla.push(['', '', '', '', 'TOTALES:', totales.monto, totales.retencion]);
+        }
+
+        const wsData = [
+            [{ v: tituloLibro, s: { font: { bold: true, sz: 16, color: { rgb: "1E3A8A" } } } }],
+            [{ v: `Contribuyente: ${nombreEmpresa}`, s: { font: { bold: true, sz: 12, color: { rgb: "334155" } } } }],
+            [{ v: `NIT: ${nitSeleccionado.value}`, s: { font: { sz: 11, color: { rgb: "334155" } } } }],
+            [{ v: `Mes y Año: ${mes.value} de ${anio.value}`, s: { font: { sz: 11, color: { rgb: "334155" } } } }],
+            [], 
+            construirFilaConEstilo(headTabla, true, false), 
+            ...bodyTabla.map((fila, i) => construirFilaConEstilo(fila, false, i === bodyTabla.length - 1)) 
+        ];
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols'] = headTabla.map((_, i) => ({ wch: i === 4 ? 35 : (i === 2 || i === 3 ? 20 : 12) }));
+        ws['!rows'] = [{hpt: 20}, {hpt: 15}, {hpt: 15}, {hpt: 15}, {hpt: 10}, {hpt: 30}]; 
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "LibroContable");
+        
+        XLSX.writeFile(wb, `Libro_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.xlsx`);
+        
+        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE EXCEL', detalles: `Libro Excel exportado: ${tituloLibro}` }).catch(()=>console.log("Auditoria omitida"));
+
+    } catch (error) {
+        console.error("Error generando Excel:", error);
+        alert("🚨 Ocurrió un error al generar el archivo Excel.");
+    } finally {
+        cargando.value = false;
+    }
+};
+
+// =======================================================
+// 🛡️ GENERAR LIBRO CONTABLE FÍSICO EN PDF
 // =======================================================
 const generarLibroContablePDF = async () => {
     if (!nitSeleccionado.value || !mes.value || !anio.value) {
@@ -266,7 +461,7 @@ const generarLibroContablePDF = async () => {
         const data = res.data;
         const nombreEmpresa = data.identificacion.razon_social;
         
-        const doc = new jsPDF('l', 'mm', 'a4'); // Formato apaisado para los libros
+        const doc = new jsPDF('l', 'mm', 'legal'); 
         
         let tituloLibro = "";
         let bodyTabla = [];
@@ -275,33 +470,47 @@ const generarLibroContablePDF = async () => {
 
         if (moduloSeleccionado.value === 'compras') {
             tituloLibro = "LIBRO DE COMPRAS";
-            // Agregamos la columna 'Otros Montos'
-            headTabla = [['N°', 'Fecha', 'N° Comprobante DTE', 'NIT Proveedor', 'Nombre del Proveedor', 'Exentas', 'Gravadas', 'IVA', 'Otros Montos', 'Total']];
+            headTabla = [['N°', 'Fecha', 'N° Doc.', 'NIT\nProveedor', 'Proveedor', 'Exentas', 'Imp/Int\nExentas', 'Gravadas', 'Imp/Int\nGravadas', 'IVA', 'Percibido', 'Suj.\nExclu.', 'Total']];
             
             const registros = data.anexo3_compras ? data.anexo3_compras.slice().reverse() : []; 
             
             bodyTabla = registros.map((c, idx) => {
                 const exen = parseFloat(c.internas_exentas || 0);
+                const impExen = parseFloat(c.importaciones_exentas || 0);
                 const grav = parseFloat(c.internas_gravadas || 0);
+                const impGrav = parseFloat(c.importaciones_gravadas || 0);
                 const iva = parseFloat(c.credito_fiscal || 0);
+                const percibido = parseFloat(c.iva_percibido || 0);
+                const sujetos = parseFloat(c.sujetos_excluidos || 0);
                 const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0); 
-                // 🛡️ ASEGURAMOS QUE LA SUMA MATEMÁTICA SEA PERFECTA PARA EL PDF
                 const total = exen + grav + iva + otros;
 
                 totales.exen = (totales.exen || 0) + exen;
+                totales.impExen = (totales.impExen || 0) + impExen;
                 totales.grav = (totales.grav || 0) + grav;
+                totales.impGrav = (totales.impGrav || 0) + impGrav;
                 totales.iva = (totales.iva || 0) + iva;
-                totales.otros = (totales.otros || 0) + otros;
+                totales.percibido = (totales.percibido || 0) + percibido;
+                totales.sujetos = (totales.sujetos || 0) + sujetos;
                 totales.total = (totales.total || 0) + total;
 
-                return [idx + 1, c.fecha, c.numero, c.nit_proveedor, c.nombre_proveedor, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${otros.toFixed(2)}`, `$${total.toFixed(2)}`];
+                return [
+                    idx + 1, c.fecha, c.numero, c.nit_proveedor, c.nombre_proveedor, 
+                    `$${exen.toFixed(2)}`, `$${impExen.toFixed(2)}`, `$${grav.toFixed(2)}`, 
+                    `$${impGrav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${percibido.toFixed(2)}`, 
+                    `$${sujetos.toFixed(2)}`, `$${total.toFixed(2)}`
+                ];
             });
-            bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.iva||0).toFixed(2)}`, `$${(totales.otros||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
+            bodyTabla.push(['', '', '', '', 'TOTALES:', 
+                `$${(totales.exen||0).toFixed(2)}`, `$${(totales.impExen||0).toFixed(2)}`, 
+                `$${(totales.grav||0).toFixed(2)}`, `$${(totales.impGrav||0).toFixed(2)}`, 
+                `$${(totales.iva||0).toFixed(2)}`, `$${(totales.percibido||0).toFixed(2)}`, 
+                `$${(totales.sujetos||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`
+            ]);
 
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
-            headTabla = [['N°', 'Fecha', 'Documentos (Del - Al)', 'Ventas Exentas', 'Ventas Gravadas Locales', 'Total Ventas']];
-            
+            headTabla = [['N°', 'Fecha', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas', 'Total\nVentas']];
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice().reverse() : [];
 
             bodyTabla = registros.map((v, idx) => {
@@ -319,8 +528,7 @@ const generarLibroContablePDF = async () => {
 
         } else if (moduloSeleccionado.value === 'ventas_ccf') {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
-            headTabla = [['N°', 'Fecha', 'N° Comprobante CCF', 'NIT Cliente', 'Razón Social', 'Exentas', 'Gravadas', 'Débito Fiscal (IVA)', 'Total']];
-            
+            headTabla = [['N°', 'Fecha', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total']];
             const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice().reverse() : [];
 
             bodyTabla = registros.map((v, idx) => {
@@ -340,8 +548,7 @@ const generarLibroContablePDF = async () => {
 
         } else if (moduloSeleccionado.value === 'sujetos') {
             tituloLibro = "LIBRO DE COMPRAS A SUJETOS EXCLUIDOS";
-            headTabla = [['N°', 'Fecha', 'N° Documento', 'NIT / DUI', 'Nombre del Sujeto', 'Monto Operación', 'Retención']];
-            
+            headTabla = [['N°', 'Fecha', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto\nOperación', 'Retención']];
             const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice().reverse() : [];
 
             bodyTabla = registros.map((s, idx) => {
@@ -356,39 +563,42 @@ const generarLibroContablePDF = async () => {
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
         }
 
-        // Diseño del Encabezado
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(14);
+        doc.setFontSize(16); 
         doc.setTextColor(30, 58, 138); 
         doc.text(tituloLibro, 14, 18);
         
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
+        doc.setFontSize(11); 
         doc.setTextColor(51, 65, 85);
         doc.text(`Contribuyente: ${nombreEmpresa}`, 14, 26);
         doc.text(`NIT: ${nitSeleccionado.value}`, 14, 32);
         doc.text(`Mes y Año: ${mes.value} de ${anio.value}`, 14, 38);
         
         doc.setLineWidth(0.5);
-        doc.line(14, 42, 283, 42); 
+        doc.line(14, 42, 341, 42); 
 
-        // Generar Tabla
         autoTable(doc, {
             startY: 46,
+            margin: { left: 14, right: 14 }, 
             head: headTabla,
             body: bodyTabla,
             theme: 'grid', 
-            headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 8, halign: 'center', cellPadding: 2 },
-            bodyStyles: { fontSize: 8, cellPadding: 2, textColor: [31, 41, 55] },
+            headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 10, halign: 'center', cellPadding: 2 },
+            bodyStyles: { fontSize: 10, cellPadding: 2, textColor: [31, 41, 55], overflow: 'linebreak' },
             alternateRowStyles: { fillColor: [248, 250, 252] },
-            columnStyles: { 0: { halign: 'center', cellWidth: 10 }, 1: { halign: 'center', cellWidth: 22 } },
+            columnStyles: { 
+                0: { halign: 'center', cellWidth: 12 }, 
+                1: { halign: 'center', cellWidth: 18 },
+                2: { halign: 'center', cellWidth: 32 }  
+            },
             didParseCell: function(data) {
-                if (data.column.index > 2 && data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
+                if (data.column.index > 4 && data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
                 if (data.row.index === bodyTabla.length - 1) {
                     data.cell.styles.fontStyle = 'bold';
                     data.cell.styles.fillColor = [226, 232, 240];
                     data.cell.styles.textColor = [15, 23, 42];
-                    if (data.column.index > 2) data.cell.styles.halign = 'right';
+                    if (data.column.index > 4) data.cell.styles.halign = 'right';
                 }
             }
         });
@@ -404,6 +614,7 @@ const generarLibroContablePDF = async () => {
     }
 };
 
+// Resumen Mensual PDF
 const generarPDFMensual = async () => {
     if (!nitSeleccionado.value || !mes.value || !anio.value) {
         alert("Auditoría: Debe seleccionar Empresa, Mes y Año.");
@@ -417,55 +628,82 @@ const generarPDFMensual = async () => {
         });
         
         const data = res.data;
-        const doc = new jsPDF();
+        const doc = new jsPDF('l', 'mm', 'legal'); 
         let startY = 50;
 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(15, 118, 110); 
+        doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(15, 118, 110); 
         doc.text("RentaLimpio - Resumen Tributario", 14, 20);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(51, 65, 85);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(51, 65, 85);
         doc.text(`Empresa (Declarante): ${data.identificacion.razon_social}`, 14, 30);
         doc.text(`NIT: ${data.identificacion.nit}`, 14, 36);
         doc.text(`Periodo Fiscal: ${mes.value} / ${anio.value}`, 14, 42);
-        doc.setLineWidth(0.5); doc.line(14, 45, 196, 45); 
+        doc.setLineWidth(0.5); 
+        doc.line(14, 45, 341, 45); 
 
         if (data.anexo3_compras && data.anexo3_compras.length > 0) {
             doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("1. Compras (Crédito Fiscal Recibido)", 14, startY);
             autoTable(doc, {
-                // Agregamos 'Otros' a las cabeceras
-                startY: startY + 5, head: [['Fecha', 'Proveedor / NIT', 'DTE', 'Gravadas', 'IVA', 'Otros', 'Total']],
+                startY: startY + 5, 
+                margin: { left: 14, right: 14 }, 
+                head: [['Fecha', 'Proveedor\n/ NIT', 'DTE', 'Exen.\nLoc.', 'Exen.\nImp/Int', 'Grav.\nLoc.', 'Grav.\nImp/Int', 'IVA', 'Perci-\nbido', 'Suj.\nExclu.', 'Total']],
                 body: data.anexo3_compras.map(c => {
-                    const exen = parseFloat(c.internas_exentas || 0);
-                    const grav = parseFloat(c.internas_gravadas || 0);
-                    const iva = parseFloat(c.credito_fiscal || 0);
-                    const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0);
-                    // 🛡️ Forzamos la suma matemática perfecta
-                    const sumaTotal = (exen + grav + iva + otros).toFixed(2);
+                    const exen = parseFloat(c.internas_exentas || 0).toFixed(2);
+                    const impExen = parseFloat(c.importaciones_exentas || 0).toFixed(2);
+                    const grav = parseFloat(c.internas_gravadas || 0).toFixed(2);
+                    const impGrav = parseFloat(c.importaciones_gravadas || 0).toFixed(2);
+                    const iva = parseFloat(c.credito_fiscal || 0).toFixed(2);
+                    const percibido = parseFloat(c.iva_percibido || 0).toFixed(2);
+                    const sujetos = parseFloat(c.sujetos_excluidos || 0).toFixed(2);
                     
-                    return [c.fecha, `${c.nombre_proveedor}\n${c.nit_proveedor}`, c.numero, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${otros.toFixed(2)}`, `$${sumaTotal}`]
+                    const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0);
+                    const total = (parseFloat(exen) + parseFloat(grav) + parseFloat(iva) + otros).toFixed(2);
+                    
+                    return [
+                        c.fecha, 
+                        `${c.nombre_proveedor}\n${c.nit_proveedor}`, 
+                        c.numero, 
+                        `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}`
+                    ]
                 }),
-                theme: 'striped', headStyles: { fillColor: [15, 118, 110] }, styles: { fontSize: 8, cellPadding: 3 },
+                theme: 'striped', headStyles: { fillColor: [15, 118, 110] }, styles: { fontSize: 10, cellPadding: 2 },
+                columnStyles: { 
+                    0: { halign: 'center', cellWidth: 20 }, 
+                    2: { halign: 'center', cellWidth: 35 }  
+                } 
             });
             startY = doc.lastAutoTable.finalY + 15;
         }
 
         if (data.anexo2_credito_fiscal && data.anexo2_credito_fiscal.length > 0) {
-            if (startY > 250) { doc.addPage(); startY = 20; }
+            if (startY > 160) { doc.addPage(); startY = 20; }
             doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("2. Ventas a Contribuyentes (CCF Emitidos)", 14, startY);
             autoTable(doc, {
-                startY: startY + 5, head: [['Fecha', 'Cliente / NIT', 'DTE', 'Gravadas', 'Débito Fiscal', 'Total']],
+                startY: startY + 5, 
+                margin: { left: 14, right: 14 },
+                head: [['Fecha', 'Cliente\n/ NIT', 'DTE', 'Gravadas', 'Débito\nFiscal', 'Total']],
                 body: data.anexo2_credito_fiscal.map(v => [v.fecha, `${v.nombre}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`]),
-                theme: 'striped', headStyles: { fillColor: [3, 105, 161] }, styles: { fontSize: 8, cellPadding: 3 },
+                theme: 'striped', headStyles: { fillColor: [3, 105, 161] }, styles: { fontSize: 10, cellPadding: 2 },
+                columnStyles: { 
+                    0: { halign: 'center', cellWidth: 20 },
+                    2: { halign: 'center', cellWidth: 35 } 
+                } 
             });
             startY = doc.lastAutoTable.finalY + 15;
         }
 
         if (data.anexo1_consumidor_final && data.anexo1_consumidor_final.length > 0) {
-            if (startY > 250) { doc.addPage(); startY = 20; }
+            if (startY > 160) { doc.addPage(); startY = 20; }
             doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("3. Ventas a Consumidor Final", 14, startY);
             autoTable(doc, {
-                startY: startY + 5, head: [['Fecha', 'DTE (Del - Al)', 'Ventas Exentas', 'Ventas Gravadas', 'Total Venta']],
+                startY: startY + 5, 
+                margin: { left: 14, right: 14 },
+                head: [['Fecha', 'DTE\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas', 'Total\nVenta']],
                 body: data.anexo1_consumidor_final.map(v => [v.fecha, `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`]),
-                theme: 'striped', headStyles: { fillColor: [217, 119, 6] }, styles: { fontSize: 8, cellPadding: 3 },
+                theme: 'striped', headStyles: { fillColor: [217, 119, 6] }, styles: { fontSize: 10, cellPadding: 2 },
+                columnStyles: { 
+                    0: { halign: 'center', cellWidth: 20 },
+                    1: { halign: 'center', cellWidth: 35 } 
+                } 
             });
             startY = doc.lastAutoTable.finalY + 15;
         }
@@ -545,11 +783,10 @@ const descargarArchivoReal = () => {
 </script>
 
 <style scoped>
-/* ESTILO DEL NUEVO BOTON MORADO */
 .btn-purple { background: #8b5cf6; color: white; border: none; }
 .btn-purple:hover:not(:disabled) { background: #7c3aed; }
-.flex-buttons { display: flex; align-items: center; width: 100%; }
-.flex-1 { flex: 1; }
+.flex-buttons { display: flex; align-items: center; width: 100%; flex-wrap: wrap; }
+.flex-1 { flex: 1; min-width: 130px; }
 .gap-2 { gap: 8px; }
 .btn-danger { background: #ef4444; color: white; border: none; }
 .btn-danger:hover:not(:disabled) { background: #dc2626; }
@@ -616,7 +853,9 @@ const descargarArchivoReal = () => {
 .btn-primary { background: #55C2B7; color: white; }
 .btn-primary:hover:not(:disabled) { background: #45a89d; }
 .btn-success { background: #10b981; color: white; }
-.btn-success:hover { background: #059669; }
+.btn-success:hover:not(:disabled) { background: #059669; }
+.btn-dark { background: #374151; color: white; }
+.btn-dark:hover:not(:disabled) { background: #1f2937; }
 
 .empty-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9ca3af; text-align: center; padding: 20px; }
 .empty-icon { font-size: 3rem; margin-bottom: 10px; opacity: 0.5; }

@@ -122,8 +122,15 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
             anexo3_compras: anexo3.map(c => ({
                 fecha: c.ComFecha, clase: c.ComClase, tipo: c.ComTipo, numero: sinGuiones(c.ComNumero),
                 nit_proveedor: sinGuiones(c.proveedor_ProvNIT) || '0000', nombre_proveedor: c.ComNomProve,
-                internas_exentas: Number(c.ComIntExe || 0).toFixed(2), internas_gravadas: Number(c.ComIntGrav || 0).toFixed(2),
-                credito_fiscal: Number(c.ComCredFiscal || 0).toFixed(2), total: Number(c.ComTotal || 0).toFixed(2)
+                internas_exentas: Number(c.ComIntExe || 0).toFixed(2), 
+                internas_gravadas: Number(c.ComIntGrav || 0).toFixed(2),
+                // 🛡️ AQUÍ VAN LAS NUEVAS COLUMNAS MAPDEADAS:
+                importaciones_exentas: Number((parseFloat(c.ComInternacioExe) || 0) + (parseFloat(c.ComImpExeNoSujetas) || 0)).toFixed(2),
+                importaciones_gravadas: Number((parseFloat(c.ComInternacGravBienes) || 0) + (parseFloat(c.ComImportGravBienes) || 0) + (parseFloat(c.ComImportGravServicios) || 0)).toFixed(2),
+                iva_percibido: "0.00", 
+                sujetos_excluidos: "0.00",
+                credito_fiscal: Number(c.ComCredFiscal || 0).toFixed(2), 
+                total: Number(c.ComTotal || 0).toFixed(2)
             })),
             anexo5_sujetos_excluidos: anexo5.map(s => ({
                 fecha: s.ComprasSujExcluFecha, nit: sinGuiones(s.ComprasSujExcluNIT), nombre: s.ComprasSujExcluNom,
