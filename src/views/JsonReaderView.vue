@@ -165,6 +165,7 @@ const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
 const miAlias = ref(''); 
+const miNrc = ref(''); // 🛡️ NUEVO: Guardaremos el NRC para doble validación
 const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
@@ -181,49 +182,38 @@ onMounted(async () => {
     const res = await axios.get(`${BASE_URL}/api/declarantes`, config);
     declarantesDB.value = res.data || [];
   } catch (err) {
-    console.warn("Aviso: No se cargaron los declarantes para autocompletado.", err);
+    console.warn("Aviso: No se cargaron los declarantes.");
   }
 });
 
+// Autocompletar y extraer NRC
 watch(miNit, (nuevoValor) => {
   const nitLimpio = limpiarNit(nuevoValor);
-  if (nitLimpio.length >= 9 && declarantesDB.value.length > 0) {
+  if (nitLimpio.length >= 8 && declarantesDB.value.length > 0) {
     const empresa = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === nitLimpio);
-    if (empresa && empresa.declaNRC) {
-      miAlias.value = empresa.declaNRC;
+    if (empresa) {
+        miAlias.value = empresa.declarante || empresa.declaNRC;
+        miNrc.value = limpiarNit(empresa.declaNRC);
     } else {
-      miAlias.value = '';
+        miAlias.value = '';
+        miNrc.value = '';
     }
   } else {
     miAlias.value = '';
+    miNrc.value = '';
   }
 });
 
-// 📅 Función auxiliar
 const obtenerMesNombre = (fechaIso) => {
     if (!fechaIso) return 'Enero';
-    const mesNum = parseInt(fechaIso.split('-')[1], 10);
+    const partes = fechaIso.split('T')[0].split('-');
+    if (partes.length < 2) return 'Enero';
+    const mesNum = parseInt(partes[1], 10);
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
     return meses[mesNum - 1] || 'Enero';
 };
 
-const normalizarPayloadBackup = (json) => {
-  return {
-    backup_info: json.backup_info || json.encabezado || { 
-      nit: limpiarNit(miNit.value), 
-      empresa: 'Importación Manual',
-      periodo: new Date().getFullYear().toString()
-    },
-    data: {
-      compras: json.data?.compras || json.modulos?.compras || [],
-      ventas_ccf: json.data?.ventas_ccf || json.modulos?.ventas_credito_fiscal || [],
-      ventas_cf: json.data?.ventas_cf || json.modulos?.ventas_consumidor || [],
-      sujetos_excluidos: json.data?.sujetos_excluidos || json.modulos?.sujetos_excluidos || []
-    }
-  };
-};
-
-const clasificarDTE = (dte) => {
+const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const ident = dte.identificacion || {};
   const emisor = dte.emisor || {};
   const receptor = dte.receptor || {};
@@ -253,144 +243,130 @@ const clasificarDTE = (dte) => {
   
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
 
-  const miNitClean = limpiarNit(miNit.value);
-  const miAliasClean = limpiarNit(miAlias.value);
   const emisorNit = limpiarNit(emisor.nit);
-  const receptorNit = limpiarNit(receptor.nit);
   const emisorNrc = limpiarNit(emisor.nrc);
+  const receptorNit = limpiarNit(receptor.nit);
   const receptorNrc = limpiarNit(receptor.nrc);
 
-  const soyReceptor = receptorNit === miNitClean || (miAliasClean && (receptorNit === miAliasClean || receptorNrc === miAliasClean));
-  const soyEmisor = emisorNit === miNitClean || (miAliasClean && (emisorNit === miAliasClean || emisorNrc === miAliasClean));
-
-  const resultado = { modulo: null, data: null };
+  // 🛡️ REGLA MEJORADA: Si el NIT no cuadra por culpa del DUI, validamos por el NRC (Ej: 52795)
+  const soyReceptor = (receptorNit === nitUsuario) || (nrcUsuario && receptorNrc === nrcUsuario);
+  const soyEmisor = (emisorNit === nitUsuario) || (nrcUsuario && emisorNrc === nrcUsuario);
 
   if (soyReceptor) {
-    resultado.modulo = 'compras';
-    resultado.data = {
-      ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero,
-      ComCodGeneracion: codGen,
-      proveedor_ProvNIT: emisorNit,
-      ComNomProve: emisor.nombre?.toUpperCase(),
-      ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total,
-      ComClase: '4', ComAnexo: '3',
-      ComMesDeclarado: obtenerMesNombre(fecha),
-      ComAnioDeclarado: fecha.split('-')[0],
-      comFovial: fovial,
-      comCotran: cotrans,
-      ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
+    return {
+      modulo: 'compras',
+      data: {
+        ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen,
+        proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(),
+        ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3',
+        ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0],
+        comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
+      }
     };
-  } else if (soyEmisor) {
+  } 
+  else if (soyEmisor) {
     if (tipoDte === '03') { 
-      resultado.modulo = 'ventas_ccf';
-      resultado.data = {
-        FiscFecha: fecha, FiscNumDoc: numero, 
-        FiscCodGeneracion: codGen,
-        FiscNit: receptorNit,
-        FiscNomRazonDenomi: receptor.nombre?.toUpperCase(),
-        FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total,
-        FisClasDoc: '4', FisTipoDoc: '03', FiscNumAnexo: '2'
+      return {
+        modulo: 'ventas_ccf',
+        data: {
+          FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscNit: receptorNit,
+          FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, 
+          FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', FisTipoDoc: '03', FiscNumAnexo: '2'
+        }
       };
     } else if (tipoDte === '01') { 
-      resultado.modulo = 'ventas_cf';
-      resultado.data = {
-        ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero,
-        ConsCodGeneracion: codGen,
-        ConsVtaGravLocales: gravado, ConsTotalVta: total,
-        ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL',
-        ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1'
+      return {
+        modulo: 'ventas_cf',
+        data: {
+          ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero, ConsCodGeneracion: codGen,
+          ConsVtaGravLocales: gravado, ConsTotalVta: total, ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL',
+          ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1'
+        }
       };
     } else if (tipoDte === '14') { 
-      resultado.modulo = 'sujetos_excluidos';
-      resultado.data = {
-        ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero,
-        ComprasSujExcluCodGeneracion: codGen,
-        ComprasSujExcluNIT: receptorNit,
-        ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
-        ComprasSujExcluMontoOpera: total,
-        ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
-        ComprasSujExcluTipoDoc: '14',
-        ComprasSujExcluAnexo: '5'
+      return {
+        modulo: 'sujetos_excluidos',
+        data: {
+          ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero, ComprasSujExcluCodGeneracion: codGen,
+          ComprasSujExcluNIT: receptorNit, ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
+          ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
+          ComprasSujExcluTipoDoc: '14', ComprasSujExcluAnexo: '5'
+        }
       };
     }
   }
-  return resultado;
+  return null; 
 };
 
 const cargarArchivo = (event) => {
   if (event.preventDefault) event.preventDefault();
 
-  if (!miNit.value || miNit.value.length < 5) {
-    alert("⚠️ Por favor, ingresa TU NIT principal primero.");
-    if (fileInput.value) fileInput.value.value = '';
-    return;
-  }
-
   const files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
   if (!files || !files.length) return;
-
-  if (!payloadFinal.value) payloadFinal.value = { backup_info: {}, data: { compras: [], ventas_ccf: [], ventas_cf: [], sujetos_excluidos: [] } };
 
   Array.from(files).forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
+
+        // 🛡️ INTELIGENCIA DE AUTODETECCIÓN POR NRC
+        if (!miNit.value && jsonRaw.receptor) {
+            let emp = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === limpiarNit(jsonRaw.receptor.nit));
+            if (!emp && jsonRaw.receptor.nrc) {
+                emp = declarantesDB.value.find(d => limpiarNit(d.declaNRC) === limpiarNit(jsonRaw.receptor.nrc));
+            }
+            if (emp) miNit.value = limpiarNit(emp.iddeclaNIT); // Asignamos el NIT de 14 dígitos oficial
+        }
+
+        const nitActual = limpiarNit(miNit.value);
+        if (!nitActual || nitActual.length < 8) {
+            alert("⚠️ Por favor, ingrese su NIT de 14 dígitos en el recuadro superior antes de seleccionar el archivo.");
+            if (fileInput.value) fileInput.value.value = '';
+            return;
+        }
+
+        if (!payloadFinal.value) {
+            payloadFinal.value = { 
+                backup_info: { nit: nitActual, empresa: miAlias.value || 'Importación', periodo: new Date().getFullYear().toString() }, 
+                data: { compras: [], ventas_ccf: [], ventas_cf: [], sujetos_excluidos: [] } 
+            };
+        }
         
-        // 🛡️ CASO 1: Es un JSON exportado para Hacienda (F-07)
+        // 🛡️ CASO 1: JSON Anexos Hacienda (F-07)
         if (jsonRaw.identificacion && (jsonRaw.anexo3_compras || jsonRaw.anexo1_consumidor_final)) {
-          payloadFinal.value.backup_info = { nit: limpiarNit(jsonRaw.identificacion.nit), empresa: jsonRaw.identificacion.razon_social, periodo: jsonRaw.identificacion.periodo };
-          
           if (jsonRaw.anexo3_compras) {
               jsonRaw.anexo3_compras.forEach(c => payloadFinal.value.data.compras.push({
-                  ComFecha: c.fecha, ComClase: c.clase || '4', ComTipo: c.tipo || '03', ComNumero: c.numero, ComCodGeneracion: c.numero,
-                  proveedor_ProvNIT: c.nit_proveedor, ComNomProve: c.nombre_proveedor,
-                  ComIntExe: parseFloat(c.internas_exentas) || 0, ComIntGrav: parseFloat(c.internas_gravadas) || 0,
-                  ComInternacioExe: parseFloat(c.importaciones_exentas) || 0, ComInternacGravBienes: parseFloat(c.importaciones_gravadas) || 0,
-                  ComCredFiscal: parseFloat(c.credito_fiscal) || 0, ComOtroAtributo: parseFloat(c.otros_montos) || 0, ComTotal: parseFloat(c.total) || 0,
-                  ComMesDeclarado: obtenerMesNombre(c.fecha), ComAnioDeclarado: c.fecha ? c.fecha.split('-')[0] : '2026'
-              }));
-          }
-          if (jsonRaw.anexo2_credito_fiscal) {
-              jsonRaw.anexo2_credito_fiscal.forEach(v => payloadFinal.value.data.ventas_ccf.push({
-                  FiscFecha: v.fecha, FisTipoDoc: v.tipo || '03', FiscNumDoc: v.numero, FiscCodGeneracion: v.numero,
-                  FiscNit: v.nit_cliente, FiscNomRazonDenomi: v.nombre, FiscVtaExen: parseFloat(v.exentas) || 0,
-                  FiscVtaGravLocal: parseFloat(v.gravadas) || 0, FiscDebitoFiscal: parseFloat(v.debito_fiscal) || 0, FiscTotalVtas: parseFloat(v.total) || 0
-              }));
-          }
-          if (jsonRaw.anexo1_consumidor_final) {
-              jsonRaw.anexo1_consumidor_final.forEach(v => payloadFinal.value.data.ventas_cf.push({
-                  ConsFecha: v.fecha, ConsTipoDoc: v.tipo || '01', ConsNumDocDEL: v.del, ConsNumDocAL: v.al, ConsCodGeneracion: v.del,
-                  ConsVtaExentas: parseFloat(v.exentas) || 0, ConsVtaGravLocales: parseFloat(v.gravadas) || 0, ConsTotalVta: parseFloat(v.total) || 0
-              }));
-          }
-          if (jsonRaw.anexo5_sujetos_excluidos) {
-              jsonRaw.anexo5_sujetos_excluidos.forEach(s => payloadFinal.value.data.sujetos_excluidos.push({
-                  ComprasSujExcluFecha: s.fecha, ComprasSujExcluNIT: s.nit, ComprasSujExcluNom: s.nombre,
-                  ComprasSujExcluNumDoc: s.documento, ComprasSujExcluCodGeneracion: s.documento,
-                  ComprasSujExcluMontoOpera: parseFloat(s.monto) || 0, ComprasSujExcluMontoReten: parseFloat(s.retencion) || 0
+                  ComFecha: c.fecha.split('T')[0], ComClase: c.clase || '4', ComTipo: c.tipo || '03', 
+                  ComNumero: c.numero, ComCodGeneracion: c.numero, proveedor_ProvNIT: c.nit_proveedor, 
+                  ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0, 
+                  ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0, 
+                  ComTotal: parseFloat(c.total) || 0, ComMesDeclarado: obtenerMesNombre(c.fecha), ComAnioDeclarado: c.fecha.split('-')[0]
               }));
           }
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 2: Es un Backup generado por el sistema (Exportación general)
+        // 🛡️ CASO 2: Backup Propio del Sistema
         else if (jsonRaw.modulos || jsonRaw.data) { 
-          payloadFinal.value = normalizarPayloadBackup(jsonRaw);
+          payloadFinal.value.data.compras.push(...(jsonRaw.data?.compras || jsonRaw.modulos?.compras || []));
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 3: Es un JSON (o varios JSON) original descargado de la plataforma del Ministerio de Hacienda
+        // 🛡️ CASO 3: DTE(s) Original(es) de Hacienda (COMO EL DE LA GASOLINERA)
         else { 
           const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
           lista.forEach(doc => {
             const dteUnico = doc.dteJson || doc.dte || doc;
-            const clasif = clasificarDTE(dteUnico);
-            if (clasif.modulo && payloadFinal.value.data[clasif.modulo]) {
-              payloadFinal.value.data[clasif.modulo].push(clasif.data);
+            if (dteUnico.identificacion) {
+                // Pasamos el nit y el nrc para doble chequeo
+                const clasif = clasificarDTE(dteUnico, nitActual, limpiarNit(miNrc.value));
+                if (clasif && clasif.modulo) {
+                    payloadFinal.value.data[clasif.modulo].push(clasif.data);
+                }
             }
           });
           datosProcesados.value = true;
         }
-      } catch (err) { console.error("Error en archivo:", err); }
+      } catch (err) { console.error("Error al leer archivo:", err); }
     };
     reader.readAsText(file);
   });
@@ -399,21 +375,28 @@ const cargarArchivo = (event) => {
 const enviarAlBackend = async () => {
   cargando.value = true;
   try {
+    const data = payloadFinal.value.data;
+    if (data.compras.length === 0 && data.ventas_ccf.length === 0 && data.ventas_cf.length === 0 && data.sujetos_excluidos.length === 0) {
+        alert("⚠️ El archivo cargado no contiene documentos que le pertenezcan a su empresa (Verifique NIT/DUI/NRC).");
+        cargando.value = false;
+        return;
+    }
+
     const res = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
     const r = res.data.detalle || {};
-    alert(`✅ PROCESO EXITOSO\n\n📥 Compras: ${r.compras || 0}\n📥 CCF: ${r.ventas_ccf || 0}\n📥 Consumidor: ${r.ventas_cf || 0}\n📥 Sujetos: ${r.sujetos || 0}\n\n⚠️ Duplicados Omitidos: ${r.duplicados || 0}`);
+    alert(`✅ IMPORTACIÓN EXITOSA\n\n📥 Compras: ${r.compras || 0}\n📥 CCF: ${r.ventas_ccf || 0}\n📥 Consumidor: ${r.ventas_cf || 0}\n📥 Sujetos: ${r.sujetos || 0}\n\n⚠️ Duplicados Omitidos: ${r.duplicados || 0}`);
     limpiar();
   } catch (err) {
-    alert("🚨 Error: " + (err.response?.data?.message || err.message));
-  } finally { cargando.value = false; }
+    alert("🚨 Error en Servidor: " + (err.response?.data?.message || err.message));
+  } finally { 
+    cargando.value = false; 
+  }
 };
 
 const limpiar = () => {
   datosProcesados.value = false;
   payloadFinal.value = null;
-  if (fileInput.value) {
-    fileInput.value.value = '';
-  }
+  if (fileInput.value) fileInput.value.value = '';
 };
 </script>
 
