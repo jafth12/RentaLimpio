@@ -199,7 +199,15 @@ watch(miNit, (nuevoValor) => {
   }
 });
 
-const normalizarPayload = (json) => {
+// 📅 Función auxiliar
+const obtenerMesNombre = (fechaIso) => {
+    if (!fechaIso) return 'Enero';
+    const mesNum = parseInt(fechaIso.split('-')[1], 10);
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    return meses[mesNum - 1] || 'Enero';
+};
+
+const normalizarPayloadBackup = (json) => {
   return {
     backup_info: json.backup_info || json.encabezado || { 
       nit: limpiarNit(miNit.value), 
@@ -213,14 +221,6 @@ const normalizarPayload = (json) => {
       sujetos_excluidos: json.data?.sujetos_excluidos || json.modulos?.sujetos_excluidos || []
     }
   };
-};
-
-// 📅 Función para convertir número de mes a nombre (Ej: '02' -> 'Febrero')
-const obtenerMesNombre = (fechaIso) => {
-    if (!fechaIso) return 'Enero';
-    const mesNum = parseInt(fechaIso.split('-')[1], 10);
-    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    return meses[mesNum - 1] || 'Enero';
 };
 
 const clasificarDTE = (dte) => {
@@ -274,7 +274,6 @@ const clasificarDTE = (dte) => {
       ComNomProve: emisor.nombre?.toUpperCase(),
       ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total,
       ComClase: '4', ComAnexo: '3',
-      // 🛡️ AQUÍ ESTÁ LA MODIFICACIÓN: Extrae el Mes y Año de la fecha del DTE
       ComMesDeclarado: obtenerMesNombre(fecha),
       ComAnioDeclarado: fecha.split('-')[0],
       comFovial: fovial,
@@ -330,19 +329,57 @@ const cargarArchivo = (event) => {
   const files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
   if (!files || !files.length) return;
 
-  if (!payloadFinal.value) payloadFinal.value = normalizarPayload({});
+  if (!payloadFinal.value) payloadFinal.value = { backup_info: {}, data: { compras: [], ventas_ccf: [], ventas_cf: [], sujetos_excluidos: [] } };
 
   Array.from(files).forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
-        let dteReal = jsonRaw.dte || jsonRaw.dteJson || jsonRaw;
         
-        if (jsonRaw.modulos || jsonRaw.data) { 
-          payloadFinal.value = normalizarPayload(jsonRaw);
+        // 🛡️ CASO 1: Es un JSON exportado para Hacienda (F-07)
+        if (jsonRaw.identificacion && (jsonRaw.anexo3_compras || jsonRaw.anexo1_consumidor_final)) {
+          payloadFinal.value.backup_info = { nit: limpiarNit(jsonRaw.identificacion.nit), empresa: jsonRaw.identificacion.razon_social, periodo: jsonRaw.identificacion.periodo };
+          
+          if (jsonRaw.anexo3_compras) {
+              jsonRaw.anexo3_compras.forEach(c => payloadFinal.value.data.compras.push({
+                  ComFecha: c.fecha, ComClase: c.clase || '4', ComTipo: c.tipo || '03', ComNumero: c.numero, ComCodGeneracion: c.numero,
+                  proveedor_ProvNIT: c.nit_proveedor, ComNomProve: c.nombre_proveedor,
+                  ComIntExe: parseFloat(c.internas_exentas) || 0, ComIntGrav: parseFloat(c.internas_gravadas) || 0,
+                  ComInternacioExe: parseFloat(c.importaciones_exentas) || 0, ComInternacGravBienes: parseFloat(c.importaciones_gravadas) || 0,
+                  ComCredFiscal: parseFloat(c.credito_fiscal) || 0, ComOtroAtributo: parseFloat(c.otros_montos) || 0, ComTotal: parseFloat(c.total) || 0,
+                  ComMesDeclarado: obtenerMesNombre(c.fecha), ComAnioDeclarado: c.fecha ? c.fecha.split('-')[0] : '2026'
+              }));
+          }
+          if (jsonRaw.anexo2_credito_fiscal) {
+              jsonRaw.anexo2_credito_fiscal.forEach(v => payloadFinal.value.data.ventas_ccf.push({
+                  FiscFecha: v.fecha, FisTipoDoc: v.tipo || '03', FiscNumDoc: v.numero, FiscCodGeneracion: v.numero,
+                  FiscNit: v.nit_cliente, FiscNomRazonDenomi: v.nombre, FiscVtaExen: parseFloat(v.exentas) || 0,
+                  FiscVtaGravLocal: parseFloat(v.gravadas) || 0, FiscDebitoFiscal: parseFloat(v.debito_fiscal) || 0, FiscTotalVtas: parseFloat(v.total) || 0
+              }));
+          }
+          if (jsonRaw.anexo1_consumidor_final) {
+              jsonRaw.anexo1_consumidor_final.forEach(v => payloadFinal.value.data.ventas_cf.push({
+                  ConsFecha: v.fecha, ConsTipoDoc: v.tipo || '01', ConsNumDocDEL: v.del, ConsNumDocAL: v.al, ConsCodGeneracion: v.del,
+                  ConsVtaExentas: parseFloat(v.exentas) || 0, ConsVtaGravLocales: parseFloat(v.gravadas) || 0, ConsTotalVta: parseFloat(v.total) || 0
+              }));
+          }
+          if (jsonRaw.anexo5_sujetos_excluidos) {
+              jsonRaw.anexo5_sujetos_excluidos.forEach(s => payloadFinal.value.data.sujetos_excluidos.push({
+                  ComprasSujExcluFecha: s.fecha, ComprasSujExcluNIT: s.nit, ComprasSujExcluNom: s.nombre,
+                  ComprasSujExcluNumDoc: s.documento, ComprasSujExcluCodGeneracion: s.documento,
+                  ComprasSujExcluMontoOpera: parseFloat(s.monto) || 0, ComprasSujExcluMontoReten: parseFloat(s.retencion) || 0
+              }));
+          }
           datosProcesados.value = true;
-        } else { 
+        } 
+        // 🛡️ CASO 2: Es un Backup generado por el sistema (Exportación general)
+        else if (jsonRaw.modulos || jsonRaw.data) { 
+          payloadFinal.value = normalizarPayloadBackup(jsonRaw);
+          datosProcesados.value = true;
+        } 
+        // 🛡️ CASO 3: Es un JSON (o varios JSON) original descargado de la plataforma del Ministerio de Hacienda
+        else { 
           const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
           lista.forEach(doc => {
             const dteUnico = doc.dteJson || doc.dte || doc;

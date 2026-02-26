@@ -1,10 +1,26 @@
 import pool from '../config/db.js';
 import { registrarAccion } from './historial.controller.js';
 
+// 📅 Función para limpiar la fecha al enviarla al frontend
+const formatearFecha = (fecha) => {
+    if (!fecha) return null;
+    if (fecha instanceof Date) {
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    return fecha.toString().split('T')[0];
+};
+
 // --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM compras ORDER BY ComFecha ASC');
+        // Limpiamos las fechas antes de mandarlas al frontend
+        rows.forEach(r => {
+            if (r.ComFecha) r.ComFecha = formatearFecha(r.ComFecha);
+        });
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener compras', error: error.message });
@@ -17,7 +33,11 @@ export const getCompraById = async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM compras WHERE idcompras = ?', [id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Compra no encontrada' });
-        res.json(rows[0]);
+        
+        const compra = rows[0];
+        if (compra.ComFecha) compra.ComFecha = formatearFecha(compra.ComFecha);
+        
+        res.json(compra);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener la compra', error: error.message });
     }
@@ -109,6 +129,23 @@ export const updateCompra = async (req, res) => {
     const { id } = req.params;
     const d = req.body;
     try {
+        // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR: Evita que la edites y le pongas un DTE de OTRA compra
+        const [duplicado] = await pool.query(
+            `SELECT idcompras FROM compras 
+             WHERE iddeclaNIT = ? 
+             AND idcompras != ?
+             AND (
+                 (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
+                 OR 
+                 (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, id, d.ComCodGeneracion, d.ComNumero, d.proveedor_ProvNIT]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Conflicto de Documento. Ya existe OTRA compra registrada con ese mismo Número de DTE o Código de Generación.' });
+        }
+
         // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE (Proporción 2 a 1)
         const montoCombustible = parseFloat(d.ComOtroAtributo) || 0;
         let montoFovial = 0;

@@ -7,13 +7,15 @@ import axios from 'axios'
 
 axios.interceptors.request.use(
   (config) => {
+    // Extraemos las variables de sesión tal como las guardamos en LoginView
     const rol = sessionStorage.getItem('rolUsuario');
-    const usuario = sessionStorage.getItem('nombreUsuario') || sessionStorage.getItem('usuario') || 'Admin';
+    const usuario = sessionStorage.getItem('usuario') || 'Usuario Desconocido';
     
+    // Inyectamos las cabeceras para que el Backend sepa quién está haciendo la petición
     if (rol) {
-      config.headers['x-user-role'] = rol; // 🛡️ CORREGIDO (Seguridad)
+      config.headers['x-user-role'] = rol.toLowerCase(); // Forzamos minúscula para evitar errores
     }
-    // 🛡️ Agregado para el sistema de Auditoría
+    
     config.headers['x-usuario'] = usuario;
     
     return config;

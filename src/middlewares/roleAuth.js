@@ -1,14 +1,14 @@
 export const requireAdmin = (req, res, next) => {
-    // 🛡️ CORREGIDO: Leer el header exacto en minúsculas
+    // Los headers en Express se convierten automáticamente a minúsculas
     const userRole = req.headers['x-user-role'];
 
-    console.log(`Verificando seguridad. Rol recibido: ${userRole || 'Ninguno'}`);
+    console.log(`Verificando seguridad. Usuario: ${req.headers['x-usuario']} | Rol recibido: ${userRole || 'Ninguno'}`);
     
     if (userRole === 'admin') {
         next();
     } else {
         return res.status(403).json({ 
-            message: 'ACCESO DENEGADO: Se requieren permisos de Administrador.' 
+            message: 'ACCESO DENEGADO: Solo los Administradores pueden eliminar registros o gestionar el sistema.' 
         });
     }
 };

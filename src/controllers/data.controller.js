@@ -9,9 +9,77 @@ const obtenerMes = (m) => {
     return mapa[m] || 1;
 };
 
+// Tijera para evitar el error de MySQL y limpiar la hora
 const formatearFecha = (fecha) => {
     if (!fecha) return null;
+    // Si viene como objeto Date (muy común en MySQL)
+    if (fecha instanceof Date) {
+        const yyyy = fecha.getFullYear();
+        const mm = String(fecha.getMonth() + 1).padStart(2, '0');
+        const dd = String(fecha.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    // Si viene como string
     return fecha.toString().split('T')[0];
+};
+
+const aMoneda = (val) => Number(val || 0).toFixed(2);
+
+// ==========================================
+// LIMPIADORES PARA EL BACKUP (Mantienen el orden exacto de la DB)
+// ==========================================
+const limpiarCompras = (rows) => {
+    rows.forEach(r => {
+        if (r.ComFecha) r.ComFecha = formatearFecha(r.ComFecha);
+        r.ComIntExe = aMoneda(r.ComIntExe);
+        r.ComInternacioExe = aMoneda(r.ComInternacioExe);
+        r.ComImpExeNoSujetas = aMoneda(r.ComImpExeNoSujetas);
+        r.ComIntGrav = aMoneda(r.ComIntGrav);
+        r.ComInternacGravBienes = aMoneda(r.ComInternacGravBienes);
+        r.ComImportGravBienes = aMoneda(r.ComImportGravBienes);
+        r.ComImportGravServicios = aMoneda(r.ComImportGravServicios);
+        r.ComCredFiscal = aMoneda(r.ComCredFiscal);
+        r.comFovial = aMoneda(r.comFovial);
+        r.comCotran = aMoneda(r.comCotran);
+        r.ComOtroAtributo = aMoneda(r.ComOtroAtributo);
+        r.ComTotal = aMoneda(r.ComTotal);
+    });
+};
+
+const limpiarVentasCF = (rows) => {
+    rows.forEach(r => {
+        if (r.ConsFecha) r.ConsFecha = formatearFecha(r.ConsFecha);
+        r.ConsVtaExentas = aMoneda(r.ConsVtaExentas);
+        r.ConsVtaNoSujetas = aMoneda(r.ConsVtaNoSujetas);
+        r.ConsVtaGravLocales = aMoneda(r.ConsVtaGravLocales);
+        r.ConsExpDentAreaCA = aMoneda(r.ConsExpDentAreaCA);
+        r.ConsExpFueraAreaCA = aMoneda(r.ConsExpFueraAreaCA);
+        r.ConsExpServicios = aMoneda(r.ConsExpServicios);
+        r.ConsVtaZonaFrancasDPA = aMoneda(r.ConsVtaZonaFrancasDPA);
+        r.ConsVtaCtaTercNoDomici = aMoneda(r.ConsVtaCtaTercNoDomici);
+        r.ConsTotalVta = aMoneda(r.ConsTotalVta);
+    });
+};
+
+const limpiarVentasCCF = (rows) => {
+    rows.forEach(r => {
+        if (r.FiscFecha) r.FiscFecha = formatearFecha(r.FiscFecha);
+        r.FiscVtaExen = aMoneda(r.FiscVtaExen);
+        r.FiscVtaNoSujetas = aMoneda(r.FiscVtaNoSujetas);
+        r.FiscVtaGravLocal = aMoneda(r.FiscVtaGravLocal);
+        r.FiscDebitoFiscal = aMoneda(r.FiscDebitoFiscal);
+        r.FiscVtaCtaTercNoDomici = aMoneda(r.FiscVtaCtaTercNoDomici);
+        r.FiscDebFiscVtaCtaTerceros = aMoneda(r.FiscDebFiscVtaCtaTerceros);
+        r.FiscTotalVtas = aMoneda(r.FiscTotalVtas);
+    });
+};
+
+const limpiarSujetos = (rows) => {
+    rows.forEach(r => {
+        if (r.ComprasSujExcluFecha) r.ComprasSujExcluFecha = formatearFecha(r.ComprasSujExcluFecha);
+        r.ComprasSujExcluMontoOpera = aMoneda(r.ComprasSujExcluMontoOpera);
+        r.ComprasSujExcluMontoReten = aMoneda(r.ComprasSujExcluMontoReten);
+    });
 };
 
 // ==========================================
@@ -20,7 +88,8 @@ const formatearFecha = (fecha) => {
 export const exportarCompras = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
+        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
+        limpiarCompras(rows);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -28,7 +97,8 @@ export const exportarCompras = async (req, res) => {
 export const exportarVentasConsumidor = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, obtenerMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ? ORDER BY ConsFecha ASC', [nit, obtenerMes(mes), anio]);
+        limpiarVentasCF(rows);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -36,7 +106,8 @@ export const exportarVentasConsumidor = async (req, res) => {
 export const exportarVentasCredito = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, obtenerMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ? ORDER BY FiscFecha ASC', [nit, obtenerMes(mes), anio]);
+        limpiarVentasCCF(rows);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -44,7 +115,8 @@ export const exportarVentasCredito = async (req, res) => {
 export const exportarSujetos = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, obtenerMes(mes), anio]);
+        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ? ORDER BY ComprasSujExcluFecha ASC', [nit, obtenerMes(mes), anio]);
+        limpiarSujetos(rows);
         res.json(rows);
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -56,10 +128,17 @@ export const exportarTodoJSON = async (req, res) => {
     try {
         const [declarante] = await pool.query('SELECT * FROM declarante WHERE iddeclaNIT = ?', [nit]);
         const mesNum = obtenerMes(mes);
-        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ?', [nit, mes, anio]);
-        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ?', [nit, mesNum, anio]);
-        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ?', [nit, mesNum, anio]);
-        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ?', [nit, mesNum, anio]);
+        
+        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
+        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND MONTH(FiscFecha) = ? AND YEAR(FiscFecha) = ? ORDER BY FiscFecha ASC', [nit, mesNum, anio]);
+        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND MONTH(ConsFecha) = ? AND YEAR(ConsFecha) = ? ORDER BY ConsFecha ASC', [nit, mesNum, anio]);
+        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND MONTH(ComprasSujExcluFecha) = ? AND YEAR(ComprasSujExcluFecha) = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mesNum, anio]);
+
+        // Aplicamos la limpieza en sitio (in-place) para preservar el orden
+        limpiarCompras(compras);
+        limpiarVentasCCF(ventasCCF);
+        limpiarVentasCF(ventasCF);
+        limpiarSujetos(sujetos);
 
         res.json({
             backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() },
@@ -82,7 +161,7 @@ export const importarTodoJSON = async (req, res) => {
 
     const connection = await pool.getConnection();
     
-    // 🛡️ NUEVO: Array para guardar los documentos precisos que fallaron
+    // 🛡️ Array para guardar los documentos precisos que fallaron
     const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, duplicados: 0, documentos_omitidos: [] };
 
     const limpiarCat = (val, def) => val ? (val.toString().match(/\d+/) || [def])[0] : def;
@@ -154,7 +233,6 @@ export const importarTodoJSON = async (req, res) => {
                     reporte.compras++;
                 } else { 
                     reporte.duplicados++; 
-                    // 🛡️ GUARDAMOS EL DOCUMENTO OMITIDO
                     reporte.documentos_omitidos.push(`Compra: ${c.ComNumero || codGen || 'Desconocido'}`);
                 }
             }

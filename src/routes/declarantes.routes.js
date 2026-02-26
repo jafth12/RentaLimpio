@@ -9,10 +9,12 @@ import { requireAdmin } from "../middlewares/roleAuth.js"; // Seguridad extra
 
 const router = Router();
 
-// Rutas protegidas (Solo Admin)
-router.get('/declarantes', requireAdmin, getDeclarantes);
-router.post('/declarantes', requireAdmin, createDeclarante);      // Faltaba esta
-router.put('/declarantes/:id', requireAdmin, updateDeclarante);   // Faltaba esta
-router.delete('/declarantes/:id', requireAdmin, deleteDeclarante); // Faltaba importar
+//  GET liberado: Todos los usuarios (admins y empleados) necesitan ver la lista para los dropdowns
+router.get('/declarantes', getDeclarantes);
+
+//  Rutas protegidas: Solo el Admin puede crear, editar o eliminar empresas
+router.post('/declarantes', requireAdmin, createDeclarante);      
+router.put('/declarantes/:id', requireAdmin, updateDeclarante);   
+router.delete('/declarantes/:id', requireAdmin, deleteDeclarante); 
 
 export default router;
