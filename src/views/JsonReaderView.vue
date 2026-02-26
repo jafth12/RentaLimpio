@@ -165,7 +165,7 @@ const BASE_URL = `http://${hostname}:3000`;
 
 const miNit = ref('');
 const miAlias = ref(''); 
-const miNrc = ref(''); // 🛡️ NUEVO: Guardaremos el NRC para doble validación
+const miNrc = ref(''); 
 const datosProcesados = ref(false);
 const cargando = ref(false);
 const payloadFinal = ref(null);
@@ -204,13 +204,14 @@ watch(miNit, (nuevoValor) => {
   }
 });
 
-const obtenerMesNombre = (fechaIso) => {
-    if (!fechaIso) return 'Enero';
-    const partes = fechaIso.split('T')[0].split('-');
-    if (partes.length < 2) return 'Enero';
-    const mesNum = parseInt(partes[1], 10);
+// 🛡️ REGLA RESTAURADA: Obtener SIEMPRE el mes y año actual en el que se está haciendo la importación
+const getMesActual = () => {
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    return meses[mesNum - 1] || 'Enero';
+    return meses[new Date().getMonth()];
+};
+
+const getAnioActual = () => {
+    return new Date().getFullYear().toString();
 };
 
 const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
@@ -248,7 +249,6 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const receptorNit = limpiarNit(receptor.nit);
   const receptorNrc = limpiarNit(receptor.nrc);
 
-  // 🛡️ REGLA MEJORADA: Si el NIT no cuadra por culpa del DUI, validamos por el NRC (Ej: 52795)
   const soyReceptor = (receptorNit === nitUsuario) || (nrcUsuario && receptorNrc === nrcUsuario);
   const soyEmisor = (emisorNit === nitUsuario) || (nrcUsuario && emisorNrc === nrcUsuario);
 
@@ -259,7 +259,8 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
         ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen,
         proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(),
         ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3',
-        ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0],
+        ComMesDeclarado: getMesActual(), // <-- Asigna el mes de hoy
+        ComAnioDeclarado: getAnioActual(), // <-- Asigna el año de hoy
         comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
       }
     };
@@ -310,13 +311,12 @@ const cargarArchivo = (event) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
 
-        // 🛡️ INTELIGENCIA DE AUTODETECCIÓN POR NRC
         if (!miNit.value && jsonRaw.receptor) {
             let emp = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === limpiarNit(jsonRaw.receptor.nit));
             if (!emp && jsonRaw.receptor.nrc) {
                 emp = declarantesDB.value.find(d => limpiarNit(d.declaNRC) === limpiarNit(jsonRaw.receptor.nrc));
             }
-            if (emp) miNit.value = limpiarNit(emp.iddeclaNIT); // Asignamos el NIT de 14 dígitos oficial
+            if (emp) miNit.value = limpiarNit(emp.iddeclaNIT); 
         }
 
         const nitActual = limpiarNit(miNit.value);
@@ -328,7 +328,7 @@ const cargarArchivo = (event) => {
 
         if (!payloadFinal.value) {
             payloadFinal.value = { 
-                backup_info: { nit: nitActual, empresa: miAlias.value || 'Importación', periodo: new Date().getFullYear().toString() }, 
+                backup_info: { nit: nitActual, empresa: miAlias.value || 'Importación', periodo: getAnioActual() }, 
                 data: { compras: [], ventas_ccf: [], ventas_cf: [], sujetos_excluidos: [] } 
             };
         }
@@ -341,23 +341,24 @@ const cargarArchivo = (event) => {
                   ComNumero: c.numero, ComCodGeneracion: c.numero, proveedor_ProvNIT: c.nit_proveedor, 
                   ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0, 
                   ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0, 
-                  ComTotal: parseFloat(c.total) || 0, ComMesDeclarado: obtenerMesNombre(c.fecha), ComAnioDeclarado: c.fecha.split('-')[0]
+                  ComTotal: parseFloat(c.total) || 0, 
+                  ComMesDeclarado: getMesActual(), // <-- Asigna el mes de hoy
+                  ComAnioDeclarado: getAnioActual()  // <-- Asigna el año de hoy
               }));
           }
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 2: Backup Propio del Sistema
+        // 🛡️ CASO 2: Backup Propio del Sistema (Mantiene el mes original del backup)
         else if (jsonRaw.modulos || jsonRaw.data) { 
           payloadFinal.value.data.compras.push(...(jsonRaw.data?.compras || jsonRaw.modulos?.compras || []));
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 3: DTE(s) Original(es) de Hacienda (COMO EL DE LA GASOLINERA)
+        // 🛡️ CASO 3: DTE(s) Original(es) de Hacienda
         else { 
           const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
           lista.forEach(doc => {
             const dteUnico = doc.dteJson || doc.dte || doc;
             if (dteUnico.identificacion) {
-                // Pasamos el nit y el nrc para doble chequeo
                 const clasif = clasificarDTE(dteUnico, nitActual, limpiarNit(miNrc.value));
                 if (clasif && clasif.modulo) {
                     payloadFinal.value.data[clasif.modulo].push(clasif.data);
