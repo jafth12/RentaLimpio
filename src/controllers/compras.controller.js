@@ -23,12 +23,28 @@ export const getCompraById = async (req, res) => {
     }
 };
 
-// --- 3. CREAR NUEVA COMPRA ---
+// --- 3. CREAR NUEVA COMPRA (CON PROTECCIÓN ANTIDUPLICADOS) ---
 export const createCompra = async (req, res) => {
     const d = req.body;
     try {
         if (!d.iddeclaNIT || !d.ComFecha || !d.ComNumero || !d.proveedor_ProvNIT || !d.ComMesDeclarado) {
             return res.status(400).json({ message: 'Empresa, Fecha, Mes, DTE y NIT del Proveedor son obligatorios.'});
+        }
+
+        // 🛡️ REGLA ANTIDUPLICADOS: Verifica si ya existe antes de guardar (ignorando guiones)
+        const [duplicado] = await pool.query(
+            `SELECT idcompras FROM compras 
+             WHERE iddeclaNIT = ? 
+             AND (
+                 (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
+                 OR 
+                 (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, d.ComCodGeneracion, d.ComNumero, d.proveedor_ProvNIT]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Documento duplicado. Esta compra ya se encuentra registrada en la base de datos.' });
         }
 
         // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE (Proporción 2 a 1)

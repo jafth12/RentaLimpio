@@ -9,7 +9,6 @@ const obtenerMes = (m) => {
     return mapa[m] || 1;
 };
 
-// Tijera para evitar el error de MySQL "Incorrect date value"
 const formatearFecha = (fecha) => {
     if (!fecha) return null;
     return fecha.toString().split('T')[0];
@@ -70,7 +69,7 @@ export const exportarTodoJSON = async (req, res) => {
 };
 
 // ==========================================
-// 2. IMPORTACIÓN AUDITADA (Guardando UUIDs)
+// 2. IMPORTACIÓN AUDITADA CON REPORTE DETALLADO
 // ==========================================
 export const importarTodoJSON = async (req, res) => {
     const info = req.body.backup_info || req.body.encabezado;
@@ -82,9 +81,10 @@ export const importarTodoJSON = async (req, res) => {
     }
 
     const connection = await pool.getConnection();
-    const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, duplicados: 0 };
+    
+    // 🛡️ NUEVO: Array para guardar los documentos precisos que fallaron
+    const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, duplicados: 0, documentos_omitidos: [] };
 
-    // Función auxiliar para extraer solo el número del catálogo
     const limpiarCat = (val, def) => val ? (val.toString().match(/\d+/) || [def])[0] : def;
 
     try {
@@ -99,31 +99,32 @@ export const importarTodoJSON = async (req, res) => {
                 await connection.query('INSERT IGNORE INTO proveedor (ProvNIT, ProvNombre) VALUES (?, ?)', 
                     [c.proveedor_ProvNIT || '0000', c.ComNomProve || 'Proveedor Importado']);
 
+                const codGen = c.ComCodGeneracion || null;
+                
                 const [dup] = await connection.query(
-                    'SELECT idcompras FROM compras WHERE iddeclaNIT = ? AND (ComCodGeneracion = ? OR (ComNumero = ? AND proveedor_ProvNIT = ?))',
-                    [nitDeclarante, c.ComCodGeneracion || 'N/A', c.ComNumero, c.proveedor_ProvNIT]
+                    `SELECT idcompras FROM compras 
+                     WHERE iddeclaNIT = ? 
+                     AND (
+                        (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
+                        OR 
+                        (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+                     )`,
+                    [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]
                 );
 
                 if (dup.length === 0) {
-                    // 🕵️‍♂️ DETECTOR MÁGICO DE TRIBUTOS (Combustible)
                     let fovial = parseFloat(c.comFovial) || 0;
                     let cotrans = parseFloat(c.comCotran) || 0;
                     let otro = parseFloat(c.ComOtroAtributo) || 0;
 
-                    // Revisamos si el JSON tiene la sección de tributos de Hacienda
                     const listaTributos = (c.resumen && c.resumen.tributos) ? c.resumen.tributos : (c.tributos || []);
                     
                     if (listaTributos.length > 0) {
                         const tribFovial = listaTributos.find(t => t.codigo === 'D1');
                         const tribCotrans = listaTributos.find(t => t.codigo === 'C8');
-                        
                         if (tribFovial) fovial = parseFloat(tribFovial.valor);
                         if (tribCotrans) cotrans = parseFloat(tribCotrans.valor);
-                        
-                        // Consolidamos la suma para el campo visual "Otro Atributo"
-                        if (fovial > 0 || cotrans > 0) {
-                            otro = parseFloat((fovial + cotrans).toFixed(2));
-                        }
+                        if (fovial > 0 || cotrans > 0) { otro = parseFloat((fovial + cotrans).toFixed(2)); }
                     }
 
                     const nuevaCompra = {
@@ -134,13 +135,13 @@ export const importarTodoJSON = async (req, res) => {
                         ComClase: c.ComClase || '4',
                         ComTipo: limpiarCat(c.ComTipo, '03'),
                         ComNumero: c.ComNumero,
-                        ComCodGeneracion: c.ComCodGeneracion || null, 
+                        ComCodGeneracion: codGen, 
                         ComIntExe: c.ComIntExe || 0,
                         ComIntGrav: c.ComIntGrav || 0,
                         ComCredFiscal: c.ComCredFiscal || 0,
-                        comFovial: fovial,            // <-- Dato Extraído o heredado
-                        comCotran: cotrans,           // <-- Dato Extraído o heredado
-                        ComOtroAtributo: otro,        // <-- Total de combustible consolidado
+                        comFovial: fovial,
+                        comCotran: cotrans,
+                        ComOtroAtributo: otro,
                         ComTotal: c.ComTotal || 0,
                         ComMesDeclarado: c.ComMesDeclarado || 'Importado',
                         ComAnioDeclarado: c.ComAnioDeclarado || new Date().getFullYear().toString(),
@@ -151,7 +152,11 @@ export const importarTodoJSON = async (req, res) => {
                     };
                     await connection.query('INSERT INTO compras SET ?', nuevaCompra);
                     reporte.compras++;
-                } else { reporte.duplicados++; }
+                } else { 
+                    reporte.duplicados++; 
+                    // 🛡️ GUARDAMOS EL DOCUMENTO OMITIDO
+                    reporte.documentos_omitidos.push(`Compra: ${c.ComNumero || codGen || 'Desconocido'}`);
+                }
             }
         }
 
@@ -159,10 +164,19 @@ export const importarTodoJSON = async (req, res) => {
         const listaCCF = dataToImport.ventas_ccf || dataToImport.ventas_credito_fiscal || [];
         if (listaCCF.length) {
             for (const v of listaCCF) {
+                const codGen = v.FiscCodGeneracion || null;
+                
                 const [dup] = await connection.query(
-                    'SELECT idCredFiscal FROM credfiscal WHERE iddeclaNIT = ? AND (FiscCodGeneracion = ? OR (FiscNumDoc = ? AND FiscNit = ?))',
-                    [nitDeclarante, v.FiscCodGeneracion || 'N/A', v.FiscNumDoc, v.FiscNit]
+                    `SELECT idCredFiscal FROM credfiscal 
+                     WHERE iddeclaNIT = ? 
+                     AND (
+                        (FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') 
+                        OR 
+                        (REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', ''))
+                     )`,
+                    [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]
                 );
+                
                 if (dup.length === 0) {
                     const nuevoCCF = {
                         iddeclaNIT: nitDeclarante,
@@ -170,8 +184,8 @@ export const importarTodoJSON = async (req, res) => {
                         FisClasDoc: v.FisClasDoc || '4',
                         FisTipoDoc: limpiarCat(v.FisTipoDoc, '03'),
                         FiscNumDoc: v.FiscNumDoc,
-                        FiscCodGeneracion: v.FiscCodGeneracion || null, 
-                        FiscNumContInter: v.FiscCodGeneracion || null, 
+                        FiscCodGeneracion: codGen, 
+                        FiscNumContInter: codGen, 
                         FiscNit: v.FiscNit,
                         FiscNomRazonDenomi: v.FiscNomRazonDenomi,
                         FiscVtaExen: v.FiscVtaExen || 0,
@@ -185,7 +199,10 @@ export const importarTodoJSON = async (req, res) => {
                     };
                     await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
                     reporte.ventas_ccf++;
-                } else { reporte.duplicados++; }
+                } else { 
+                    reporte.duplicados++; 
+                    reporte.documentos_omitidos.push(`CCF: ${v.FiscNumDoc || codGen || 'Desconocido'}`);
+                }
             }
         }
 
@@ -193,10 +210,19 @@ export const importarTodoJSON = async (req, res) => {
         const listaCF = dataToImport.ventas_cf || dataToImport.ventas_consumidor || [];
         if (listaCF.length) {
             for (const v of listaCF) {
+                const codGen = v.ConsCodGeneracion || null;
+                
                 const [dup] = await connection.query(
-                    'SELECT idconsfinal FROM consumidorfinal WHERE iddeclaNIT = ? AND (ConsCodGeneracion = ? OR (ConsFecha = ? AND ConsNumDocDEL = ?))',
-                    [nitDeclarante, v.ConsCodGeneracion || 'N/A', formatearFecha(v.ConsFecha), v.ConsNumDocDEL]
+                    `SELECT idconsfinal FROM consumidorfinal 
+                     WHERE iddeclaNIT = ? 
+                     AND (
+                        (ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') 
+                        OR 
+                        (ConsFecha = ? AND REPLACE(ConsNumDocDEL, '-', '') = REPLACE(?, '-', ''))
+                     )`,
+                    [nitDeclarante, codGen, formatearFecha(v.ConsFecha), v.ConsNumDocDEL]
                 );
+                
                 if (dup.length === 0) {
                     const nuevoCF = {
                         iddeclaNIT: nitDeclarante,
@@ -205,7 +231,7 @@ export const importarTodoJSON = async (req, res) => {
                         ConsTipoDoc: limpiarCat(v.ConsTipoDoc, '01'),
                         ConsNumDocDEL: v.ConsNumDocDEL,
                         ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL,
-                        ConsCodGeneracion: v.ConsCodGeneracion || null,
+                        ConsCodGeneracion: codGen,
                         ConsVtaExentas: v.ConsVtaExentas || 0,
                         ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0,
                         ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
@@ -216,7 +242,10 @@ export const importarTodoJSON = async (req, res) => {
                     };
                     await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
                     reporte.ventas_cf++;
-                } else { reporte.duplicados++; }
+                } else { 
+                    reporte.duplicados++; 
+                    reporte.documentos_omitidos.push(`Cons. Final: ${v.ConsNumDocDEL || codGen || 'Desconocido'}`);
+                }
             }
         }
 
@@ -224,10 +253,19 @@ export const importarTodoJSON = async (req, res) => {
         const listaSujetos = dataToImport.sujetos_excluidos || [];
         if (listaSujetos.length) {
             for (const s of listaSujetos) {
+                const codGen = s.ComprasSujExcluCodGeneracion || null;
+                
                 const [dup] = await connection.query(
-                    'SELECT idComSujExclui FROM comprassujexcluidos WHERE iddeclaNIT = ? AND (ComprasSujExcluCodGeneracion = ? OR (ComprasSujExcluNIT = ? AND ComprasSujExcluNumDoc = ?))',
-                    [nitDeclarante, s.ComprasSujExcluCodGeneracion || 'N/A', s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]
+                    `SELECT idComSujExclui FROM comprassujexcluidos 
+                     WHERE iddeclaNIT = ? 
+                     AND (
+                        (ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') 
+                        OR 
+                        (REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', ''))
+                     )`,
+                    [nitDeclarante, codGen, s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]
                 );
+                
                 if (dup.length === 0) {
                     const nuevoSujeto = {
                         iddeclaNIT: nitDeclarante,
@@ -236,7 +274,7 @@ export const importarTodoJSON = async (req, res) => {
                         ComprasSujExcluFecha: formatearFecha(s.ComprasSujExcluFecha), 
                         ComprasSujExcluTipoDoc: limpiarCat(s.ComprasSujExcluTipoDoc, '14'),
                         ComprasSujExcluNumDoc: s.ComprasSujExcluNumDoc,
-                        ComprasSujExcluCodGeneracion: s.ComprasSujExcluCodGeneracion || null, 
+                        ComprasSujExcluCodGeneracion: codGen, 
                         ComprasSujExcluMontoOpera: s.ComprasSujExcluMontoOpera || 0,
                         ComprasSujExcluMontoReten: s.ComprasSujExcluMontoReten || 0,
                         ComprasSujExcluTipoOpera: limpiarCat(s.ComprasSujExcluTipoOpera, '1'),
@@ -247,7 +285,10 @@ export const importarTodoJSON = async (req, res) => {
                     };
                     await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
                     reporte.sujetos++;
-                } else { reporte.duplicados++; }
+                } else { 
+                    reporte.duplicados++; 
+                    reporte.documentos_omitidos.push(`Sujeto Exc: ${s.ComprasSujExcluNumDoc || codGen || 'Desconocido'}`);
+                }
             }
         }
 
@@ -260,7 +301,6 @@ export const importarTodoJSON = async (req, res) => {
         await connection.rollback();
         console.error("Error Importación:", e.message);
         
-        // 🛡️ SENSOR DE ERROR: Registra si la importación falló
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'ERROR IMPORTACION', 'MÚLTIPLES MÓDULOS', { error: e.message });
 

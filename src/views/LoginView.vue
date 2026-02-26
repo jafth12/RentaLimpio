@@ -68,6 +68,10 @@
             sessionStorage.setItem('sesionActiva', 'true');
             const rolUsuario = respuesta.data.rol || 'empleado';
             sessionStorage.setItem('rolUsuario', rolUsuario);
+            
+            // 🛡️ MODIFICACIÓN APLICADA: Guardamos el nombre del usuario para el Historial
+            sessionStorage.setItem('usuario', respuesta.data.usuario);
+            
             router.push('/inicio');
         }
 

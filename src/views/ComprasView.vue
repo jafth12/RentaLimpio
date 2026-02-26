@@ -105,7 +105,7 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Código (UUID) <span class="text-danger">*</span></label>
+                  <label class="form-label">Código (UUID) / Colocar guiones<span class="text-danger">*</span></label>
                    <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX..." required>
                 </div>
               </div>
@@ -227,7 +227,10 @@
               </thead>
               <tbody>
                 <tr v-for="c in comprasFiltradas" :key="c.idcompras">
-                  <td>{{ formatearFecha(c.ComFecha) }}</td>
+                  <td>
+                    <div class="fw-bold text-dark">{{ formatearFecha(c.ComFecha) }}</div>
+                    <small class="text-muted">Declarado: {{ c.ComMesDeclarado }}</small>
+                  </td>
                   <td><span class="badge-anexo">Anexo 3</span></td>
                   <td>
                     <div class="fw-bold text-dark">{{ c.ComNomProve }}</div>
@@ -281,7 +284,6 @@ const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Ju
 
 const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 
-// Se eliminaron las variables fovial y cotrans del formulario
 const formulario = ref({ 
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
@@ -306,12 +308,13 @@ const mostrandoLista = ref(true);
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
 
+// 🛡️ MODIFICACIÓN: Los valores ahora son el string exacto del mes para coincidir con ComMesDeclarado
 const mesesFiltroOptions = [
   { nombre: 'Todos los Meses', valor: '' },
-  { nombre: 'Enero', valor: '01' }, { nombre: 'Febrero', valor: '02' }, { nombre: 'Marzo', valor: '03' },
-  { nombre: 'Abril', valor: '04' }, { nombre: 'Mayo', valor: '05' }, { nombre: 'Junio', valor: '06' },
-  { nombre: 'Julio', valor: '07' }, { nombre: 'Agosto', valor: '08' }, { nombre: 'Septiembre', valor: '09' },
-  { nombre: 'Octubre', valor: '10' }, { nombre: 'Noviembre', valor: '11' }, { nombre: 'Diciembre', valor: '12' }
+  { nombre: 'Enero', valor: 'Enero' }, { nombre: 'Febrero', valor: 'Febrero' }, { nombre: 'Marzo', valor: 'Marzo' },
+  { nombre: 'Abril', valor: 'Abril' }, { nombre: 'Mayo', valor: 'Mayo' }, { nombre: 'Junio', valor: 'Junio' },
+  { nombre: 'Julio', valor: 'Julio' }, { nombre: 'Agosto', valor: 'Agosto' }, { nombre: 'Septiembre', valor: 'Septiembre' },
+  { nombre: 'Octubre', valor: 'Octubre' }, { nombre: 'Noviembre', valor: 'Noviembre' }, { nombre: 'Diciembre', valor: 'Diciembre' }
 ];
 
 const anioFiltro = ref(new Date().getFullYear().toString());
@@ -344,7 +347,6 @@ const actualizarNumeroCompleto = () => {
 const extraerSoloCodigo = (t) => t ? t.split(/[\.\s]+/)[0] : '';
 const recuperarOpcionCompleta = (c, l) => { if (!c) return l[0]; const enc = l.find(op => op.split(/[\.\s]+/)[0] == String(c).trim()); return enc || c; };
 
-// 🎯 Calcula el TOTAL sumando TODAS las partes (Gravadas + Exentas + IVA + Otros Montos)
 const calcularTotalGeneral = () => {
     const baseGravada = (parseFloat(formulario.value.internasGravadas) || 0) + (parseFloat(formulario.value.internacionalesGravBienes) || 0) + (parseFloat(formulario.value.importacionesGravBienes) || 0) + (parseFloat(formulario.value.importacionesGravServicios) || 0);
     const sumExentas = (parseFloat(formulario.value.internasExentas) || 0) + (parseFloat(formulario.value.internacionalesExentas) || 0) + (parseFloat(formulario.value.importacionesNoSujetas) || 0);
@@ -354,7 +356,6 @@ const calcularTotalGeneral = () => {
     formulario.value.total = (baseGravada + sumExentas + iva + otrosMontos).toFixed(2);
 };
 
-// Al cambiar las compras gravadas: Calcula IVA y recalcula el Total
 watch(() => [formulario.value.internasGravadas, formulario.value.internacionalesGravBienes, formulario.value.importacionesGravBienes, formulario.value.importacionesGravServicios], (vals) => {
     const [intG, intlG, impG, impS] = vals.map(v => parseFloat(v) || 0);
     const baseGravada = intG + intlG + impG + impS;
@@ -365,7 +366,6 @@ watch(() => [formulario.value.internasGravadas, formulario.value.internacionales
     calcularTotalGeneral();
 });
 
-// Observador general para actualizar el total al cambiar exentas o el monto de combustible
 watch(() => [formulario.value.internasExentas, formulario.value.internacionalesExentas, formulario.value.importacionesNoSujetas, formulario.value.otroAtributo], () => { 
     calcularTotalGeneral(); 
 });
@@ -386,10 +386,26 @@ const declarantesFiltrados = computed(() => {
 
 const comprasFiltradas = computed(() => {
   let filtrado = listaCompras.value || [];
-  if (declaranteFiltro.value) { filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value); }
-  if (anioFiltro.value) { const anioStr = anioFiltro.value.toString(); filtrado = filtrado.filter(c => c.ComFecha && c.ComFecha.startsWith(anioStr)); }
-  if (mesFiltro.value) { filtrado = filtrado.filter(c => { if (!c.ComFecha) return false; const partes = c.ComFecha.split('-'); return partes.length >= 2 && partes[1] === mesFiltro.value; }); }
-  if (filtroLista.value) { const txt = filtroLista.value.toLowerCase().trim(); filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt))); }
+  
+  if (declaranteFiltro.value) { 
+      filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value); 
+  }
+  
+  // 🛡️ MODIFICACIÓN: Filtrar usando Año a Declarar (Con respaldo a fecha original si es registro viejo)
+  if (anioFiltro.value) { 
+      const anioStr = anioFiltro.value.toString(); 
+      filtrado = filtrado.filter(c => String(c.ComAnioDeclarado) === anioStr || (c.ComFecha && c.ComFecha.startsWith(anioStr))); 
+  }
+  
+  // 🛡️ MODIFICACIÓN: Filtrar usando Mes a Declarar directamente
+  if (mesFiltro.value) { 
+      filtrado = filtrado.filter(c => c.ComMesDeclarado === mesFiltro.value); 
+  }
+  
+  if (filtroLista.value) { 
+      const txt = filtroLista.value.toLowerCase().trim(); 
+      filtrado = filtrado.filter(c => c && (String(c.ComNomProve || '').toLowerCase().includes(txt) || String(c.ComNumero || '').toLowerCase().includes(txt))); 
+  }
   return filtrado;
 });
 
@@ -479,7 +495,6 @@ const guardarCompra = async () => {
 
   cargando.value = true;
 
-  // Solo se manda ComOtroAtributo. El backend lo recibe y se encarga de separar el Fovial y Cotrans.
   const payload = { 
       ComFecha: formulario.value.fecha,
       ComMesDeclarado: formulario.value.mesDeclarado,

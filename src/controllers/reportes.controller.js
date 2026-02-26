@@ -80,7 +80,7 @@ export const exportarTodoJSON = async (req, res) => {
 };
 
 
-// --- 0. GENERADOR DEL JSON GENERAL DE HACIENDA (F-07) ---
+// --- 0. GENERADOR DEL JSON GENERAL DE HACIENDA (F-07) Y PARA PDF/EXCEL ---
 export const generarAnexosHaciendaJSON = async (req, res) => {
     const { nit, mes, anio } = req.query;
 
@@ -96,7 +96,10 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
 
         const [anexo1] = await pool.query(`SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsFecha LIKE ? ORDER BY ConsFecha ASC`, [nit, `${filtroFecha}%`]);
         const [anexo2] = await pool.query(`SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscFecha LIKE ? ORDER BY FiscFecha ASC`, [nit, `${filtroFecha}%`]);
-        const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ? ORDER BY ComFecha ASC`, [nit, `${filtroFecha}%`]);
+        
+        // 🛡️ MODIFICACIÓN APLICADA: Ahora extrae las compras basadas en el Mes a Declarar
+        const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC`, [nit, mes, anio]);
+        
         const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluFecha LIKE ? ORDER BY ComprasSujExcluFecha ASC`, [nit, `${filtroFecha}%`]);
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
@@ -124,12 +127,12 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
                 nit_proveedor: sinGuiones(c.proveedor_ProvNIT) || '0000', nombre_proveedor: c.ComNomProve,
                 internas_exentas: Number(c.ComIntExe || 0).toFixed(2), 
                 internas_gravadas: Number(c.ComIntGrav || 0).toFixed(2),
-                // 🛡️ AQUÍ VAN LAS NUEVAS COLUMNAS MAPDEADAS:
                 importaciones_exentas: Number((parseFloat(c.ComInternacioExe) || 0) + (parseFloat(c.ComImpExeNoSujetas) || 0)).toFixed(2),
                 importaciones_gravadas: Number((parseFloat(c.ComInternacGravBienes) || 0) + (parseFloat(c.ComImportGravBienes) || 0) + (parseFloat(c.ComImportGravServicios) || 0)).toFixed(2),
                 iva_percibido: "0.00", 
                 sujetos_excluidos: "0.00",
                 credito_fiscal: Number(c.ComCredFiscal || 0).toFixed(2), 
+                otros_montos: Number(c.ComOtroAtributo || 0).toFixed(2), 
                 total: Number(c.ComTotal || 0).toFixed(2)
             })),
             anexo5_sujetos_excluidos: anexo5.map(s => ({
@@ -155,7 +158,6 @@ export const descargarAnexo1CSV = async (req, res) => {
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
 
-        // 🛡️ ORDENAMIENTO ASCENDENTE (Menor a Mayor)
         rows.sort((a, b) => new Date(a.ConsFecha) - new Date(b.ConsFecha));
 
         const csvRows = rows.map(v => {
@@ -216,7 +218,6 @@ export const descargarAnexo2CSV = async (req, res) => {
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
 
-        // 🛡️ ORDENAMIENTO ASCENDENTE (Menor a Mayor)
         rows.sort((a, b) => new Date(a.FiscFecha) - new Date(b.FiscFecha));
 
         const csvRows = rows.map(v => {
@@ -262,13 +263,11 @@ export const descargarAnexo3CSV = async (req, res) => {
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros (NIT, Mes, Año)." });
 
     try {
-        const mesNum = obtenerNumeroMes(mes);
-        const filtroFecha = `${anio}-${mesNum}`;
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComFecha LIKE ? ORDER BY ComFecha ASC', [nit, `${filtroFecha}%`]);
+        // 🛡️ MODIFICACIÓN APLICADA: Busca usando el Mes Declarado y Año Declarado
+        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay compras registradas para este periodo." });
 
-        // 🛡️ ORDENAMIENTO ASCENDENTE (Menor a Mayor)
         rows.sort((a, b) => new Date(a.ComFecha) - new Date(b.ComFecha));
 
         const csvRows = rows.map(c => {
@@ -331,7 +330,6 @@ export const descargarAnexo5CSV = async (req, res) => {
 
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
 
-        // 🛡️ ORDENAMIENTO ASCENDENTE (Menor a Mayor)
         rows.sort((a, b) => new Date(a.ComprasSujExcluFecha) - new Date(b.ComprasSujExcluFecha));
 
         const csvRows = rows.map(s => {

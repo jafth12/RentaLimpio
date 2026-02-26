@@ -90,28 +90,43 @@ const colorAccion = (accion) => {
     const acc = accion.toUpperCase();
     if (acc.includes('IMPORTACION') || acc.includes('CREACION')) return 'bg-success';
     if (acc.includes('MODIFICACION')) return 'bg-warning';
-    if (acc.includes('ELIMINACION')) return 'bg-danger';
+    if (acc.includes('ELIMINACION') || acc.includes('ERROR')) return 'bg-danger';
     if (acc.includes('EXPORTACION')) return 'bg-info';
     return 'bg-secondary';
 };
 
-// Formatea el JSON para que se vea bonito con viñetas de colores
+// Formatea el JSON para que se vea bonito con viñetas de colores y maneja listas de errores
 const formatearDetalles = (detalles) => {
     try {
         const obj = JSON.parse(detalles);
         let html = '<ul class="log-details-list">';
+        
         for (const [key, value] of Object.entries(obj)) {
             let color = '#374151'; // default
-            if (key === 'duplicados' && value > 0) color = '#f59e0b';
-            if (key === 'exitosos' || key === 'compras' || key.includes('ventas')) color = '#10b981';
-            if (key === 'errores' && value > 0) color = '#ef4444';
             
-            html += `<li><strong style="text-transform:capitalize">${key.replace(/_/g, ' ')}:</strong> <span style="color:${color}; font-weight:bold">${value}</span></li>`;
+            if (key === 'duplicados' && value > 0) color = '#f59e0b';
+            if (key === 'exitosos' || key === 'compras' || key.includes('ventas') || key === 'sujetos') color = '#10b981';
+            if (key === 'errores' && value > 0) color = '#ef4444';
+            if (key === 'error') color = '#ef4444'; // Captura errores de sistema generales
+            
+            // 🛡️ REGLA ESPECIAL PARA MOSTRAR LOS DOCUMENTOS OMITIDOS
+            if (key === 'documentos_omitidos' && Array.isArray(value) && value.length > 0) {
+                html += `<li>
+                            <strong style="text-transform:capitalize; color: #ef4444;">Facturas Rechazadas (Duplicadas):</strong> 
+                            <div style="color:#ef4444; font-family: monospace; font-size: 0.75rem; margin-top: 5px; padding: 5px 8px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; max-height: 120px; overflow-y: auto;">
+                                ${value.join('<br>')}
+                            </div>
+                         </li>`;
+            } 
+            // Si el valor no es un arreglo (es texto o número normal)
+            else if (key !== 'documentos_omitidos') {
+                html += `<li><strong style="text-transform:capitalize">${key.replace(/_/g, ' ')}:</strong> <span style="color:${color}; font-weight:bold">${value}</span></li>`;
+            }
         }
         html += '</ul>';
         return html;
     } catch (e) {
-        return detalles; // Si no es JSON, muestra el texto normal
+        return detalles; // Si no es JSON (texto manual del módulo de compras), muestra el texto normal
     }
 };
 

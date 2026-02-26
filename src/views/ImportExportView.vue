@@ -256,12 +256,27 @@ const textoBotonCSV = computed(() => {
 });
 
 // =======================================================
-// 🎨 FUNCIÓN AUXILIAR PARA DISEÑO DE EXCEL (CORREGIDA PARA 2 DECIMALES)
+// 📅 FUNCIÓN AUXILIAR PARA FORMATEAR FECHAS A DD/MM/YY
+// =======================================================
+const formatearFecha = (fechaIso) => {
+    if (!fechaIso) return '';
+    const partes = String(fechaIso).split('T')[0].split('-');
+    if (partes.length === 3) {
+        const dia = partes[2];
+        const mes = partes[1];
+        const anioCorto = partes[0].slice(-2); 
+        return `${dia}/${mes}/${anioCorto}`;
+    }
+    return String(fechaIso).split('T')[0];
+};
+
+// =======================================================
+// 🎨 FUNCIÓN AUXILIAR PARA DISEÑO DE EXCEL
 // =======================================================
 const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
     return fila.map((celda, index) => {
         let estilo = { font: { name: "Arial" }, alignment: { vertical: "center" } };
-        let celdaObj = { v: celda }; // Objeto celda para Excel
+        let celdaObj = { v: celda }; 
 
         if (esCabecera) {
             estilo.font.bold = true;
@@ -270,38 +285,38 @@ const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
             estilo.alignment.horizontal = "center";
             estilo.alignment.wrapText = true; 
             estilo.border = { top: { style: "medium", color: { rgb: "1E3A8A" } }, bottom: { style: "medium", color: { rgb: "1E3A8A" } } };
-            celdaObj.t = 's'; // Tipo: String
+            celdaObj.t = 's'; 
         } else if (esTotal) {
             estilo.font.bold = true;
             estilo.fill = { fgColor: { rgb: "E2E8F0" } };
             estilo.border = { top: { style: "thin", color: { rgb: "94A3B8" } }, bottom: { style: "double", color: { rgb: "64748B" } } };
             
             if (typeof celda === 'number') {
-                celdaObj.t = 'n'; // Tipo: Number
+                celdaObj.t = 'n'; 
                 estilo.alignment.horizontal = "right";
-                if (index > 0) celdaObj.z = '"$"#,##0.00'; // 🛡️ FUERZA LOS 2 DECIMALES SIEMPRE (.20)
+                if (index > 0) celdaObj.z = '"$"#,##0.00'; 
             } else {
-                celdaObj.t = 's'; // Tipo: String
+                celdaObj.t = 's'; 
                 if (celda === 'TOTALES:') estilo.alignment.horizontal = "right";
             }
         } else {
             estilo.border = { bottom: { style: "thin", color: { rgb: "F1F5F9" } } };
             
             if (typeof celda === 'number') {
-                celdaObj.t = 'n'; // Tipo: Number
+                celdaObj.t = 'n'; 
                 if (index === 0) {
-                    estilo.alignment.horizontal = "center"; // Es la columna "N°", no lleva decimales
+                    estilo.alignment.horizontal = "center"; 
                 } else {
                     estilo.alignment.horizontal = "right";
-                    celdaObj.z = '"$"#,##0.00'; // 🛡️ FUERZA LOS 2 DECIMALES SIEMPRE (.20)
+                    celdaObj.z = '"$"#,##0.00'; 
                 }
             } else {
-                celdaObj.t = 's'; // Tipo: String
+                celdaObj.t = 's'; 
                 estilo.alignment.horizontal = "left";
             }
         }
         
-        celdaObj.s = estilo; // Asignamos el diseño
+        celdaObj.s = estilo; 
         return celdaObj;
     });
 };
@@ -333,83 +348,84 @@ const generarLibroContableExcel = async () => {
             tituloLibro = "LIBRO DE COMPRAS";
             headTabla = ['N°', 'Fecha', 'N° Doc.', 'NIT\nProveedor', 'Proveedor', 'Exentas', 'Imp/Int\nExentas', 'Gravadas', 'Imp/Int\nGravadas', 'IVA', 'Percibido', 'Suj.\nExclu.', 'Total'];
             
-            const registros = data.anexo3_compras ? data.anexo3_compras.slice().reverse() : []; 
+            // 🛡️ Quitamos el .reverse() para mantener el orden original del backend (Menor a Mayor)
+            const registros = data.anexo3_compras ? data.anexo3_compras.slice() : []; 
             
             bodyTabla = registros.map((c, idx) => {
-                const exen = parseFloat(c.internas_exentas || 0);
-                const impExen = parseFloat(c.importaciones_exentas || 0);
-                const grav = parseFloat(c.internas_gravadas || 0);
-                const impGrav = parseFloat(c.importaciones_gravadas || 0);
-                const iva = parseFloat(c.credito_fiscal || 0);
-                const percibido = parseFloat(c.iva_percibido || 0);
-                const sujetos = parseFloat(c.sujetos_excluidos || 0);
-                const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0); 
-                const total = exen + grav + iva + otros;
+                const exen = Number(parseFloat(c.internas_exentas || 0).toFixed(2));
+                const impExen = Number(parseFloat(c.importaciones_exentas || 0).toFixed(2));
+                const grav = Number(parseFloat(c.internas_gravadas || 0).toFixed(2));
+                const impGrav = Number(parseFloat(c.importaciones_gravadas || 0).toFixed(2));
+                const iva = Number(parseFloat(c.credito_fiscal || 0).toFixed(2));
+                const percibido = Number(parseFloat(c.iva_percibido || 0).toFixed(2));
+                const sujetos = Number(parseFloat(c.sujetos_excluidos || 0).toFixed(2));
+                const otros = Number(parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0).toFixed(2)); 
+                const total = Number((exen + grav + iva + otros).toFixed(2));
 
-                totales.exen = (totales.exen || 0) + exen;
-                totales.impExen = (totales.impExen || 0) + impExen;
-                totales.grav = (totales.grav || 0) + grav;
-                totales.impGrav = (totales.impGrav || 0) + impGrav;
-                totales.iva = (totales.iva || 0) + iva;
-                totales.percibido = (totales.percibido || 0) + percibido;
-                totales.sujetos = (totales.sujetos || 0) + sujetos;
-                totales.total = (totales.total || 0) + total;
+                totales.exen = Number(((totales.exen || 0) + exen).toFixed(2));
+                totales.impExen = Number(((totales.impExen || 0) + impExen).toFixed(2));
+                totales.grav = Number(((totales.grav || 0) + grav).toFixed(2));
+                totales.impGrav = Number(((totales.impGrav || 0) + impGrav).toFixed(2));
+                totales.iva = Number(((totales.iva || 0) + iva).toFixed(2));
+                totales.percibido = Number(((totales.percibido || 0) + percibido).toFixed(2));
+                totales.sujetos = Number(((totales.sujetos || 0) + sujetos).toFixed(2));
+                totales.total = Number(((totales.total || 0) + total).toFixed(2));
 
-                return [idx + 1, c.fecha, c.numero, c.nit_proveedor, c.nombre_proveedor, exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
+                return [idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, c.nombre_proveedor, exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.impExen, totales.grav, totales.impGrav, totales.iva, totales.percibido, totales.sujetos, totales.total]);
 
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
             headTabla = ['N°', 'Fecha', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas'];
-            const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice().reverse() : [];
+            const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = parseFloat(v.exentas || 0);
-                const grav = parseFloat(v.gravadas || 0);
-                const total = parseFloat(v.total || 0);
+                const exen = Number(parseFloat(v.exentas || 0).toFixed(2));
+                const grav = Number(parseFloat(v.gravadas || 0).toFixed(2));
+                const total = Number(parseFloat(v.total || 0).toFixed(2));
 
-                totales.exen = (totales.exen || 0) + exen;
-                totales.grav = (totales.grav || 0) + grav;
-                totales.total = (totales.total || 0) + total;
+                totales.exen = Number(((totales.exen || 0) + exen).toFixed(2));
+                totales.grav = Number(((totales.grav || 0) + grav).toFixed(2));
+                totales.total = Number(((totales.total || 0) + total).toFixed(2));
 
-                return [ idx + 1, v.fecha, `${v.del} - ${v.al}`, exen, grav, total ];
+                return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, exen, grav, total ];
             });
             bodyTabla.push(['', '', 'TOTALES:', totales.exen, totales.grav, totales.total]);
 
         } else if (moduloSeleccionado.value === 'ventas_ccf') {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
             headTabla = ['N°', 'Fecha', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total'];
-            const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice().reverse() : [];
+            const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = parseFloat(v.exentas || 0);
-                const grav = parseFloat(v.gravadas || 0);
-                const iva = parseFloat(v.debito_fiscal || 0);
-                const total = parseFloat(v.total || 0);
+                const exen = Number(parseFloat(v.exentas || 0).toFixed(2));
+                const grav = Number(parseFloat(v.gravadas || 0).toFixed(2));
+                const iva = Number(parseFloat(v.debito_fiscal || 0).toFixed(2));
+                const total = Number(parseFloat(v.total || 0).toFixed(2));
 
-                totales.exen = (totales.exen || 0) + exen;
-                totales.grav = (totales.grav || 0) + grav;
-                totales.iva = (totales.iva || 0) + iva;
-                totales.total = (totales.total || 0) + total;
+                totales.exen = Number(((totales.exen || 0) + exen).toFixed(2));
+                totales.grav = Number(((totales.grav || 0) + grav).toFixed(2));
+                totales.iva = Number(((totales.iva || 0) + iva).toFixed(2));
+                totales.total = Number(((totales.total || 0) + total).toFixed(2));
 
-                return [idx + 1, v.fecha, v.numero, v.nit_cliente, v.nombre, exen, grav, iva, total];
+                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, v.nombre, exen, grav, iva, total];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.grav, totales.iva, totales.total]);
 
         } else if (moduloSeleccionado.value === 'sujetos') {
             tituloLibro = "LIBRO DE COMPRAS A SUJETOS EXCLUIDOS";
             headTabla = ['N°', 'Fecha', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto\nOperación', 'Retención'];
-            const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice().reverse() : [];
+            const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice() : [];
 
             bodyTabla = registros.map((s, idx) => {
-                const monto = parseFloat(s.monto || 0);
-                const retencion = parseFloat(s.retencion || 0);
+                const monto = Number(parseFloat(s.monto || 0).toFixed(2));
+                const retencion = Number(parseFloat(s.retencion || 0).toFixed(2));
 
-                totales.monto = (totales.monto || 0) + monto;
-                totales.retencion = (totales.retencion || 0) + retencion;
+                totales.monto = Number(((totales.monto || 0) + monto).toFixed(2));
+                totales.retencion = Number(((totales.retencion || 0) + retencion).toFixed(2));
 
-                return [ idx + 1, s.fecha, s.documento, s.nit, s.nombre, monto, retencion ];
+                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, monto, retencion ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.monto, totales.retencion]);
         }
@@ -472,7 +488,8 @@ const generarLibroContablePDF = async () => {
             tituloLibro = "LIBRO DE COMPRAS";
             headTabla = [['N°', 'Fecha', 'N° Doc.', 'NIT\nProveedor', 'Proveedor', 'Exentas', 'Imp/Int\nExentas', 'Gravadas', 'Imp/Int\nGravadas', 'IVA', 'Percibido', 'Suj.\nExclu.', 'Total']];
             
-            const registros = data.anexo3_compras ? data.anexo3_compras.slice().reverse() : []; 
+            // 🛡️ Quitamos el .reverse() para mantener orden Menor a Mayor
+            const registros = data.anexo3_compras ? data.anexo3_compras.slice() : []; 
             
             bodyTabla = registros.map((c, idx) => {
                 const exen = parseFloat(c.internas_exentas || 0);
@@ -495,7 +512,7 @@ const generarLibroContablePDF = async () => {
                 totales.total = (totales.total || 0) + total;
 
                 return [
-                    idx + 1, c.fecha, c.numero, c.nit_proveedor, c.nombre_proveedor, 
+                    idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, c.nombre_proveedor, 
                     `$${exen.toFixed(2)}`, `$${impExen.toFixed(2)}`, `$${grav.toFixed(2)}`, 
                     `$${impGrav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${percibido.toFixed(2)}`, 
                     `$${sujetos.toFixed(2)}`, `$${total.toFixed(2)}`
@@ -511,7 +528,7 @@ const generarLibroContablePDF = async () => {
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
             headTabla = [['N°', 'Fecha', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas', 'Total\nVentas']];
-            const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice().reverse() : [];
+            const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
                 const exen = parseFloat(v.exentas || 0);
@@ -522,14 +539,14 @@ const generarLibroContablePDF = async () => {
                 totales.grav = (totales.grav || 0) + grav;
                 totales.total = (totales.total || 0) + total;
 
-                return [ idx + 1, v.fecha, `${v.del} - ${v.al}`, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${total.toFixed(2)}` ];
+                return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${total.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
         } else if (moduloSeleccionado.value === 'ventas_ccf') {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
             headTabla = [['N°', 'Fecha', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total']];
-            const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice().reverse() : [];
+            const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
                 const exen = parseFloat(v.exentas || 0);
@@ -542,14 +559,14 @@ const generarLibroContablePDF = async () => {
                 totales.iva = (totales.iva || 0) + iva;
                 totales.total = (totales.total || 0) + total;
 
-                return [idx + 1, v.fecha, v.numero, v.nit_cliente, v.nombre, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
+                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, v.nombre, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.iva||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
         } else if (moduloSeleccionado.value === 'sujetos') {
             tituloLibro = "LIBRO DE COMPRAS A SUJETOS EXCLUIDOS";
             headTabla = [['N°', 'Fecha', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto\nOperación', 'Retención']];
-            const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice().reverse() : [];
+            const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice() : [];
 
             bodyTabla = registros.map((s, idx) => {
                 const monto = parseFloat(s.monto || 0);
@@ -558,7 +575,7 @@ const generarLibroContablePDF = async () => {
                 totales.monto = (totales.monto || 0) + monto;
                 totales.retencion = (totales.retencion || 0) + retencion;
 
-                return [ idx + 1, s.fecha, s.documento, s.nit, s.nombre, `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
+                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
         }
@@ -659,7 +676,7 @@ const generarPDFMensual = async () => {
                     const total = (parseFloat(exen) + parseFloat(grav) + parseFloat(iva) + otros).toFixed(2);
                     
                     return [
-                        c.fecha, 
+                        formatearFecha(c.fecha), 
                         `${c.nombre_proveedor}\n${c.nit_proveedor}`, 
                         c.numero, 
                         `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}`
@@ -681,7 +698,7 @@ const generarPDFMensual = async () => {
                 startY: startY + 5, 
                 margin: { left: 14, right: 14 },
                 head: [['Fecha', 'Cliente\n/ NIT', 'DTE', 'Gravadas', 'Débito\nFiscal', 'Total']],
-                body: data.anexo2_credito_fiscal.map(v => [v.fecha, `${v.nombre}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`]),
+                body: data.anexo2_credito_fiscal.map(v => [formatearFecha(v.fecha), `${v.nombre}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`]),
                 theme: 'striped', headStyles: { fillColor: [3, 105, 161] }, styles: { fontSize: 10, cellPadding: 2 },
                 columnStyles: { 
                     0: { halign: 'center', cellWidth: 20 },
@@ -698,7 +715,7 @@ const generarPDFMensual = async () => {
                 startY: startY + 5, 
                 margin: { left: 14, right: 14 },
                 head: [['Fecha', 'DTE\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas', 'Total\nVenta']],
-                body: data.anexo1_consumidor_final.map(v => [v.fecha, `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`]),
+                body: data.anexo1_consumidor_final.map(v => [formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`]),
                 theme: 'striped', headStyles: { fillColor: [217, 119, 6] }, styles: { fontSize: 10, cellPadding: 2 },
                 columnStyles: { 
                     0: { halign: 'center', cellWidth: 20 },

@@ -215,6 +215,14 @@ const normalizarPayload = (json) => {
   };
 };
 
+// 📅 Función para convertir número de mes a nombre (Ej: '02' -> 'Febrero')
+const obtenerMesNombre = (fechaIso) => {
+    if (!fechaIso) return 'Enero';
+    const mesNum = parseInt(fechaIso.split('-')[1], 10);
+    const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    return meses[mesNum - 1] || 'Enero';
+};
+
 const clasificarDTE = (dte) => {
   const ident = dte.identificacion || {};
   const emisor = dte.emisor || {};
@@ -227,10 +235,8 @@ const clasificarDTE = (dte) => {
   const codGen = ident.codigoGeneracion || null; 
   
   const total = parseFloat(resumen.totalPagar) || 0;
-  
   let iva = parseFloat(resumen.totalIva) || 0;
   
-  // 🕵️‍♂️ DETECTOR DE TRIBUTOS (IVA, FOVIAL, COTRANS)
   let fovial = 0;
   let cotrans = 0;
 
@@ -268,12 +274,12 @@ const clasificarDTE = (dte) => {
       ComNomProve: emisor.nombre?.toUpperCase(),
       ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total,
       ComClase: '4', ComAnexo: '3',
-      ComMesDeclarado: 'Importado',
-      ComAnioDeclarado: new Date().getFullYear().toString(),
-      // Mapeamos los impuestos de combustible
+      // 🛡️ AQUÍ ESTÁ LA MODIFICACIÓN: Extrae el Mes y Año de la fecha del DTE
+      ComMesDeclarado: obtenerMesNombre(fecha),
+      ComAnioDeclarado: fecha.split('-')[0],
       comFovial: fovial,
       comCotran: cotrans,
-      ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) // Suma total combustible
+      ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
     };
   } else if (soyEmisor) {
     if (tipoDte === '03') { 
