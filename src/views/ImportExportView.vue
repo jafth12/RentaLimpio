@@ -215,7 +215,7 @@ const router = useRouter();
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
-const moduloSeleccionado = ref('compras');
+const moduloSeleccionado = ref('todo'); // 🛡️ Por defecto inicia en Reporte General
 const accion = ref('exportar');
 const mes = ref('Febrero'); 
 const anio = ref(new Date().getFullYear());
@@ -247,6 +247,7 @@ onMounted(async () => {
 
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
+        case 'todo': return '📋 CSV (No disponible en General)';
         case 'compras': return '📋 CSV (Compras)';
         case 'ventas_cf': return '📋 CSV (Cons. Final)';
         case 'ventas_ccf': return '📋 CSV (Crédito Fiscal)';
@@ -255,9 +256,6 @@ const textoBotonCSV = computed(() => {
     }
 });
 
-// =======================================================
-// 📅 FUNCIÓN AUXILIAR PARA FORMATEAR FECHAS A DD/MM/YY
-// =======================================================
 const formatearFecha = (fechaIso) => {
     if (!fechaIso) return '';
     const partes = String(fechaIso).split('T')[0].split('-');
@@ -270,9 +268,6 @@ const formatearFecha = (fechaIso) => {
     return String(fechaIso).split('T')[0];
 };
 
-// =======================================================
-// 🎨 FUNCIÓN AUXILIAR PARA DISEÑO DE EXCEL (Ceros y Decimales)
-// =======================================================
 const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
     return fila.map((celda, index) => {
         let estilo = { font: { name: "Arial" }, alignment: { vertical: "center" } };
@@ -294,7 +289,7 @@ const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
             if (typeof celda === 'number') {
                 celdaObj.t = 'n'; 
                 estilo.alignment.horizontal = "right";
-                if (index > 0) celdaObj.z = '#,##0.00'; // 🛡️ Fuerza a número de 2 decimales sin símbolo de $
+                if (index > 0) celdaObj.z = '#,##0.00'; 
             } else {
                 celdaObj.t = 's'; 
                 if (celda === 'TOTALES:') estilo.alignment.horizontal = "right";
@@ -306,10 +301,10 @@ const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
                 celdaObj.t = 'n'; 
                 if (index === 0) {
                     estilo.alignment.horizontal = "center"; 
-                    celdaObj.z = '0'; // 🛡️ Formato de N° Entero para la primera columna
+                    celdaObj.z = '0'; 
                 } else {
                     estilo.alignment.horizontal = "right";
-                    celdaObj.z = '#,##0.00'; // 🛡️ Formato de moneda puro (2 decimales y ceros asegurados)
+                    celdaObj.z = '#,##0.00'; 
                 }
             } else {
                 celdaObj.t = 's'; 
@@ -331,6 +326,12 @@ const generarLibroContableExcel = async () => {
         return;
     }
 
+    // 🛡️ REGLA: Excel no soporta el reporte general (son tablas distintas)
+    if (moduloSeleccionado.value === 'todo') {
+        alert("📊 Para el Reporte General completo, por favor utilice el botón de 'Resumen PDF' o genere el Backup JSON. Los libros de Excel se descargan seleccionando un módulo individual (Ej. Compras).");
+        return;
+    }
+
     try {
         cargando.value = true;
         const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
@@ -340,7 +341,6 @@ const generarLibroContableExcel = async () => {
         const data = res.data;
         const nombreEmpresa = data.identificacion.razon_social;
         
-        // 🛡️ FUNCIÓN DE SEGURIDAD NUMÉRICA (Convierte nulos a 0 estricto)
         const getNum = (val) => {
             const parsed = parseFloat(val);
             return isNaN(parsed) ? 0 : Number(parsed.toFixed(2));
@@ -470,12 +470,16 @@ const generarLibroContableExcel = async () => {
 };
 
 // =======================================================
-// 🛡️ GENERAR LIBRO CONTABLE FÍSICO EN PDF
+// 🛡️ GENERAR LIBRO CONTABLE FÍSICO EN PDF (OFICIO AL LÍMITE + TRUNCADO)
 // =======================================================
 const generarLibroContablePDF = async () => {
     if (!nitSeleccionado.value || !mes.value || !anio.value) {
         alert("Seleccione Empresa, Mes y Año.");
         return;
+    }
+
+    if (moduloSeleccionado.value === 'todo') {
+        return generarPDFMensual();
     }
 
     try {
@@ -487,8 +491,15 @@ const generarLibroContablePDF = async () => {
         const data = res.data;
         const nombreEmpresa = data.identificacion.razon_social;
         
-        // Creado en formato LEGAL (Oficio) horizontal
+        // 📏 CAMBIO A TAMAÑO OFICIO HORIZONTAL (l = landscape, legal = oficio)
         const doc = new jsPDF('l', 'mm', 'legal'); 
+        
+        // 📏 MÁRGENES AL LÍMITE DE LA PÁGINA (2mm por lado)
+        const margenSup = 19.1;
+        const margenInf = 19.1;
+        const margenLat = 2.0; 
+        const posEncabezado = 7.6; 
+        const pageWidth = doc.internal.pageSize.getWidth();
         
         let tituloLibro = "";
         let bodyTabla = [];
@@ -501,6 +512,12 @@ const generarLibroContablePDF = async () => {
             return isNaN(parsed) ? 0 : Number(parsed.toFixed(2));
         };
 
+        // ✂️ Al ser tamaño Oficio (más ancho), permitimos hasta 45 letras antes de truncar
+        const truncarTexto = (texto, max = 45) => {
+            if (!texto) return '';
+            return texto.length > max ? texto.substring(0, max) + '...' : texto;
+        };
+
         if (moduloSeleccionado.value === 'compras') {
             tituloLibro = "LIBRO DE COMPRAS";
             headTabla = [[
@@ -510,37 +527,29 @@ const generarLibroContablePDF = async () => {
                 'Compras a\nSuj. Excluidos', 'Total\nCompras'
             ]];
             
+            // Ajustamos anchos base para aprovechar el extra de Oficio
             configColumnas = { 
                 0: { halign: 'center', cellWidth: 9 },  
-                1: { halign: 'center', cellWidth: 16 }, 
-                2: { halign: 'center', cellWidth: 35, fontSize: 8.5 },
-                3: { halign: 'center', cellWidth: 26 }, 
-                4: { cellWidth: 46 }
+                1: { halign: 'center', cellWidth: 18 }, 
+                2: { halign: 'center', cellWidth: 38, fontSize: 8.5 },
+                3: { halign: 'center', cellWidth: 28 }
             };
 
             const registros = data.anexo3_compras ? data.anexo3_compras.slice() : []; 
             
             bodyTabla = registros.map((c, idx) => {
-                const exen = getNum(c.internas_exentas);
-                const impExen = getNum(c.importaciones_exentas);
-                const grav = getNum(c.internas_gravadas);
-                const impGrav = getNum(c.importaciones_gravadas);
-                const iva = getNum(c.credito_fiscal);
-                const percibido = getNum(c.iva_percibido);
-                const sujetos = getNum(c.sujetos_excluidos);
-                const total = getNum(c.total);
+                const exen = getNum(c.internas_exentas); const impExen = getNum(c.importaciones_exentas);
+                const grav = getNum(c.internas_gravadas); const impGrav = getNum(c.importaciones_gravadas);
+                const iva = getNum(c.credito_fiscal); const percibido = getNum(c.iva_percibido);
+                const sujetos = getNum(c.sujetos_excluidos); const total = getNum(c.total);
 
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.impExen = getNum((totales.impExen || 0) + impExen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.impGrav = getNum((totales.impGrav || 0) + impGrav);
-                totales.iva = getNum((totales.iva || 0) + iva);
-                totales.percibido = getNum((totales.percibido || 0) + percibido);
-                totales.sujetos = getNum((totales.sujetos || 0) + sujetos);
-                totales.total = getNum((totales.total || 0) + total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.impExen = getNum((totales.impExen || 0) + impExen);
+                totales.grav = getNum((totales.grav || 0) + grav); totales.impGrav = getNum((totales.impGrav || 0) + impGrav);
+                totales.iva = getNum((totales.iva || 0) + iva); totales.percibido = getNum((totales.percibido || 0) + percibido);
+                totales.sujetos = getNum((totales.sujetos || 0) + sujetos); totales.total = getNum((totales.total || 0) + total);
 
                 return [
-                    idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, c.nombre_proveedor, 
+                    idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, truncarTexto(c.nombre_proveedor, 45), 
                     `$${exen.toFixed(2)}`, `$${impExen.toFixed(2)}`, `$${grav.toFixed(2)}`, 
                     `$${impGrav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${percibido.toFixed(2)}`, 
                     `$${sujetos.toFixed(2)}`, `$${total.toFixed(2)}`
@@ -558,21 +567,11 @@ const generarLibroContablePDF = async () => {
             headTabla = [['N°', 'Fecha\nEmisión', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas']];
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
 
-            configColumnas = { 
-                0: { halign: 'center', cellWidth: 12 }, 
-                1: { halign: 'center', cellWidth: 20 },
-                2: { halign: 'center', cellWidth: 45 }  
-            };
+            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 60 } };
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = getNum(v.exentas);
-                const grav = getNum(v.gravadas);
-                const total = getNum(v.total);
-
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.total = getNum((totales.total || 0) + total);
-
+                const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const total = getNum(v.total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.total = getNum((totales.total || 0) + total);
                 return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${total.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
@@ -582,24 +581,13 @@ const generarLibroContablePDF = async () => {
             headTabla = [['N°', 'Fecha\nEmisión', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total\nVentas']];
             const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice() : [];
 
-            configColumnas = { 
-                0: { halign: 'center', cellWidth: 12 }, 
-                1: { halign: 'center', cellWidth: 20 },
-                2: { halign: 'center', cellWidth: 35, fontSize: 8.5 }  
-            };
+            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 40, fontSize: 8.5 } };
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = getNum(v.exentas);
-                const grav = getNum(v.gravadas);
-                const iva = getNum(v.debito_fiscal);
-                const total = getNum(v.total);
-
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.iva = getNum((totales.iva || 0) + iva);
-                totales.total = getNum((totales.total || 0) + total);
-
-                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, v.nombre, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
+                const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const iva = getNum(v.debito_fiscal); const total = getNum(v.total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.iva = getNum((totales.iva || 0) + iva); totales.total = getNum((totales.total || 0) + total);
+                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, truncarTexto(v.nombre, 45), 
+                `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.iva||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
@@ -608,82 +596,59 @@ const generarLibroContablePDF = async () => {
             headTabla = [['N°', 'Fecha\nEmisión', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto de\nOperación', 'Retención\nAplicada']];
             const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice() : [];
 
-            configColumnas = { 
-                0: { halign: 'center', cellWidth: 12 }, 
-                1: { halign: 'center', cellWidth: 20 },
-                2: { halign: 'center', cellWidth: 40 }  
-            };
+            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 45 } };
 
             bodyTabla = registros.map((s, idx) => {
-                const monto = getNum(s.monto);
-                const retencion = getNum(s.retencion);
-
-                totales.monto = getNum((totales.monto || 0) + monto);
-                totales.retencion = getNum((totales.retencion || 0) + retencion);
-
-                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
+                const monto = getNum(s.monto); const retencion = getNum(s.retencion);
+                totales.monto = getNum((totales.monto || 0) + monto); totales.retencion = getNum((totales.retencion || 0) + retencion);
+                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, truncarTexto(s.nombre, 45), 
+                `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
         }
 
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(16); 
-        doc.setTextColor(30, 58, 138); 
-        doc.text(tituloLibro, 14, 18);
+        // 📏 ENCABEZADO
+        doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 58, 138); 
+        doc.text(tituloLibro, margenLat, posEncabezado + 4);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(51, 65, 85);
+        doc.text(`Contribuyente: ${nombreEmpresa} | NIT: ${nitSeleccionado.value} | Periodo: ${mes.value} ${anio.value}`, margenLat, posEncabezado + 9);
         
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(11); 
-        doc.setTextColor(51, 65, 85);
-        doc.text(`Contribuyente: ${nombreEmpresa}`, 14, 26);
-        doc.text(`NIT: ${nitSeleccionado.value}`, 14, 32);
-        doc.text(`Mes y Año: ${mes.value} de ${anio.value}`, 14, 38);
-        
-        doc.setLineWidth(0.5);
-        doc.line(14, 42, 341, 42); 
+        doc.setLineWidth(0.3); doc.line(margenLat, posEncabezado + 11, pageWidth - margenLat, posEncabezado + 11); 
 
+        // 📏 TABLA
         autoTable(doc, {
-            startY: 46,
-            margin: { left: 14, right: 14 }, 
-            head: headTabla,
-            body: bodyTabla,
-            theme: 'grid', 
-            headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 10, halign: 'center', cellPadding: 1.5, minCellHeight: 12 },
-            bodyStyles: { fontSize: 11, cellPadding: 2, textColor: [31, 41, 55], overflow: 'linebreak' },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
-            columnStyles: configColumnas,
+            startY: margenSup, 
+            margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, 
+            head: headTabla, body: bodyTabla, theme: 'grid', 
+            headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 9.5, halign: 'center', cellPadding: 1.5, minCellHeight: 12 },
+            bodyStyles: { fontSize: 10, cellPadding: 1.5, textColor: [31, 41, 55], overflow: 'linebreak' }, 
+            alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: configColumnas,
             didParseCell: function(data) {
-                if (data.cell.text[0] && data.cell.text[0].includes('$')) {
-                    data.cell.styles.halign = 'right';
-                }
+                if (data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
                 if (data.row.index === bodyTabla.length - 1) {
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fillColor = [226, 232, 240];
-                    data.cell.styles.textColor = [15, 23, 42];
-                    if (data.cell.text[0] && data.cell.text[0].includes('$')) {
-                        data.cell.styles.halign = 'right';
-                    }
+                    data.cell.styles.fontStyle = 'bold'; data.cell.styles.fillColor = [226, 232, 240]; data.cell.styles.textColor = [15, 23, 42];
+                    if (data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
                 }
+            },
+            didDrawPage: function (data) {
+                const str = "Página " + doc.internal.getNumberOfPages();
+                doc.setFontSize(8);
+                doc.text(str, pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' });
             }
         });
 
         doc.save(`Libro_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
         axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE PDF', detalles: `Libro impreso: ${tituloLibro}` }).catch(()=>console.log("Auditoria omitida"));
-
     } catch (error) {
         console.error("Error generando Libro Contable:", error);
         alert("🚨 Ocurrió un error al generar el Libro Físico.");
-    } finally {
-        cargando.value = false;
-    }
+    } finally { cargando.value = false; }
 };
 
-// Resumen Mensual PDF
+// =======================================================
+// 🛡️ GENERAR PDF RESUMEN MENSUAL (OFICIO AL LÍMITE + TRUNCADO)
+// =======================================================
 const generarPDFMensual = async () => {
-    if (!nitSeleccionado.value || !mes.value || !anio.value) {
-        alert("Auditoría: Debe seleccionar Empresa, Mes y Año.");
-        return;
-    }
-
     try {
         cargando.value = true;
         const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
@@ -691,23 +656,34 @@ const generarPDFMensual = async () => {
         });
         
         const data = res.data;
+        // 📏 CAMBIO A TAMAÑO OFICIO
         const doc = new jsPDF('l', 'mm', 'legal'); 
-        let startY = 50;
+        
+        const margenSup = 19.1;
+        const margenInf = 19.1;
+        const margenLat = 2.0; 
+        const posEncabezado = 7.6; 
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-        doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.setTextColor(15, 118, 110); 
-        doc.text("RentaLimpio - Resumen Tributario", 14, 20);
-        doc.setFont("helvetica", "normal"); doc.setFontSize(12); doc.setTextColor(51, 65, 85);
-        doc.text(`Empresa (Declarante): ${data.identificacion.razon_social}`, 14, 30);
-        doc.text(`NIT: ${data.identificacion.nit}`, 14, 36);
-        doc.text(`Periodo Fiscal: ${mes.value} / ${anio.value}`, 14, 42);
-        doc.setLineWidth(0.5); 
-        doc.line(14, 45, 341, 45); 
+        // ✂️ En oficio podemos permitir hasta 40 letras en el resumen sin problema
+        const truncarTexto = (texto, max = 40) => {
+            if (!texto) return '';
+            return texto.length > max ? texto.substring(0, max) + '...' : texto;
+        };
+
+        doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(15, 118, 110); 
+        doc.text("RentaLimpio - Resumen Tributario", margenLat, posEncabezado + 4);
+        doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(51, 65, 85);
+        doc.text(`Empresa: ${data.identificacion.razon_social} | NIT: ${data.identificacion.nit} | Periodo: ${mes.value} / ${anio.value}`, margenLat, posEncabezado + 9);
+        doc.setLineWidth(0.3); doc.line(margenLat, posEncabezado + 11, pageWidth - margenLat, posEncabezado + 11); 
+
+        let startY = margenSup;
 
         if (data.anexo3_compras && data.anexo3_compras.length > 0) {
-            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("1. Compras (Crédito Fiscal Recibido)", 14, startY);
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("1. Compras (Crédito Fiscal Recibido)", margenLat, startY);
             autoTable(doc, {
-                startY: startY + 5, 
-                margin: { left: 14, right: 14 }, 
+                startY: startY + 4, 
+                margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, 
                 head: [['Fecha', 'Proveedor\n/ NIT', 'DTE', 'Exen.\nLoc.', 'Exen.\nImp/Int', 'Grav.\nLoc.', 'Grav.\nImp/Int', 'IVA', 'Perci-\nbido', 'Suj.\nExclu.', 'Total']],
                 body: data.anexo3_compras.map(c => {
                     const exen = parseFloat(c.internas_exentas || 0).toFixed(2);
@@ -717,102 +693,127 @@ const generarPDFMensual = async () => {
                     const iva = parseFloat(c.credito_fiscal || 0).toFixed(2);
                     const percibido = parseFloat(c.iva_percibido || 0).toFixed(2);
                     const sujetos = parseFloat(c.sujetos_excluidos || 0).toFixed(2);
-                    
                     const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0);
                     const total = (parseFloat(exen) + parseFloat(grav) + parseFloat(iva) + otros).toFixed(2);
                     
-                    return [
+                    return [ 
                         formatearFecha(c.fecha), 
-                        `${c.nombre_proveedor}\n${c.nit_proveedor}`, 
-                        c.numero, 
-                        `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}`
+                        `${truncarTexto(c.nombre_proveedor, 40)}\n${c.nit_proveedor}`, 
+                        c.numero, `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}`
                     ]
                 }),
-                theme: 'striped', headStyles: { fillColor: [15, 118, 110] }, styles: { fontSize: 10, cellPadding: 2 },
-                columnStyles: { 
-                    0: { halign: 'center', cellWidth: 20 }, 
-                    2: { halign: 'center', cellWidth: 35 }  
-                } 
+                theme: 'striped', headStyles: { fillColor: [15, 118, 110], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
+                columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 40 } },
+                didDrawPage: function (data) { 
+                    doc.setFontSize(8); 
+                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
+                }
             });
-            startY = doc.lastAutoTable.finalY + 15;
+            startY = doc.lastAutoTable.finalY + 12;
         }
 
         if (data.anexo2_credito_fiscal && data.anexo2_credito_fiscal.length > 0) {
-            if (startY > 160) { doc.addPage(); startY = 20; }
-            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("2. Ventas a Contribuyentes (CCF Emitidos)", 14, startY);
+            if (startY > doc.internal.pageSize.getHeight() - margenInf - 20) { doc.addPage(); startY = margenSup; }
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("2. Ventas a Contribuyentes (CCF Emitidos)", margenLat, startY);
             autoTable(doc, {
-                startY: startY + 5, 
-                margin: { left: 14, right: 14 },
+                startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf },
                 head: [['Fecha', 'Cliente\n/ NIT', 'DTE', 'Gravadas', 'Débito\nFiscal', 'Total']],
-                body: data.anexo2_credito_fiscal.map(v => [formatearFecha(v.fecha), `${v.nombre}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`]),
-                theme: 'striped', headStyles: { fillColor: [3, 105, 161] }, styles: { fontSize: 10, cellPadding: 2 },
-                columnStyles: { 
-                    0: { halign: 'center', cellWidth: 20 },
-                    2: { halign: 'center', cellWidth: 35 } 
-                } 
+                body: data.anexo2_credito_fiscal.map(v => [
+                    formatearFecha(v.fecha), 
+                    `${truncarTexto(v.nombre, 40)}\n${v.nit_cliente}`, 
+                    v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`
+                ]),
+                theme: 'striped', headStyles: { fillColor: [3, 105, 161], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
+                columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 40 } },
+                didDrawPage: function (data) { 
+                    doc.setFontSize(8); 
+                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
+                }
             });
-            startY = doc.lastAutoTable.finalY + 15;
+            startY = doc.lastAutoTable.finalY + 12;
         }
 
         if (data.anexo1_consumidor_final && data.anexo1_consumidor_final.length > 0) {
-            if (startY > 160) { doc.addPage(); startY = 20; }
-            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("3. Ventas a Consumidor Final", 14, startY);
+            if (startY > doc.internal.pageSize.getHeight() - margenInf - 20) { doc.addPage(); startY = margenSup; }
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("3. Ventas a Consumidor Final", margenLat, startY);
             autoTable(doc, {
-                startY: startY + 5, 
-                margin: { left: 14, right: 14 },
+                startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf },
                 head: [['Fecha', 'DTE\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas', 'Total\nVenta']],
                 body: data.anexo1_consumidor_final.map(v => [formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`]),
-                theme: 'striped', headStyles: { fillColor: [217, 119, 6] }, styles: { fontSize: 10, cellPadding: 2 },
-                columnStyles: { 
-                    0: { halign: 'center', cellWidth: 20 },
-                    1: { halign: 'center', cellWidth: 35 } 
-                } 
+                theme: 'striped', headStyles: { fillColor: [217, 119, 6], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
+                columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'center', cellWidth: 45 } },
+                didDrawPage: function (data) { 
+                    doc.setFontSize(8); 
+                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
+                }
             });
-            startY = doc.lastAutoTable.finalY + 15;
+            startY = doc.lastAutoTable.finalY + 12;
         }
 
-        if (startY === 50) { doc.setFont("helvetica", "italic"); doc.text("No se encontraron registros operados en este periodo.", 14, startY); }
+        if (startY === margenSup) { doc.setFont("helvetica", "italic"); doc.text("No se encontraron registros operados en este periodo.", margenLat, startY); }
         doc.save(`Resumen_Mensual_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
         axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'PDF RESUMEN', detalles: `Generado PDF ${mes.value}/${anio.value}` }).catch(()=>console.log("Auditoria omitida"));
-    } catch (error) { console.error("Error generando PDF:", error); alert("🚨 No se pudo generar el documento PDF."); } 
-    finally { cargando.value = false; }
+    } catch (error) { 
+        console.error("Error generando PDF:", error); 
+        alert("🚨 No se pudo generar el documento PDF."); 
+    } finally { cargando.value = false; }
 };
 
+// =======================================================
+// 🛡️ DESCARGAR ANEXO JSON (F-07 HACIENDA)
+// =======================================================
 const descargarAnexosHacienda = async () => {
     if (!nitSeleccionado.value || !mes.value || !anio.value) { alert("Auditoría: Debe seleccionar Empresa, Mes y Año."); return; }
     try {
         const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, { params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value } });
+        
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 4));
         const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr); downloadAnchorNode.setAttribute("download", `Anexos_Hacienda_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`);
+        downloadAnchorNode.setAttribute("href", dataStr); 
+        downloadAnchorNode.setAttribute("download", `Anexos_Hacienda_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`);
         document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
-        alert("✅ Archivo JSON para Hacienda generado correctamente.");
-    } catch (error) { alert(`🚨 Error: ${error.response?.data?.message || "No se pudo generar el reporte."}`); }
+        
+        alert("✅ Archivo JSON F-07 para Hacienda generado correctamente.");
+    } catch (error) { alert(`🚨 Error: ${error.response?.data?.message || "No se pudo generar el reporte JSON."}`); }
 };
 
+// =======================================================
+// 🛡️ DESCARGAR ANEXO CSV
+// =======================================================
 const descargarAnexoCSV = async () => {
     const m = mes.value; const a = anio.value; const nitEmpresa = nitSeleccionado.value;
     if (!nitEmpresa || !m || !a) { alert("Auditoría: Debe seleccionar Empresa, Mes y Año."); return; }
+    
+    // 🛡️ REGLA: CSV no soporta el reporte general
+    if (moduloSeleccionado.value === 'todo') {
+        alert("⚠️ La exportación a CSV se hace por anexo individual. Por favor, seleccione un módulo específico (ej. Compras) en la lista superior izquierda.");
+        return;
+    }
+
     let endpoint = ''; let filename = '';
     switch (moduloSeleccionado.value) {
         case 'compras': endpoint = '/api/reportes/anexo3-csv'; filename = `Anexo3_Compras_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_cf': endpoint = '/api/reportes/anexo1-csv'; filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_ccf': endpoint = '/api/reportes/anexo2-csv'; filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'sujetos': endpoint = '/api/reportes/anexo5-csv'; filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; break;
-        default: return;
     }
+
     try {
         cargando.value = true;
         const res = await axios.get(`${BASE_URL}${endpoint}`, { params: { nit: nitEmpresa, mes: m, anio: a }, responseType: 'blob' });
         const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
         const link = document.createElement('a'); link.href = url; link.setAttribute('download', filename);
         document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
-    } catch (error) { alert("🚨 No se pudo generar el CSV."); } finally { cargando.value = false; }
+    } catch (error) { alert("🚨 No se pudo generar el CSV desde el servidor."); } finally { cargando.value = false; }
 };
 
+// =======================================================
+// 🛡️ EXPORTAR JSON BACKUP INTERNO DE LA APP
+// =======================================================
 const procesarAccion = async () => {
     if (accion.value === 'importar') { router.push('/lector-json'); return; }
     if (!nitSeleccionado.value) { alert("Seleccione una empresa."); return; }
+    
     cargando.value = true; resultado.value = null;
     try {
         let endpoint = '';
@@ -824,18 +825,30 @@ const procesarAccion = async () => {
           case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; 
           default: endpoint = `${BASE_URL}/api/exportar-todo`;
         }
+        
         const params = { mes: mes.value, anio: anio.value, nit: nitSeleccionado.value };
         const response = await axios.get(endpoint, { params, responseType: 'json' });
         const data = response.data;
+        
         const jsonString = JSON.stringify(data, null, 2);
         const blob = new Blob([jsonString], { type: "application/json" });
         urlDescargaBlob.value = window.URL.createObjectURL(blob);
+        
         let totalPreview = '0.00';
         if (data.totales_periodo) totalPreview = data.totales_periodo.gran_total_gravado || data.totales_periodo.total_gravado || '0.00';
         else if (Array.isArray(data) && data.length > 0 && data[0].total) totalPreview = data.reduce((sum, item) => sum + (parseFloat(item.total)||0), 0).toFixed(2);
-        resultado.value = { tipo: 'success', titulo: 'Backup Generado', archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`, cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'), total: totalPreview, snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '') };
-    } catch (error) { resultado.value = { tipo: 'error', titulo: 'Error al Generar', archivo: 'No se pudo crear el archivo', cantidad: 0, total: 0, snippet: error.response?.data?.message || error.message }; } 
-    finally { cargando.value = false; }
+        
+        resultado.value = { 
+            tipo: 'success', 
+            titulo: 'Backup Generado', 
+            archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`, 
+            cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'), 
+            total: totalPreview, 
+            snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '') 
+        };
+    } catch (error) { 
+        resultado.value = { tipo: 'error', titulo: 'Error al Generar', archivo: 'No se pudo crear el archivo', cantidad: 0, total: 0, snippet: error.response?.data?.message || error.message }; 
+    } finally { cargando.value = false; }
 };
 
 const descargarArchivoReal = () => {

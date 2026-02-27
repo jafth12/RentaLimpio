@@ -212,11 +212,30 @@
                 <input type="text" v-model="filtroLista" placeholder="🔍 DTE / Prov..." class="form-control search-list">
              </div>
           </div>
+
+          <div v-if="seleccionados.length > 0" class="bulk-action-bar fade-in">
+             <div class="bulk-info">
+                <span class="badge-success">{{ seleccionados.length }} seleccionados</span>
+                <span class="bulk-text">Asignar para declarar en:</span>
+             </div>
+             <div class="bulk-controls">
+                <select v-model="bulkMes" class="form-control form-control-sm w-auto d-inline">
+                   <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <input type="number" v-model="bulkAnio" class="form-control form-control-sm w-auto d-inline" style="width: 80px;">
+                <button class="btn btn-primary btn-sm" @click="aplicarCambioMasivo" :disabled="cargandoMasivo">
+                   {{ cargandoMasivo ? 'Aplicando...' : '💾 Mover Facturas' }}
+                </button>
+             </div>
+          </div>
           
           <div class="table-responsive">
             <table class="table">
               <thead>
                 <tr>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" @change="toggleAll" :checked="comprasFiltradas.length > 0 && seleccionados.length === comprasFiltradas.length" class="row-checkbox" title="Seleccionar todo">
+                  </th>
                   <th>Fecha</th>
                   <th>Anexo</th>
                   <th>Proveedor</th>
@@ -226,10 +245,13 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="c in comprasFiltradas" :key="c.idcompras">
+                <tr v-for="c in comprasFiltradas" :key="c.idcompras" :class="{'selected-row': seleccionados.includes(c.idcompras)}">
+                  <td class="text-center">
+                     <input type="checkbox" :value="c.idcompras" v-model="seleccionados" class="row-checkbox">
+                  </td>
                   <td>
                     <div class="fw-bold text-dark">{{ formatearFecha(c.ComFecha) }}</div>
-                    <small class="text-muted">Declarado: {{ c.ComMesDeclarado }}</small>
+                    <small class="text-muted">Declarado: <strong class="text-primary">{{ c.ComMesDeclarado }}</strong></small>
                   </td>
                   <td><span class="badge-anexo">Anexo 3</span></td>
                   <td>
@@ -246,7 +268,7 @@
                   </td>
                 </tr>
                 <tr v-if="comprasFiltradas.length === 0">
-                  <td colspan="6" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td>
+                  <td colspan="7" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td>
                 </tr>
               </tbody>
             </table>
@@ -308,7 +330,79 @@ const mostrandoLista = ref(true);
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
 
-// 🛡️ MODIFICACIÓN: Los valores ahora son el string exacto del mes para coincidir con ComMesDeclarado
+// 🛡️ SINCRONIZACIÓN AUTOMÁTICA DE MES AL CAMBIAR LA FECHA MANUALMENTE
+watch(() => formulario.value.fecha, (nuevaFecha) => {
+    if (nuevaFecha && !modoEdicion.value) {
+        const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
+        formulario.value.mesDeclarado = mesesOptions[mesIdx];
+        formulario.value.anioDeclarado = nuevaFecha.split('-')[0];
+    }
+});
+
+// Lógica de Asignación Masiva
+const seleccionados = ref([]);
+const bulkMes = ref(mesesOptions[new Date().getMonth()]);
+const bulkAnio = ref(new Date().getFullYear().toString());
+const cargandoMasivo = ref(false);
+
+const toggleAll = (e) => {
+    if (e.target.checked) {
+        seleccionados.value = comprasFiltradas.value.map(c => c.idcompras);
+    } else {
+        seleccionados.value = [];
+    }
+};
+
+const aplicarCambioMasivo = async () => {
+    if (!confirm(`¿Mover ${seleccionados.value.length} documentos al libro de ${bulkMes.value} ${bulkAnio.value}?`)) return;
+
+    cargandoMasivo.value = true;
+    try {
+        const promesas = seleccionados.value.map(id => {
+            const compraOri = listaCompras.value.find(c => c.idcompras === id);
+            if (!compraOri) return Promise.resolve();
+
+            const payload = {
+                iddeclaNIT: compraOri.iddeclaNIT,
+                ComFecha: compraOri.ComFecha ? compraOri.ComFecha.split('T')[0] : null,
+                ComMesDeclarado: bulkMes.value,
+                ComAnioDeclarado: bulkAnio.value,
+                ComClase: compraOri.ComClase,
+                ComTipo: compraOri.ComTipo,
+                ComNumero: compraOri.ComNumero,
+                ComCodGeneracion: compraOri.ComCodGeneracion,
+                proveedor_ProvNIT: compraOri.proveedor_ProvNIT,
+                ComNomProve: compraOri.ComNomProve,
+                ComIntExe: compraOri.ComIntExe,
+                ComInternacioExe: compraOri.ComInternacioExe,
+                ComImpExeNoSujetas: compraOri.ComImpExeNoSujetas,
+                ComIntGrav: compraOri.ComIntGrav,
+                ComInternacGravBienes: compraOri.ComInternacGravBienes,
+                ComImportGravBienes: compraOri.ComImportGravBienes,
+                ComImportGravServicios: compraOri.ComImportGravServicios,
+                ComCredFiscal: compraOri.ComCredFiscal,
+                ComOtroAtributo: compraOri.ComOtroAtributo,
+                ComTotal: compraOri.ComTotal,
+                ComClasiRenta: compraOri.ComClasiRenta,
+                ComTipoCostoGasto: compraOri.ComTipoCostoGasto,
+                ComTipoOpeRenta: compraOri.ComTipoOpeRenta,
+                ComSecNum: compraOri.ComSecNum
+            };
+            return axios.put(`${API_COMPRAS}/${id}`, payload);
+        });
+
+        await Promise.all(promesas);
+        alert(`✅ ${seleccionados.value.length} documentos asignados a ${bulkMes.value} ${bulkAnio.value}`);
+        seleccionados.value = [];
+        await cargarDatos();
+    } catch (error) {
+        console.error("Error masivo:", error);
+        alert("🚨 Ocurrió un error al mover los documentos. Recargue la página e intente de nuevo.");
+    } finally {
+        cargandoMasivo.value = false;
+    }
+};
+
 const mesesFiltroOptions = [
   { nombre: 'Todos los Meses', valor: '' },
   { nombre: 'Enero', valor: 'Enero' }, { nombre: 'Febrero', valor: 'Febrero' }, { nombre: 'Marzo', valor: 'Marzo' },
@@ -318,6 +412,7 @@ const mesesFiltroOptions = [
 ];
 
 const anioFiltro = ref(new Date().getFullYear().toString());
+// 🛡️ MODIFICACIÓN: Inicia vacío para mostrar todas las facturas importadas sin importar de qué mes sean
 const mesFiltro = ref(''); 
 const filtroLista = ref(''); 
 const declaranteFiltro = ref(''); 
@@ -391,13 +486,11 @@ const comprasFiltradas = computed(() => {
       filtrado = filtrado.filter(c => c.iddeclaNIT === declaranteFiltro.value); 
   }
   
-  // 🛡️ MODIFICACIÓN: Filtrar usando Año a Declarar (Con respaldo a fecha original si es registro viejo)
   if (anioFiltro.value) { 
       const anioStr = anioFiltro.value.toString(); 
       filtrado = filtrado.filter(c => String(c.ComAnioDeclarado) === anioStr || (c.ComFecha && c.ComFecha.startsWith(anioStr))); 
   }
   
-  // 🛡️ MODIFICACIÓN: Filtrar usando Mes a Declarar directamente
   if (mesFiltro.value) { 
       filtrado = filtrado.filter(c => c.ComMesDeclarado === mesFiltro.value); 
   }
@@ -589,7 +682,8 @@ onMounted(cargarDatos);
 .table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
 .table { width: 100%; border-collapse: collapse; background: white; }
 .table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; border-bottom: 1px solid #e5e7eb; }
-.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
+.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; transition: background-color 0.2s; }
+.table tr:hover td { background-color: #f9fafb; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
 .montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 10px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
 .monto-group { flex: 1; min-width: 150px; }
@@ -604,6 +698,7 @@ onMounted(cargarDatos);
 .alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 
+/* Filtros */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .filter-year { max-width: 140px; font-weight: 600; color: #1f2937; background-color: #f9fafb; border-color: #d1d5db; }
 .filter-year:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
@@ -611,6 +706,20 @@ onMounted(cargarDatos);
 .filter-month:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
 .filter-input, .search-list { flex: 1; min-width: 150px; max-width: 280px; }
 .filter-input { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
+
+/* 🛡️ NUEVO: Estilos para Asignación Masiva */
+.bulk-action-bar { display: flex; justify-content: space-between; align-items: center; background-color: #f0fdfa; border: 1px solid #55C2B7; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }
+.bulk-info { display: flex; align-items: center; gap: 10px; }
+.bulk-text { font-weight: 600; color: #0f766e; font-size: 0.95rem; }
+.badge-success { background: #10b981; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; }
+.bulk-controls { display: flex; align-items: center; gap: 10px; }
+.form-control-sm { padding: 0.4rem 0.6rem; font-size: 0.9rem; height: auto; }
+.btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
+.d-inline { display: inline-block; }
+.w-auto { width: auto; }
+.text-primary { color: #55C2B7; }
+.row-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #55C2B7; }
+.selected-row td { background-color: #f0fdfa !important; border-bottom-color: #ccfbf1; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }
@@ -620,5 +729,6 @@ onMounted(cargarDatos);
   .header-actions .btn { width: 100%; }
   .history-filters { flex-direction: column; width: 100%; }
   .filter-year, .filter-month, .filter-input, .search-list { max-width: 100%; width: 100%; }
+  .bulk-action-bar { flex-direction: column; align-items: flex-start; }
 }
 </style>

@@ -1,10 +1,9 @@
 import pool from '../config/db.js';
-import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
+import { registrarAccion } from './historial.controller.js'; 
 
 // --- 1. OBTENER TODAS LAS VENTAS CCF ---
 export const getVentasCCF = async (req, res) => {
     try {
-        // 🛡️ Cambiado de DESC a ASC (De menor a mayor)
         const [rows] = await pool.query('SELECT * FROM credfiscal ORDER BY FiscFecha ASC');
         res.json(rows);
     } catch (error) {
@@ -12,7 +11,7 @@ export const getVentasCCF = async (req, res) => {
     }
 };
 
-// --- 2. OBTENER UNA VENTA (PARA EDITAR) ---
+// --- 2. OBTENER UNA VENTA ---
 export const getVentaCCFById = async (req, res) => {
     const { id } = req.params;
     try {
@@ -24,17 +23,31 @@ export const getVentaCCFById = async (req, res) => {
     }
 };
 
-// --- 3. CREAR NUEVA VENTA CCF ---
+// --- 3. CREAR NUEVA VENTA CCF (CON ANTIDUPLICADOS Y MES DECLARADO) ---
 export const createVentasCCF = async (req, res) => {
     try {
         const d = req.body;
 
-        // Validación Obligatoria
         if (!d.iddeclaNIT || !d.nrc || !d.numero_control) {
-            return res.status(400).json({ message: 'Auditoría: Empresa, NRC de Cliente y Número DTE son obligatorios.' });
+            return res.status(400).json({ message: 'Empresa, NRC de Cliente y Número DTE son obligatorios.' });
         }
 
-        // Procesamiento Numérico
+        // 🛡️ REGLA ANTIDUPLICADOS: Verifica si ya existe antes de guardar
+        const [duplicado] = await pool.query(
+            `SELECT idCredFiscal FROM credfiscal 
+             WHERE iddeclaNIT = ? 
+             AND (
+                 (FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') 
+                 OR 
+                 (REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, d.uuid_dte, d.numero_control, d.nrc]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Documento duplicado. Este Crédito Fiscal ya se encuentra registrado.' });
+        }
+
         const gravada = parseFloat(d.gravadas) || 0;
         const debito = d.debitoFiscal !== undefined ? parseFloat(d.debitoFiscal) : (gravada * 0.13);
         const exentas = parseFloat(d.exentas) || 0;
@@ -44,34 +57,22 @@ export const createVentasCCF = async (req, res) => {
         const query = `
             INSERT INTO credfiscal 
             (
-                iddeclaNIT, FiscFecha, FisClasDoc, FisTipoDoc, FiscSerieDoc, 
+                iddeclaNIT, FiscFecha, FiscMesDeclarado, FiscAnioDeclarado, FisClasDoc, FisTipoDoc, FiscSerieDoc, 
                 FiscNumDoc, FiscCodGeneracion, FiscNumContInter, FiscNit, FiscNomRazonDenomi, 
                 FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, 
                 FiscTotalVtas, BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo
-            ) VALUES (?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2')
+            ) VALUES (?, ?, ?, ?, '4', '03', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2')
         `;
 
         const values = [
-            d.iddeclaNIT, 
-            d.fecha, 
-            d.serie || null, 
-            d.numero_control, // 🛡️ DTE
-            d.uuid_dte,       // 🛡️ UUID en Cod Generacion
-            d.uuid_dte,       // 🛡️ UUID en Control Interno
-            d.nrc,            // 🛡️ NRC
-            d.cliente,        // 🛡️ NOMBRE DEL CLIENTE
-            exentas, 
-            noSujetas, 
-            gravada, 
-            debito,
-            total,
-            d.tipo_operacion || '1', 
-            d.tipo_ingreso || '1'
+            d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, d.serie || null, 
+            d.numero_control, d.uuid_dte, d.uuid_dte, d.nrc, d.cliente, 
+            exentas, noSujetas, gravada, debito, total,
+            d.tipo_operacion || '1', d.tipo_ingreso || '1'
         ];
 
         const [result] = await pool.query(query, values);
         
-        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'CREACION', 'CREDITO FISCAL', `DTE: ${d.numero_control} - Total: $${total}`);
 
@@ -83,12 +84,29 @@ export const createVentasCCF = async (req, res) => {
     }
 };
 
-// --- 4. ACTUALIZAR VENTA CCF ---
+// --- 4. ACTUALIZAR VENTA CCF (CON ANTIDUPLICADOS Y MES DECLARADO) ---
 export const updateVentasCCF = async (req, res) => {
     const { id } = req.params;
     try {
         const d = req.body;
         
+        // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR
+        const [duplicado] = await pool.query(
+            `SELECT idCredFiscal FROM credfiscal 
+             WHERE iddeclaNIT = ? 
+             AND idCredFiscal != ?
+             AND (
+                 (FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') 
+                 OR 
+                 (REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, id, d.uuid_dte, d.numero_control, d.nrc]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Conflicto de Documento. Ya existe OTRO Crédito Fiscal con ese mismo Número o UUID.' });
+        }
+
         const gravada = parseFloat(d.gravadas) || 0;
         const debito = d.debitoFiscal !== undefined ? parseFloat(d.debitoFiscal) : (gravada * 0.13);
         const exentas = parseFloat(d.exentas) || 0;
@@ -97,7 +115,7 @@ export const updateVentasCCF = async (req, res) => {
 
         const query = `
             UPDATE credfiscal SET 
-                iddeclaNIT=?, FiscFecha=?, FiscSerieDoc=?, 
+                iddeclaNIT=?, FiscFecha=?, FiscMesDeclarado=?, FiscAnioDeclarado=?, FiscSerieDoc=?, 
                 FiscNumDoc=?, FiscCodGeneracion=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, 
                 FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, 
                 FiscTotalVtas=?, BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?
@@ -105,28 +123,15 @@ export const updateVentasCCF = async (req, res) => {
         `;
 
         const values = [
-            d.iddeclaNIT,
-            d.fecha, 
-            d.serie || null,
-            d.numero_control, // 🛡️ DTE
-            d.uuid_dte,       // 🛡️ UUID
-            d.uuid_dte,       // 🛡️ UUID
-            d.nrc,            // 🛡️ NRC
-            d.cliente,        // 🛡️ NOMBRE DEL CLIENTE
-            exentas, 
-            noSujetas, 
-            gravada, 
-            debito,
-            total,
-            d.tipo_operacion || '1', 
-            d.tipo_ingreso || '1', 
-            id
+            d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, d.serie || null,
+            d.numero_control, d.uuid_dte, d.uuid_dte, d.nrc, d.cliente, 
+            exentas, noSujetas, gravada, debito, total,
+            d.tipo_operacion || '1', d.tipo_ingreso || '1', id
         ];
 
         const [result] = await pool.query(query, values);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         
-        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'MODIFICACION', 'CREDITO FISCAL', `DTE Actualizado: ${d.numero_control} - Total: $${total}`);
 
@@ -144,7 +149,6 @@ export const deleteVentasCCF = async (req, res) => {
         const [result] = await pool.query('DELETE FROM credfiscal WHERE idCredFiscal = ?', [id]);
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Venta no encontrada' });
         
-        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'ELIMINACION', 'CREDITO FISCAL', `Registro ID Eliminado: ${id}`);
 

@@ -22,9 +22,9 @@
             
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento</h3>
-              <div class="form-grid three-cols">
+              <div class="form-grid four-cols">
                 
-                <div class="form-group">
+                <div class="form-group" style="grid-column: span 2;">
                    <label class="form-label text-dark fw-bold">🏢 Empresa / Declarante <span class="text-danger">*</span></label>
                    <select v-model="formulario.iddeclaNIT" class="form-control" required>
                       <option value="" disabled>-- Seleccione Empresa --</option>
@@ -40,12 +40,23 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
-                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
-                   <small class="text-muted text-xs">Código de 36 caracteres del DTE.</small>
+                  <label class="form-label">Mes a Declarar <span class="text-danger">*</span></label>
+                  <select v-model="formulario.mesDeclarado" class="form-control" required>
+                    <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+                  </select>
                 </div>
 
                 <div class="form-group">
+                  <label class="form-label">Año a Declarar <span class="text-danger">*</span></label>
+                  <input type="number" v-model="formulario.anioDeclarado" class="form-control" min="2000" required>
+                </div>
+
+                <div class="form-group" style="grid-column: span 2;">
+                  <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
+                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+                </div>
+
+                <div class="form-group" style="grid-column: span 2;">
                    <label class="form-label">Número DTE (14) <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
@@ -56,10 +67,9 @@
                       <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
                       <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
                    </div>
-                   <small class="form-text text-muted text-xs">Número de control oficial.</small>
                 </div>
 
-                <div class="form-group"><label class="form-label">Serie (Papel/Opcional)</label><input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE"></div>
+                <div class="form-group"><label class="form-label">Serie (Opcional)</label><input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE"></div>
               </div>
             </div>
 
@@ -102,25 +112,63 @@
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
              <h3>📋 Historial de Sujetos Excluidos</h3>
+             
              <div class="history-filters">
+                <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
+                <select v-model="mesFiltro" class="form-control filter-month">
+                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
+                </select>
                 <select v-model="declaranteFiltro" class="form-control filter-input">
                     <option value="">🏢 Todas las Empresas</option>
                     <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
                 </select>
-                <input type="text" v-model="filtro" placeholder="🔍 Buscar por sujeto o documento..." class="form-control search-list">
+                <input type="text" v-model="filtro" placeholder="🔍 Sujeto o documento..." class="form-control search-list">
              </div>
           </div>
+
+          <div v-if="seleccionados.length > 0" class="bulk-action-bar fade-in">
+             <div class="bulk-info">
+                <span class="badge-success">{{ seleccionados.length }} seleccionados</span>
+                <span class="bulk-text">Asignar para declarar en:</span>
+             </div>
+             <div class="bulk-controls">
+                <select v-model="bulkMes" class="form-control form-control-sm w-auto d-inline">
+                   <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+                <input type="number" v-model="bulkAnio" class="form-control form-control-sm w-auto d-inline" style="width: 80px;">
+                <button class="btn btn-primary btn-sm" @click="aplicarCambioMasivo" :disabled="cargandoMasivo">
+                   {{ cargandoMasivo ? 'Aplicando...' : '💾 Mover Facturas' }}
+                </button>
+             </div>
+          </div>
+
           <div class="table-responsive">
             <table class="table">
-              <thead><tr><th>Fecha</th><th>Anexo</th> <th>Sujeto (NIT / Nombre)</th><th>Documento</th><th class="text-right">Monto</th><th class="text-right text-danger">Ret. 10%</th><th class="text-center">Acciones</th></tr></thead>
+              <thead>
+                <tr>
+                  <th style="width: 40px; text-align: center;">
+                    <input type="checkbox" @change="toggleAll" :checked="sujetosFiltrados.length > 0 && seleccionados.length === sujetosFiltrados.length" class="row-checkbox" title="Seleccionar todo">
+                  </th>
+                  <th>Fecha</th><th>Anexo</th> <th>Sujeto (NIT / Nombre)</th><th>Documento</th><th class="text-right">Monto</th><th class="text-right text-danger">Ret. 10%</th><th class="text-center">Acciones</th>
+                </tr>
+              </thead>
               <tbody>
-                <tr v-for="item in sujetosFiltrados" :key="item.idComSujExclui">
-                  <td>{{ formatearFecha(item.ComprasSujExcluFecha) }}</td><td><span class="badge-anexo">Anexo 5</span></td> <td><div class="fw-bold text-dark">{{ item.ComprasSujExcluNom }}</div><small class="text-muted">{{ item.ComprasSujExcluNIT }}</small></td>
+                <tr v-for="item in sujetosFiltrados" :key="item.idComSujExclui" :class="{'selected-row': seleccionados.includes(item.idComSujExclui)}">
+                  <td class="text-center">
+                     <input type="checkbox" :value="item.idComSujExclui" v-model="seleccionados" class="row-checkbox">
+                  </td>
+                  <td>
+                    <div class="fw-bold text-dark">{{ formatearFecha(item.ComprasSujExcluFecha) }}</div>
+                    <small class="text-muted">Declarado: <strong class="text-primary">{{ item.ComprasSujExcluMesDeclarado || 'N/A' }}</strong></small>
+                  </td>
+                  <td><span class="badge-anexo">Anexo 5</span></td> 
+                  <td><div class="fw-bold text-dark">{{ item.ComprasSujExcluNom }}</div><small class="text-muted">{{ item.ComprasSujExcluNIT }}</small></td>
                   <td><span class="doc-number">{{ item.ComprasSujExcluNumDoc }}</span></td>
-                  <td class="text-right fw-bold text-dark">${{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td><td class="text-right fw-bold text-danger">-${{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-dark">${{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-danger">-${{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
                   <td class="text-center"><button class="btn-icon" @click="prepararEdicion(item)" title="Editar">✏️</button><button class="btn-icon text-danger" @click="eliminarSujeto(item.idComSujExclui)" title="Eliminar">🗑️</button></td>
                 </tr>
-                <tr v-if="sujetosFiltrados.length === 0"><td colspan="7" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td> </tr>
+                <tr v-if="sujetosFiltrados.length === 0"><td colspan="8" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td> </tr>
               </tbody>
             </table>
           </div>
@@ -137,7 +185,9 @@ import MainLayout from '../layouts/MainLayout.vue';
 
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
-const API_URL = `${BASE_URL}/api/sujetos`; // API REAL CONECTADA
+const API_URL = `${BASE_URL}/api/sujetos`; 
+
+const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 // --- LÓGICA DE MÁSCARA DTE ---
 const ccfParts = ref({ part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
@@ -149,25 +199,14 @@ const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie
 const formulario = ref({ 
     iddeclaNIT: '',
     fecha: new Date().toISOString().split('T')[0], 
-    tipoDoc: '14', 
-    nit: '', 
-    nombre: '', 
-    serie: '', 
-    numero_control: '', 
-    uuid_dte: '',
-    monto: '0.00', 
-    retencion: '0.00', 
-    tipoOp: '1', 
-    clasificacion: '2', 
-    sector: '4', 
-    costoGasto: '2', 
-    anexo: 5 
+    mesDeclarado: mesesOptions[new Date().getMonth()],
+    anioDeclarado: new Date().getFullYear().toString(),
+    tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', uuid_dte: '',
+    monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 
 });
 
 const listaSujetos = ref([]); 
 const todosLosDeclarantes = ref([]); 
-const declaranteFiltro = ref(''); 
-const filtro = ref(''); 
 const mostrandoLista = ref(true); 
 const modoEdicion = ref(false); 
 const idEdicion = ref(null); 
@@ -175,7 +214,63 @@ const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
 
+// --- ASIGNACIÓN MASIVA ---
+const seleccionados = ref([]);
+const bulkMes = ref(mesesOptions[new Date().getMonth()]);
+const bulkAnio = ref(new Date().getFullYear().toString());
+const cargandoMasivo = ref(false);
+
+const toggleAll = (e) => {
+    if (e.target.checked) { seleccionados.value = sujetosFiltrados.value.map(s => s.idComSujExclui); } 
+    else { seleccionados.value = []; }
+};
+
+const aplicarCambioMasivo = async () => {
+    if (!confirm(`¿Mover ${seleccionados.value.length} documentos al mes de ${bulkMes.value} ${bulkAnio.value}?`)) return;
+    cargandoMasivo.value = true;
+    try {
+        const promesas = seleccionados.value.map(id => {
+            const sujetoOri = listaSujetos.value.find(s => s.idComSujExclui === id);
+            if (!sujetoOri) return Promise.resolve();
+
+            const payload = {
+                iddeclaNIT: sujetoOri.iddeclaNIT,
+                fecha: sujetoOri.ComprasSujExcluFecha ? sujetoOri.ComprasSujExcluFecha.split('T')[0] : null,
+                mesDeclarado: bulkMes.value,
+                anioDeclarado: bulkAnio.value,
+                tipoDoc: sujetoOri.ComprasSujExcluTipoDoc,
+                nit: sujetoOri.ComprasSujExcluNIT,
+                nombre: sujetoOri.ComprasSujExcluNom,
+                serie: sujetoOri.ComprasSujExcluSerieDoc,
+                numero_control: sujetoOri.ComprasSujExcluNumDoc,
+                uuid_dte: sujetoOri.ComprasSujExcluCodGeneracion,
+                monto: sujetoOri.ComprasSujExcluMontoOpera,
+                retencion: sujetoOri.ComprasSujExcluMontoReten,
+                tipoOp: sujetoOri.ComprasSujExcluTipoOpera,
+                clasificacion: sujetoOri.ComprasSujExcluClasificacion,
+                sector: sujetoOri.ComprasSujExclusector,
+                costoGasto: sujetoOri.ComprasSujExcluTipoCostoGast,
+                anexo: 5
+            };
+            return axios.put(`${API_URL}/${id}`, payload);
+        });
+        await Promise.all(promesas);
+        alert(`✅ ${seleccionados.value.length} documentos actualizados.`);
+        seleccionados.value = [];
+        await cargarDatos();
+    } catch (error) { alert("🚨 Error al mover los documentos."); } 
+    finally { cargandoMasivo.value = false; }
+};
+
 // --- CÁLCULOS ---
+watch(() => formulario.value.fecha, (nuevaFecha) => {
+    if (nuevaFecha && !modoEdicion.value) {
+        const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
+        formulario.value.mesDeclarado = mesesOptions[mesIdx];
+        formulario.value.anioDeclarado = nuevaFecha.split('-')[0];
+    }
+});
+
 watch(() => formulario.value.monto, (val) => { 
     formulario.value.retencion = ((parseFloat(val) || 0) * 0.10).toFixed(2); 
 });
@@ -187,9 +282,25 @@ const totalNeto = computed(() => {
 });
 
 // --- FILTROS ---
+const mesesFiltroOptions = [
+  { nombre: 'Todos los Meses', valor: '' },
+  { nombre: 'Enero', valor: 'Enero' }, { nombre: 'Febrero', valor: 'Febrero' }, { nombre: 'Marzo', valor: 'Marzo' },
+  { nombre: 'Abril', valor: 'Abril' }, { nombre: 'Mayo', valor: 'Mayo' }, { nombre: 'Junio', valor: 'Junio' },
+  { nombre: 'Julio', valor: 'Julio' }, { nombre: 'Agosto', valor: 'Agosto' }, { nombre: 'Septiembre', valor: 'Septiembre' },
+  { nombre: 'Octubre', valor: 'Octubre' }, { nombre: 'Noviembre', valor: 'Noviembre' }, { nombre: 'Diciembre', valor: 'Diciembre' }
+];
+
+const anioFiltro = ref(new Date().getFullYear().toString());
+const mesFiltro = ref(''); 
+const declaranteFiltro = ref('');
+const filtro = ref(''); 
+
 const sujetosFiltrados = computed(() => { 
     let filtrado = listaSujetos.value || []; 
     if (declaranteFiltro.value) filtrado = filtrado.filter(item => item.iddeclaNIT === declaranteFiltro.value); 
+    if (mesFiltro.value) filtrado = filtrado.filter(item => item.ComprasSujExcluMesDeclarado === mesFiltro.value);
+    if (anioFiltro.value) filtrado = filtrado.filter(item => String(item.ComprasSujExcluAnioDeclarado) === String(anioFiltro.value) || (item.ComprasSujExcluFecha && item.ComprasSujExcluFecha.startsWith(anioFiltro.value)));
+    
     if (filtro.value) { 
         const txt = filtro.value.toLowerCase(); 
         filtrado = filtrado.filter(item => 
@@ -208,16 +319,13 @@ const cargarDatos = async () => {
     try { 
         const resD = await axios.get(`${BASE_URL}/api/declarantes`); 
         todosLosDeclarantes.value = resD.data || []; 
-        
         const resV = await axios.get(API_URL);
         listaSujetos.value = resV.data || [];
     } catch (error) { console.error("Error cargando DB:", error); } 
 };
 
 const guardarSujeto = async () => { 
-    if (!formulario.value.iddeclaNIT) {
-        tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return;
-    }
+    if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
     actualizarNumeroCompleto(); 
     cargando.value = true; 
     
@@ -234,41 +342,31 @@ const guardarSujeto = async () => {
     } catch (error) {
         tipoMensaje.value = 'error'; 
         mensaje.value = error.response?.data?.message || 'Error del servidor.'; 
-    } finally {
-        cargando.value = false;
-    }
+    } finally { cargando.value = false; }
 };
 
 const eliminarSujeto = async (id) => { 
     if(!confirm('¿Eliminar este registro permanentemente de la BD?')) return;
-    try {
-        await axios.delete(`${API_URL}/${id}`);
-        await cargarDatos();
-    } catch (e) {
-        alert('No se pudo eliminar el registro.');
-    }
+    try { await axios.delete(`${API_URL}/${id}`); await cargarDatos(); } catch (e) { alert('No se pudo eliminar el registro.'); }
 };
 
 const prepararEdicion = (item) => {
     let fechaSegura = item.ComprasSujExcluFecha ? new Date(item.ComprasSujExcluFecha).toISOString().split('T')[0] : '';
     const rawNum = item.ComprasSujExcluNumDoc || '';
-    const cleanNumero = rawNum.replace(/-/g, '');
     const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
-    const match = cleanNumero.match(regex);
+    const match = rawNum.replace(/-/g, '').match(regex);
     
     ccfParts.value = match ? 
         { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
         { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
 
-    const limpiarCodigoCat = (txt) => {
-        if (!txt) return '1';
-        const m = txt.toString().match(/\d+/);
-        return m ? m[0] : '1';
-    };
+    const limpiarCodigoCat = (txt) => { const m = (txt||'').toString().match(/\d+/); return m ? m[0] : '1'; };
 
     formulario.value = { 
         iddeclaNIT: item.iddeclaNIT,
         fecha: fechaSegura, 
+        mesDeclarado: item.ComprasSujExcluMesDeclarado || mesesOptions[new Date(fechaSegura).getMonth()],
+        anioDeclarado: item.ComprasSujExcluAnioDeclarado || fechaSegura.substring(0,4),
         tipoDoc: item.ComprasSujExcluTipoDoc || '14', 
         nit: item.ComprasSujExcluNIT, 
         nombre: item.ComprasSujExcluNom, 
@@ -283,15 +381,13 @@ const prepararEdicion = (item) => {
         costoGasto: limpiarCodigoCat(item.ComprasSujExcluTipoCostoGast) || '2', 
         anexo: 5 
     };
-    idEdicion.value = item.idComSujExclui; 
-    modoEdicion.value = true; 
-    mostrandoLista.value = false;
+    idEdicion.value = item.idComSujExclui; modoEdicion.value = true; mostrandoLista.value = false;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', uuid_dte: '', monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 }; 
+    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', uuid_dte: '', monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 }; 
     ccfParts.value = { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; 
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -303,6 +399,7 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
+/* LOS MISMOS ESTILOS QUE YA TIENES FUNCIONAN PERFECTO AQUÍ */
 .sujetos-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
@@ -316,7 +413,7 @@ onMounted(cargarDatos);
 .form-section { margin-bottom: 30px; }
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
 .form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
 .form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
@@ -344,13 +441,31 @@ onMounted(cargarDatos);
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
 .table tr:hover td { background-color: #f9fafb; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
-.text-danger { color: #ef4444; } .text-muted { color: #6b7280; }
+.alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
+.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.text-danger { color: #ef4444; } .text-muted { color: #6b7280; } .text-primary { color: #55C2B7; }
 .mt-3 { margin-top: 15px; } .text-xs { font-size: 0.75rem; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
-.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; max-width: 650px; }
-.filter-input { max-width: 250px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
-.search-list { flex: 1; }
+/* Asignación Masiva y Filtros */
+.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; flex-wrap: wrap; max-width: 650px; }
+.filter-input { max-width: 200px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
+.filter-year { max-width: 100px; font-weight: 600; }
+.filter-month { max-width: 140px; font-weight: 600; }
+.search-list { flex: 1; min-width: 150px; max-width: 250px; }
+
+.bulk-action-bar { display: flex; justify-content: space-between; align-items: center; background-color: #f0fdfa; border: 1px solid #55C2B7; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }
+.bulk-info { display: flex; align-items: center; gap: 10px; }
+.bulk-text { font-weight: 600; color: #0f766e; font-size: 0.95rem; }
+.badge-success { background: #10b981; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; }
+.bulk-controls { display: flex; align-items: center; gap: 10px; }
+.form-control-sm { padding: 0.4rem 0.6rem; font-size: 0.9rem; height: auto; }
+.btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
+.d-inline { display: inline-block; }
+.w-auto { width: auto; }
+.row-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #55C2B7; }
+.selected-row td { background-color: #f0fdfa !important; border-bottom-color: #ccfbf1; }
 
 .dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
 .dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
@@ -367,5 +482,6 @@ onMounted(cargarDatos);
   .header-actions { width: 100%; }
   .history-filters { flex-direction: column; max-width: 100%; }
   .filter-input { max-width: 100%; }
+  .bulk-action-bar { flex-direction: column; align-items: flex-start; }
 }
 </style>

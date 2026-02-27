@@ -204,14 +204,14 @@ watch(miNit, (nuevoValor) => {
   }
 });
 
-// 🛡️ REGLA RESTAURADA: Obtener SIEMPRE el mes y año actual en el que se está haciendo la importación
-const getMesActual = () => {
+// 🛡️ FUNCIÓN RESTAURADA: Extrae el mes real del documento JSON original
+const obtenerMesNombre = (fechaIso) => {
+    if (!fechaIso) return 'Enero';
+    const partes = fechaIso.split('T')[0].split('-');
+    if (partes.length < 2) return 'Enero';
+    const mesNum = parseInt(partes[1], 10);
     const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-    return meses[new Date().getMonth()];
-};
-
-const getAnioActual = () => {
-    return new Date().getFullYear().toString();
+    return meses[mesNum - 1] || 'Enero';
 };
 
 const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
@@ -259,8 +259,8 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
         ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen,
         proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(),
         ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3',
-        ComMesDeclarado: getMesActual(), // <-- Asigna el mes de hoy
-        ComAnioDeclarado: getAnioActual(), // <-- Asigna el año de hoy
+        ComMesDeclarado: obtenerMesNombre(fecha), // <-- Usando el mes real del documento
+        ComAnioDeclarado: fecha.split('-')[0],    // <-- Usando el año real del documento
         comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
       }
     };
@@ -328,7 +328,7 @@ const cargarArchivo = (event) => {
 
         if (!payloadFinal.value) {
             payloadFinal.value = { 
-                backup_info: { nit: nitActual, empresa: miAlias.value || 'Importación', periodo: getAnioActual() }, 
+                backup_info: { nit: nitActual, empresa: miAlias.value || 'Importación', periodo: new Date().getFullYear().toString() }, 
                 data: { compras: [], ventas_ccf: [], ventas_cf: [], sujetos_excluidos: [] } 
             };
         }
@@ -342,8 +342,8 @@ const cargarArchivo = (event) => {
                   ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0, 
                   ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0, 
                   ComTotal: parseFloat(c.total) || 0, 
-                  ComMesDeclarado: getMesActual(), // <-- Asigna el mes de hoy
-                  ComAnioDeclarado: getAnioActual()  // <-- Asigna el año de hoy
+                  ComMesDeclarado: obtenerMesNombre(c.fecha), // <-- Usando el mes real del documento
+                  ComAnioDeclarado: c.fecha.split('T')[0].split('-')[0]  // <-- Usando el año real del documento
               }));
           }
           datosProcesados.value = true;

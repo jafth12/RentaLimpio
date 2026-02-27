@@ -1,10 +1,9 @@
 import pool from "../config/db.js";
-import { registrarAccion } from './historial.controller.js'; // 🛡️ Importación de Auditoría
+import { registrarAccion } from './historial.controller.js'; 
 
-// Obtener todas las ventas
+// 1. OBTENER REGISTROS
 export const getVentas = async (req, res) => {
     try {
-        // 🛡️ Ordenado de menor a mayor (ASC)
         const [rows] = await pool.query('SELECT * FROM vtagravterdomici ORDER BY VtaGraTerFecha ASC');
         res.json(rows);
     } catch (error) {
@@ -12,96 +11,132 @@ export const getVentas = async (req, res) => {
     }
 };
 
-// Crear nueva venta
+// 2. CREAR REGISTRO (CON ANTIDUPLICADOS)
 export const createVenta = async (req, res) => {
     const data = req.body;
 
-    // Validación de Auditoría: Adaptada a los nombres del frontend
-    if (!data.iddeclaNIT || !data.fecha || !data.nitMandante) {
-        return res.status(400).json({ message: 'Auditoría: ID Declarante, Fecha y NIT son obligatorios.'});
+    if (!data.iddeclaNIT || !data.fecha || !data.nitMandante || !data.numero) {
+        return res.status(400).json({ message: 'Auditoría: Empresa, Fecha, NIT de Mandante y DTE son obligatorios.'});
     }
 
     try {
-        // Aseguramos que el dinero llegue como número
-        const monto = parseFloat(data.gravadas) || 0; // En la vista es 'gravadas'
-        const iva = data.comision ? parseFloat(data.comision) : (monto * 0.13); // En la vista es 'comision'
+        // 🛡️ REGLA ANTIDUPLICADOS
+        const [duplicado] = await pool.query(
+            `SELECT idVtaGravTerDomici FROM vtagravterdomici 
+             WHERE iddeclaNIT = ? 
+             AND (
+                 (VtaGraTerCodGeneracion = ? AND VtaGraTerCodGeneracion IS NOT NULL AND VtaGraTerCodGeneracion != '') 
+                 OR 
+                 (REPLACE(VtaGraTerNumDoc, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [data.iddeclaNIT, data.uuid_dte, data.numero]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Documento duplicado. Esta Venta a Terceros ya se encuentra registrada.' });
+        }
+
+        const monto = parseFloat(data.gravadas) || 0; 
+        const iva = data.comision !== undefined ? parseFloat(data.comision) : (monto * 0.13); 
 
         const [result] = await pool.query(
             `INSERT INTO vtagravterdomici 
-            (iddeclaNIT, VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, LisVtaGraTerTipoDoc, 
-             VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc, 
+            (iddeclaNIT, VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, VtaGraTerMesDeclarado, VtaGraTerAnioDeclarado,
+             LisVtaGraTerTipoDoc, VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc, VtaGraTerCodGeneracion,
              VtaGraTerMontoOper, VtaGraTerIVAOper, 
              VtaGraTerSerieCompLiq, VtaGraTerResolCompLiq, VtaGraTerNumCompLiq, 
              VtaGraTerFechaCompLiq, VtaGraTerDUI, VtaGraTerAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '4')`,
             [
                 data.iddeclaNIT, 
-                data.nitMandante, // 🛡️ Mapeado desde Vue
-                data.nombreMandante, // 🛡️ Mapeado desde Vue
-                data.fecha, // 🛡️ Mapeado desde Vue
+                data.nitMandante, 
+                data.nombreMandante, 
+                data.fecha, 
+                data.mesDeclarado,
+                data.anioDeclarado,
                 data.LisVtaGraTerTipoDoc || '03', 
-                data.serie || null, // 🛡️ Mapeado desde Vue
+                data.serie || null, 
                 data.VtaGraTerNumResolu || null, 
-                data.numero, // 🛡️ EL DTE UNIFICADO (Mapeado desde Vue)
+                data.numero, 
+                data.uuid_dte,
                 monto, 
                 iva,
                 data.VtaGraTerSerieCompLiq || null, 
                 data.VtaGraTerResolCompLiq || null, 
                 data.VtaGraTerNumCompLiq || null, 
                 data.VtaGraTerFechaCompLiq || null, 
-                data.VtaGraTerDUI || null, 
-                data.VtaGraTerAnexo || '4' // 4 es el anexo de terceros
+                data.VtaGraTerDUI || null
             ]
         );
 
-        // 🛡️ SENSOR DE AUDITORÍA (CREACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'CREACION', 'VENTA TERCEROS', `DTE: ${data.numero} - Mandante: ${data.nombreMandante} - Monto: $${monto}`);
 
         res.status(201).json({ message: 'Venta a Terceros Certificada', id: result.insertId });
     } catch (error) {
+        console.error("Error BD:", error);
         res.status(500).json({ message: 'Falla en la Integridad de Datos', error: error.message });
     }
 };
 
-// Actualizar venta
+// 3. ACTUALIZAR REGISTRO (CON ANTIDUPLICADOS)
 export const updateVenta = async (req, res) => {
     const { id } = req.params;
     const data = req.body;
 
     try {
+        // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR
+        const [duplicado] = await pool.query(
+            `SELECT idVtaGravTerDomici FROM vtagravterdomici 
+             WHERE iddeclaNIT = ? 
+             AND idVtaGravTerDomici != ?
+             AND (
+                 (VtaGraTerCodGeneracion = ? AND VtaGraTerCodGeneracion IS NOT NULL AND VtaGraTerCodGeneracion != '') 
+                 OR 
+                 (REPLACE(VtaGraTerNumDoc, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [data.iddeclaNIT, id, data.uuid_dte, data.numero]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Conflicto de Documento. Ya existe OTRO registro con ese DTE/UUID.' });
+        }
+
         const monto = parseFloat(data.gravadas) || 0;
         const iva = parseFloat(data.comision) || 0;
 
         const [result] = await pool.query(
             `UPDATE vtagravterdomici SET 
-            iddeclaNIT=?, VtaGraTerNit=?, VtaGraTerNom=?, VtaGraTerFecha=?, LisVtaGraTerTipoDoc=?, 
-            VtaGraTerNumSerie=?, VtaGraTerNumResolu=?, VtaGraTerNumDoc=?, 
+            iddeclaNIT=?, VtaGraTerNit=?, VtaGraTerNom=?, VtaGraTerFecha=?, VtaGraTerMesDeclarado=?, VtaGraTerAnioDeclarado=?,
+            LisVtaGraTerTipoDoc=?, VtaGraTerNumSerie=?, VtaGraTerNumResolu=?, VtaGraTerNumDoc=?, VtaGraTerCodGeneracion=?,
             VtaGraTerMontoOper=?, VtaGraTerIVAOper=?, 
-            VtaGraTerSerieCompLiq=?, VtaGraTerNumCompLiq=?, VtaGraTerFechaCompLiq=?, VtaGraTerAnexo=?
+            VtaGraTerSerieCompLiq=?, VtaGraTerResolCompLiq=?, VtaGraTerNumCompLiq=?, VtaGraTerFechaCompLiq=?, VtaGraTerDUI=?, VtaGraTerAnexo='4'
             WHERE idVtaGravTerDomici = ?`,
             [
                 data.iddeclaNIT,
                 data.nitMandante, 
                 data.nombreMandante, 
                 data.fecha, 
+                data.mesDeclarado,
+                data.anioDeclarado,
                 data.LisVtaGraTerTipoDoc || '03',
                 data.serie || null, 
                 data.VtaGraTerNumResolu || null, 
-                data.numero, // 🛡️ DTE UNIFICADO ACTUALIZADO
+                data.numero, 
+                data.uuid_dte,
                 monto, 
                 iva,
                 data.VtaGraTerSerieCompLiq || null, 
+                data.VtaGraTerResolCompLiq || null, 
                 data.VtaGraTerNumCompLiq || null, 
                 data.VtaGraTerFechaCompLiq || null, 
-                data.VtaGraTerAnexo || '4', 
+                data.VtaGraTerDUI || null,
                 id
             ]
         );
 
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' });
 
-        // 🛡️ SENSOR DE AUDITORÍA (MODIFICACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'MODIFICACION', 'VENTA TERCEROS', `DTE Actualizado: ${data.numero} - Monto: $${monto}`);
 
@@ -111,15 +146,13 @@ export const updateVenta = async (req, res) => {
     }
 };
 
-// Eliminar venta
+// 4. ELIMINAR REGISTRO
 export const deleteVenta = async (req, res) => {
     const { id } = req.params;
     try {
         const [result] = await pool.query('DELETE FROM vtagravterdomici WHERE idVtaGravTerDomici = ?', [id]);
-        
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado'});
 
-        // 🛡️ SENSOR DE AUDITORÍA (ELIMINACIÓN)
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'ELIMINACION', 'VENTA TERCEROS', `Registro ID Eliminado: ${id}`);
 
