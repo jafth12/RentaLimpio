@@ -8,7 +8,6 @@ const obtenerNumeroMes = (m) => {
 };
 
 const formatearFecha = (fecha) => { if (!fecha) return null; return fecha.toString().split('T')[0]; };
-
 const sinGuiones = (texto) => { if (!texto) return ''; return texto.toString().replace(/-/g, ''); };
 
 // 🛡️ FECHA CSV (HACIENDA EXIGE DD/MM/YYYY)
@@ -19,13 +18,43 @@ const formatoFechaCSV = (fechaISO) => {
 };
 
 // ==========================================
+// 🛡️ CONSULTAS SQL CON FILTRO DE ANULADOS
+// ==========================================
+const qCompras = `
+    SELECT c.* FROM compras c
+    LEFT JOIN anuladosextraviados a 
+      ON (a.DetaDocCodGeneracion = REPLACE(c.ComCodGeneracion, '-', '') OR a.DetaDocDesde = c.ComNumero) AND a.iddeclaNIT = c.iddeclaNIT
+    WHERE c.iddeclaNIT = ? AND c.ComMesDeclarado = ? AND c.ComAnioDeclarado = ? AND a.idAnuladosExtraviados IS NULL
+    ORDER BY c.ComFecha ASC
+`;
+
+const qVentasCF = `
+    SELECT v.* FROM consumidorfinal v
+    LEFT JOIN anuladosextraviados a 
+      ON (a.DetaDocCodGeneracion = REPLACE(v.ConsCodGeneracion, '-', '') OR a.DetaDocDesde = v.ConsNumDocAL) AND a.iddeclaNIT = v.iddeclaNIT
+    WHERE v.iddeclaNIT = ? AND v.ConsMesDeclarado = ? AND v.ConsAnioDeclarado = ? AND a.idAnuladosExtraviados IS NULL
+    ORDER BY v.ConsFecha ASC
+`;
+
+const qVentasCCF = `
+    SELECT f.* FROM credfiscal f
+    LEFT JOIN anuladosextraviados a 
+      ON (a.DetaDocCodGeneracion = REPLACE(f.FiscCodGeneracion, '-', '') OR a.DetaDocDesde = f.FiscNumDoc) AND a.iddeclaNIT = f.iddeclaNIT
+    WHERE f.iddeclaNIT = ? AND f.FiscMesDeclarado = ? AND f.FiscAnioDeclarado = ? AND a.idAnuladosExtraviados IS NULL
+    ORDER BY f.FiscFecha ASC
+`;
+
+const qSujetos = `SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC`;
+
+
+// ==========================================
 // 1. EXPORTACIONES INDIVIDUALES JSON (Backup)
 // ==========================================
 export const exportarCompras = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
+        const [rows] = await pool.query(qCompras, [nit, mes, anio]);
         res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() }, data: { compras: rows, ventas_cf: [], ventas_ccf: [], sujetos_excluidos: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -34,7 +63,7 @@ export const exportarVentasConsumidor = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
+        const [rows] = await pool.query(qVentasCF, [nit, mes, anio]);
         res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() }, data: { compras: [], ventas_cf: rows, ventas_ccf: [], sujetos_excluidos: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -43,7 +72,7 @@ export const exportarVentasCredito = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
+        const [rows] = await pool.query(qVentasCCF, [nit, mes, anio]);
         res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() }, data: { compras: [], ventas_cf: [], ventas_ccf: rows, sujetos_excluidos: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -52,7 +81,7 @@ export const exportarSujetos = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
+        const [rows] = await pool.query(qSujetos, [nit, mes, anio]);
         res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() }, data: { compras: [], ventas_cf: [], ventas_ccf: [], sujetos_excluidos: rows } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -64,11 +93,11 @@ export const exportarTodoJSON = async (req, res) => {
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
         
-        // 🛡️ AHORA TODOS USAN MES A DECLARAR
-        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
-        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
-        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
-        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
+        // 🛡️ AHORA TODOS FILTRAN LOS ANULADOS AUTOMÁTICAMENTE
+        const [compras] = await pool.query(qCompras, [nit, mes, anio]);
+        const [ventasCCF] = await pool.query(qVentasCCF, [nit, mes, anio]);
+        const [ventasCF] = await pool.query(qVentasCF, [nit, mes, anio]);
+        const [sujetos] = await pool.query(qSujetos, [nit, mes, anio]);
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'TODOS LOS MÓDULOS (BACKUP)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
@@ -91,10 +120,10 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const nombreEmpresa = declarante[0]?.declarante || 'Empresa No Registrada';
         const mesNum = obtenerNumeroMes(mes);
 
-        const [anexo1] = await pool.query(`SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC`, [nit, mes, anio]);
-        const [anexo2] = await pool.query(`SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC`, [nit, mes, anio]);
-        const [anexo3] = await pool.query(`SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC`, [nit, mes, anio]);
-        const [anexo5] = await pool.query(`SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC`, [nit, mes, anio]);
+        const [anexo1] = await pool.query(qVentasCF, [nit, mes, anio]);
+        const [anexo2] = await pool.query(qVentasCCF, [nit, mes, anio]);
+        const [anexo3] = await pool.query(qCompras, [nit, mes, anio]);
+        const [anexo5] = await pool.query(qSujetos, [nit, mes, anio]);
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'F-07 HACIENDA', `Periodo: ${mes}/${anio} - Empresa: ${nombreEmpresa}`);
@@ -145,15 +174,14 @@ export const descargarAnexo1CSV = async (req, res) => {
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
 
     try {
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
-        if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
+        const [rows] = await pool.query(qVentasCF, [nit, mes, anio]);
+        if (rows.length === 0) return res.status(404).json({ message: "No hay registros operantes." });
 
         const csvRows = rows.map(v => {
             let claseDoc = v.ConsClaseDoc;
             if (!claseDoc || claseDoc.toString().toUpperCase() === 'DTE') claseDoc = '4';
             const limpiarCod = (t) => t ? (t.toString().match(/\d+/) || ["1"])[0] : "1";
             
-            // Si no hay UUID, usamos el número de documento sin guiones para evitar vacíos
             const uuidVal = sinGuiones(v.ConsCodGeneracion) || sinGuiones(v.ConsNumDocAL) || sinGuiones(v.ConsNumDocDEL);
 
             const columnas = [
@@ -182,8 +210,8 @@ export const descargarAnexo2CSV = async (req, res) => {
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
 
     try {
-        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
-        if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
+        const [rows] = await pool.query(qVentasCCF, [nit, mes, anio]);
+        if (rows.length === 0) return res.status(404).json({ message: "No hay registros operantes." });
 
         const csvRows = rows.map(v => {
             const uuidVal = sinGuiones(v.FiscCodGeneracion) || sinGuiones(v.FiscNumContInter) || sinGuiones(v.FiscNumDoc);
@@ -214,8 +242,8 @@ export const descargarAnexo3CSV = async (req, res) => {
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
 
     try {
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
-        if (rows.length === 0) return res.status(404).json({ message: "No hay compras registradas para este periodo." });
+        const [rows] = await pool.query(qCompras, [nit, mes, anio]);
+        if (rows.length === 0) return res.status(404).json({ message: "No hay compras operantes para este periodo." });
 
         const csvRows = rows.map(c => {
             const numDocLimpio = sinGuiones(c.ComCodGeneracion) || sinGuiones(c.ComNumero);
@@ -227,13 +255,13 @@ export const descargarAnexo3CSV = async (req, res) => {
 
             const columnas = [
                 formatoFechaCSV(c.ComFecha), c.ComClase || '4', parseInt(c.ComTipo || '03', 10),                      
-                numDocLimpio, sinGuiones(c.proveedor_ProvNIT), nombreProv,                                           
+                numDocLimpio, sinGuiones(c.proveedor_ProvNIT), nombreProv,                                          
                 (parseFloat(c.ComIntExe) || 0).toFixed(2), (parseFloat(c.ComInternacioExe) || 0).toFixed(2),                
                 0, (parseFloat(c.ComIntGrav) || 0).toFixed(2),                      
                 (parseFloat(c.ComInternacGravBienes) || 0).toFixed(2), (parseFloat(c.ComImportGravBienes) || 0).toFixed(2),             
-                (parseFloat(c.ComImportGravServicios) || 0).toFixed(2), (parseFloat(c.ComCredFiscal) || 0).toFixed(2),                   
+                (parseFloat(c.ComImportGravServicios) || 0).toFixed(2), (parseFloat(c.ComCredFiscal) || 0).toFixed(2),                  
                 sumBase.toFixed(2), '', c.ComClasiRenta || '1', c.ComTipoCostoGastoRenta || '2',                      
-                c.ComTipoOpeRenta || '2', (parseFloat(c.ComImpExeNoSujetas) || 0) > 0 ? 1 : 1, '3'                                                   
+                c.ComTipoOpeRenta || '2', (parseFloat(c.ComImpExeNoSujetas) || 0) > 0 ? 1 : 1, '3'                                                 
             ];
             return columnas.join(';'); 
         });
@@ -250,7 +278,7 @@ export const descargarAnexo5CSV = async (req, res) => {
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
 
     try {
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
+        const [rows] = await pool.query(qSujetos, [nit, mes, anio]);
         if (rows.length === 0) return res.status(404).json({ message: "No hay registros." });
 
         const csvRows = rows.map(s => {

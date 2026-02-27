@@ -18,7 +18,8 @@
             <router-link to="/declarantes" class="menu-item">🏢 Empresas Declarantes</router-link>
             <div class="divider"></div>
             <router-link to="/admin-usuarios" class="menu-item">👨‍💻 Gestión de Usuarios</router-link>
-            <router-link to="/documentos-anulados" class="menu-item">🚫 Documentos Anulados</router-link>
+            <div class="divider"></div>
+            <router-link to="/documentos-anulados" class="nav-link">🚫 Anulados / Extraviados</router-link>
             <div class="divider"></div>
             <router-link to="/historial" class="menu-item font-bold">📜 Historial de Auditoría</router-link>
           </div>

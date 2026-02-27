@@ -245,7 +245,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="c in comprasFiltradas" :key="c.idcompras" :class="{'selected-row': seleccionados.includes(c.idcompras)}">
+                <tr v-for="c in comprasFiltradas" :key="c.idcompras" :class="{'selected-row': seleccionados.includes(c.idcompras), 'is-anulado': esAnulado(c)}">
                   <td class="text-center">
                      <input type="checkbox" :value="c.idcompras" v-model="seleccionados" class="row-checkbox">
                   </td>
@@ -265,6 +265,7 @@
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(c)" title="Editar">✏️</button>
                     <button class="btn-icon text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-warning" @click="anularDocumento(c)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>
                 <tr v-if="comprasFiltradas.length === 0">
@@ -323,6 +324,7 @@ const errores = ref({ proveedor: false, declarante: false, fecha: false, numero:
 const todosLosProveedores = ref([]);
 const todosLosDeclarantes = ref([]);
 const listaCompras = ref([]);
+const listaAnuladosGlobal = ref([]); // 🛡️ NUEVO: Lista de anulados
 const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
@@ -412,7 +414,6 @@ const mesesFiltroOptions = [
 ];
 
 const anioFiltro = ref(new Date().getFullYear().toString());
-// 🛡️ MODIFICACIÓN: Inicia vacío para mostrar todas las facturas importadas sin importar de qué mes sean
 const mesFiltro = ref(''); 
 const filtroLista = ref(''); 
 const declaranteFiltro = ref(''); 
@@ -571,9 +572,63 @@ const resetForm = () => {
 
 const cargarDatos = async () => {
   try {
-    const [resP, resD, resC] = await Promise.all([axios.get(API_PROVEEDORES), axios.get(API_DECLARANTES), axios.get(API_COMPRAS)]);
-    todosLosProveedores.value = resP.data; todosLosDeclarantes.value = resD.data; listaCompras.value = resC.data;
+    const [resP, resD, resC, resA] = await Promise.all([
+        axios.get(API_PROVEEDORES), 
+        axios.get(API_DECLARANTES), 
+        axios.get(API_COMPRAS),
+        axios.get(`${BASE_URL}/api/anulados`) // 🛡️ Carga de Anulados
+    ]);
+    todosLosProveedores.value = resP.data; 
+    todosLosDeclarantes.value = resD.data; 
+    listaCompras.value = resC.data;
+    listaAnuladosGlobal.value = resA.data || [];
   } catch (error) { console.error("Error", error); }
+};
+
+// 🛡️ FUNCIÓN DE VERIFICACIÓN DE ANULADOS (Específica para Compras)
+const esAnulado = (doc) => {
+    const dte = doc.ComNumero;
+    const uuid = doc.ComCodGeneracion;
+    return listaAnuladosGlobal.value.some(a => 
+        a.iddeclaNIT === doc.iddeclaNIT && 
+        (a.DetaDocDesde === dte || a.DetaDocCodGeneracion === (uuid ? uuid.replace(/-/g, '') : ''))
+    );
+};
+
+// 🛡️ LÓGICA DE ANULACIÓN (MANTIENE LA COMPRA, SOLO LA MARCA)
+const anularDocumento = async (compraOriginal) => {
+    if(esAnulado(compraOriginal)) {
+        alert("Este documento ya se encuentra anulado en el sistema.");
+        return;
+    }
+
+    if(!confirm('⚠️ ¿Está seguro que desea ANULAR esta compra?\nSe marcará como inoperante en pantalla y se excluirá de los reportes a Hacienda.')) return;
+    
+    try {
+        const payloadAnulado = {
+            iddeclaNIT: compraOriginal.iddeclaNIT,
+            // 🛡️ AQUÍ ESTÁ EL CAMBIO CLAVE: Cortamos la fecha para que quede YYYY-MM-DD
+            fecha: compraOriginal.ComFecha ? compraOriginal.ComFecha.split('T')[0] : new Date().toISOString().split('T')[0],
+            mesDeclarado: compraOriginal.ComMesDeclarado,
+            anioDeclarado: compraOriginal.ComAnioDeclarado,
+            tipoDeta: '1', 
+            tipoDoc: '03', // Generalmente es CCF (03)
+            // 🛡️ Protegemos los datos por si vienen vacíos
+            uuid_dte: compraOriginal.ComCodGeneracion || '',
+            desde: compraOriginal.ComNumero || '', 
+            hasta: compraOriginal.ComNumero || '', 
+            serie: '',
+            resolucion: '',
+            anexo: '7'
+        };
+
+        await axios.post(`${BASE_URL}/api/anulados`, payloadAnulado);
+        
+        alert("✅ Documento de Compra Anulado exitosamente.");
+        await cargarDatos(); 
+    } catch (error) {
+        alert("🚨 No se pudo completar la anulación: " + (error.response?.data?.message || error.message));
+    }
 };
 
 const guardarCompra = async () => {
@@ -664,7 +719,7 @@ onMounted(cargarDatos);
 .btn-primary { background-color: #55C2B7; color: white; } 
 .btn-success { background-color: #10b981; color: white; }
 .btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
-.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; transition: all 0.2s; color: #6b7280; }
+.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; transition: all 0.2s; color: #6b7280; margin: 0 2px; }
 .dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
 .dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
 .dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
@@ -706,6 +761,23 @@ onMounted(cargarDatos);
 .filter-month:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
 .filter-input, .search-list { flex: 1; min-width: 150px; max-width: 280px; }
 .filter-input { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
+
+/* 🛡️ NUEVO CSS PARA FILAS ANULADAS */
+.is-anulado td {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+.is-anulado .doc-number::after {
+    content: " (ANULADO)";
+    color: #dc2626;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-decoration: none !important;
+    display: inline-block;
+    margin-left: 5px;
+}
 
 /* 🛡️ NUEVO: Estilos para Asignación Masiva */
 .bulk-action-bar { display: flex; justify-content: space-between; align-items: center; background-color: #f0fdfa; border: 1px solid #55C2B7; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }

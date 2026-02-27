@@ -208,7 +208,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="venta in ventasFiltradas" :key="venta.idconsfinal" :class="{'selected-row': seleccionados.includes(venta.idconsfinal)}">
+                <tr v-for="venta in ventasFiltradas" :key="venta.idconsfinal" :class="{'selected-row': seleccionados.includes(venta.idconsfinal), 'is-anulado': esAnulado(venta)}">
                   <td class="text-center">
                      <input type="checkbox" :value="venta.idconsfinal" v-model="seleccionados" class="row-checkbox">
                   </td>
@@ -223,6 +223,7 @@
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
                     <button class="btn-icon text-danger" @click="eliminarVenta(venta.idconsfinal)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>
                 <tr v-if="ventasFiltradas.length === 0"><td colspan="7" class="text-center py-4 text-muted">No hay registros que coincidan con la búsqueda.</td></tr>
@@ -276,6 +277,7 @@ const formulario = ref({
 });
 
 const listaVentas = ref([]); 
+const listaAnuladosGlobal = ref([]); // 🛡️ NUEVO: Lista de anulados
 const todosLosDeclarantes = ref([]);
 const mostrandoLista = ref(true);
 const modoEdicion = ref(false);
@@ -386,9 +388,24 @@ const cargarVentas = async () => {
     try {
         const resD = await axios.get(`${BASE_URL}/api/declarantes`);
         todosLosDeclarantes.value = resD.data || [];
+        
         const resV = await axios.get(API_URL);
         listaVentas.value = resV.data || [];
+
+        // 🛡️ CARGAMOS ANULADOS PARA EL CRUCE VISUAL
+        const resA = await axios.get(`${BASE_URL}/api/anulados`);
+        listaAnuladosGlobal.value = resA.data || [];
     } catch (error) { console.error("Error cargando base de datos:", error); }
+};
+
+// 🛡️ FUNCIÓN DE VERIFICACIÓN DE ANULADOS (Específica para Consumidor Final)
+const esAnulado = (doc) => {
+    const dte = doc.ConsNumDocAL;
+    const uuid = doc.ConsCodGeneracion;
+    return listaAnuladosGlobal.value.some(a => 
+        a.iddeclaNIT === doc.iddeclaNIT && 
+        (a.DetaDocDesde === dte || a.DetaDocCodGeneracion === (uuid ? uuid.replace(/-/g, '') : ''))
+    );
 };
 
 const guardarVenta = async () => {
@@ -456,6 +473,42 @@ const resetForm = () => {
     formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), numero_control: '', uuid_dte: '', serie: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00' };
     ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
+};
+
+// 🛡️ LÓGICA DE ANULACIÓN (MANTIENE LA VENTA, SOLO LA MARCA)
+const anularDocumento = async (ventaOriginal) => {
+    if(esAnulado(ventaOriginal)) {
+        alert("Este documento ya se encuentra anulado en el sistema.");
+        return;
+    }
+
+    if(!confirm('⚠️ ¿Está seguro que desea ANULAR este documento?...')) return;
+    
+    try {
+        const payloadAnulado = {
+            iddeclaNIT: ventaOriginal.iddeclaNIT,
+            // 🛡️ AQUÍ CORTAMOS LA FECHA PARA QUE VAYA LIMPIA
+            fecha: ventaOriginal.FiscFecha ? ventaOriginal.FiscFecha.split('T')[0] : new Date().toISOString().split('T')[0],
+            mesDeclarado: ventaOriginal.FiscMesDeclarado,
+            anioDeclarado: ventaOriginal.FiscAnioDeclarado,
+            tipoDeta: '1', 
+            tipoDoc: ventaOriginal.FisTipoDoc || '03',
+            uuid_dte: ventaOriginal.FiscCodGeneracion,
+            desde: ventaOriginal.FiscNumDoc, 
+            hasta: ventaOriginal.FiscNumDoc, 
+            serie: ventaOriginal.FiscSerieDoc || '',
+            resolucion: '',
+            anexo: '7'
+        };
+
+        await axios.post(`${BASE_URL}/api/anulados`, payloadAnulado);
+        
+        // ❌ ELIMINADO EL AXIOS DELETE PARA CONSERVAR LA SECUENCIA
+        alert("✅ Documento Anulado exitosamente. Ya no sumará en los reportes.");
+        await cargarVentas(); 
+    } catch (error) {
+        alert("🚨 No se pudo completar la anulación: " + (error.response?.data?.message || error.message));
+    }
 };
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
@@ -539,6 +592,23 @@ onMounted(cargarVentas);
 .w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
 .dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
 .text-xs { font-size: 0.75rem; }
+
+/* 🛡️ NUEVO CSS PARA FILAS ANULADAS */
+.is-anulado td {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    text-decoration: line-through;
+    opacity: 0.7;
+}
+.is-anulado .doc-number::after {
+    content: " (ANULADO)";
+    color: #dc2626;
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-decoration: none !important;
+    display: inline-block;
+    margin-left: 5px;
+}
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }

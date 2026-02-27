@@ -18,6 +18,7 @@ import ClientesView from '../views/ClientesView.vue';
 import DeclarantesView from '../views/DeclarantesView.vue';
 // 🛡️ IMPORTAR LA NUEVA VISTA DE HISTORIAL
 import HistorialView from '../views/HistorialView.vue';
+import AnuladosView from '../views/AnuladosView.vue';
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -113,6 +114,12 @@ const router = createRouter({
             component: HistorialView,
             meta: { requiresAuth: true } 
         },
+        {
+            path: '/documentos-anulados',
+            name: 'anulados',
+            component: AnuladosView,
+            meta: {requiresAuth: true }
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
         { path: '/retencion-1-declarante', name: 'Retencion 1% al Declarante', component: EnConstruccion },
@@ -123,8 +130,6 @@ const router = createRouter({
         { path: '/anticipo-2-por-declarante', name: 'Anticipo 2% por el Declarante', component: EnConstruccion },
         { path: '/percepcion-1-por-declarante', name: 'Percepcion 1% al por el Declarante', component: EnConstruccion },
         { path: '/percepcion-1-al-declarante', name: 'Percepcion 1% al Declarante', component: EnConstruccion },
-
-        { path: '/documentos-anulados', name: 'Documentos Anulados', component: EnConstruccion },
 
         // Captura de rutas no encontradas (404)
         { path: '/:pathMatch(.*)*', name: 'not-found', component: EnConstruccion }
