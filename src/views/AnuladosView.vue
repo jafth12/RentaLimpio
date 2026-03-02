@@ -283,22 +283,46 @@ const buscarDTEoUUID = (termino) => {
     clearTimeout(timeoutBusqueda);
     timeoutBusqueda = setTimeout(async () => {
         try {
-            const res = await axios.get(`${BASE_URL}/api/anulados/buscar?tipo=${origenDoc.value}&termino=${termino}&nit=${formulario.value.iddeclaNIT}`);
+            // 1. Mapeamos el valor del Select al formato que espera el nuevo Backend
+            let tipoParaBackend = '';
+            if (origenDoc.value === '01') tipoParaBackend = 'CF';
+            else if (origenDoc.value === '03-V') tipoParaBackend = 'CCF';
+            else if (origenDoc.value === 'Compra') tipoParaBackend = 'COMPRA';
+
+            // 2. Consumimos el nuevo endpoint
+            const res = await axios.get(`${BASE_URL}/api/documentos/buscar?iddeclaNIT=${formulario.value.iddeclaNIT}&tipoOrigen=${tipoParaBackend}&busqueda=${termino}`);
+            
             if (res.data) {
-                // Autocompletar silenciosamente
-                formulario.value.uuid_dte = res.data.uuid || formulario.value.uuid_dte;
-                formulario.value.desde = res.data.dte || formulario.value.desde;
-                formulario.value.fecha = res.data.fecha.split('T')[0];
+                const doc = res.data;
+
+                // 3. Lanzamos alerta si el documento ya estaba anulado
+                if (doc.ya_anulado) {
+                    alert(doc.advertencia);
+                }
+
+                // 4. Extraemos la fecha del documento original
+                let fechaDoc = '';
+                if (tipoParaBackend === 'CF') fechaDoc = doc.original.ConsFecha;
+                else if (tipoParaBackend === 'CCF') fechaDoc = doc.original.FiscFecha;
+                else if (tipoParaBackend === 'COMPRA') fechaDoc = doc.original.ComFecha;
+
+                // 5. Autocompletamos silenciosamente con la data estandarizada
+                formulario.value.uuid_dte = doc.uuid || formulario.value.uuid_dte;
+                formulario.value.desde = doc.dte || formulario.value.desde;
+                formulario.value.fecha = fechaDoc ? fechaDoc.split('T')[0] : formulario.value.fecha;
                 
-                // Actualiza el tipo de doc según el origen para que guarde limpio
+                // Actualizamos el tipo de documento según el origen
                 if (origenDoc.value === '01') formulario.value.tipoDoc = '01';
                 else if (origenDoc.value === '03-V' || origenDoc.value === 'Compra') formulario.value.tipoDoc = '03';
 
                 tipoMensaje.value = 'success';
-                mensaje.value = '✨ ¡Documento encontrado y autocompletado!';
-                setTimeout(() => mensaje.value='', 3000);
+                // ¡Aprovechamos para mostrar el cliente y el total en el mensaje!
+                mensaje.value = `✨ ¡Encontrado! ${doc.nombre} - $${doc.total}`;
+                setTimeout(() => mensaje.value='', 4000);
             }
-        } catch (e) { console.log("Búsqueda en curso..."); }
+        } catch (e) { 
+            console.log("Búsqueda en curso o documento no encontrado..."); 
+        }
     }, 600); // Espera 600ms después de que el usuario deja de escribir
 };
 

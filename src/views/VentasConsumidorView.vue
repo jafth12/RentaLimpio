@@ -487,23 +487,23 @@ const anularDocumento = async (ventaOriginal) => {
     try {
         const payloadAnulado = {
             iddeclaNIT: ventaOriginal.iddeclaNIT,
-            // 🛡️ AQUÍ CORTAMOS LA FECHA PARA QUE VAYA LIMPIA
-            fecha: ventaOriginal.FiscFecha ? ventaOriginal.FiscFecha.split('T')[0] : new Date().toISOString().split('T')[0],
-            mesDeclarado: ventaOriginal.FiscMesDeclarado,
-            anioDeclarado: ventaOriginal.FiscAnioDeclarado,
+            // 🛡️ Usamos ConsFecha (no FiscFecha) y cortamos la hora
+            fecha: ventaOriginal.ConsFecha ? ventaOriginal.ConsFecha.split('T')[0] : new Date().toISOString().split('T')[0],
+            mesDeclarado: ventaOriginal.ConsMesDeclarado,
+            anioDeclarado: ventaOriginal.ConsAnioDeclarado,
             tipoDeta: '1', 
-            tipoDoc: ventaOriginal.FisTipoDoc || '03',
-            uuid_dte: ventaOriginal.FiscCodGeneracion,
-            desde: ventaOriginal.FiscNumDoc, 
-            hasta: ventaOriginal.FiscNumDoc, 
-            serie: ventaOriginal.FiscSerieDoc || '',
+            tipoDoc: ventaOriginal.ConsTipoDoc || '01', // 01 es Factura Consumidor Final
+            uuid_dte: ventaOriginal.ConsCodGeneracion || '',
+            // 🛡️ En CF usamos ConsNumDocAL o ConsNumDocDEL
+            desde: ventaOriginal.ConsNumDocDEL || ventaOriginal.ConsNumDocAL || '', 
+            hasta: ventaOriginal.ConsNumDocAL || '', 
+            serie: ventaOriginal.ConsSerieDoc || '',
             resolucion: '',
             anexo: '7'
         };
 
         await axios.post(`${BASE_URL}/api/anulados`, payloadAnulado);
         
-        // ❌ ELIMINADO EL AXIOS DELETE PARA CONSERVAR LA SECUENCIA
         alert("✅ Documento Anulado exitosamente. Ya no sumará en los reportes.");
         await cargarVentas(); 
     } catch (error) {

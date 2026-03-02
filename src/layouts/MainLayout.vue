@@ -15,11 +15,11 @@
             🛡️ Admin <span class="arrow">▾</span>
           </button>
           <div class="dropdown-menu">
-            <router-link to="/declarantes" class="menu-item">🏢 Empresas Declarantes</router-link>
+            <router-link to="/declarantes" class="menu-item font-bold">🏢 Empresas Declarantes</router-link>
             <div class="divider"></div>
-            <router-link to="/admin-usuarios" class="menu-item">👨‍💻 Gestión de Usuarios</router-link>
+            <router-link to="/admin-usuarios" class="menu-item font-bold">👨‍💻 Gestión de Usuarios</router-link>
             <div class="divider"></div>
-            <router-link to="/documentos-anulados" class="nav-link">🚫 Anulados / Extraviados</router-link>
+            <router-link to="/documentos-anulados" class="menu-item font-bold">🚫 Anulados / Extraviados</router-link>
             <div class="divider"></div>
             <router-link to="/historial" class="menu-item font-bold">📜 Historial de Auditoría</router-link>
           </div>

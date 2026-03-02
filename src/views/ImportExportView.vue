@@ -5,7 +5,7 @@
       <div class="header-section">
         <div class="title-box">
           <h1>🔄 Centro de Datos JSON y Reportes</h1>
-          <p class="subtitle">Gestione la importación y exportación masiva de documentos tributarios.</p>
+          <p class="subtitle">Gestione la importación, exportación masiva y libros legales tributarios.</p>
         </div>
       </div>
 
@@ -13,152 +13,156 @@
         
         <div class="left-col">
           
-          <div class="card fade-in">
+          <div class="card fade-in border-primary">
             <div class="card-header">
-              <h2>1. Seleccione Contribuyente y Módulo</h2>
-              <span class="badge-info">Origen de los datos</span>
+              <h2>1. Empresa Declarante</h2>
+              <span class="badge-info warning">Paso requerido</span>
             </div>
-            
-            <div class="form-group mb-3">
-               <label class="form-label text-dark fw-bold">🏢 Empresa / Declarante <span class="text-danger">*</span></label>
-               <select v-model="nitSeleccionado" class="form-control select-highlight">
-                  <option value="" disabled>-- Seleccione una empresa --</option>
-                  <option v-for="d in declarantesDB" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                     {{ d.declarante }} (NIT: {{ d.iddeclaNIT }})
-                  </option>
+            <div class="form-group m-0">
+               <label class="form-label text-dark fw-bold">🏢 Seleccione el Contribuyente <span class="text-danger">*</span></label>
+               <select v-model="nitSeleccionado" class="form-control select-highlight fw-bold">
+                 <option value="" disabled>-- Seleccione una empresa primero --</option>
+                 <option v-for="d in declarantesDB" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
+                    {{ d.declarante }} (NIT: {{ d.iddeclaNIT }})
+                 </option>
                </select>
             </div>
-
-            <div class="grid-modulos">
-              <div 
-                v-for="mod in modulos" 
-                :key="mod.id" 
-                class="modulo-item" 
-                :class="{ active: moduloSeleccionado === mod.id }"
-                @click="moduloSeleccionado = mod.id"
-              >
-                <div class="icon-circle">{{ mod.icono }}</div>
-                <span class="nombre">{{ mod.nombre }}</span>
-                <div class="check-mark" v-if="moduloSeleccionado === mod.id">✔</div>
-              </div>
-            </div>
           </div>
 
-          <div class="card fade-in delay-100">
-            <div class="card-header">
-              <h2>2. Configuración</h2>
-              <span class="badge-info">Parámetros</span>
-            </div>
-
-            <div class="tabs-container">
-              <button 
-                class="tab-btn" 
-                :class="{ active: accion === 'exportar' }" 
-                @click="accion = 'exportar'"
-              >
-                📤 Exportar (Bajar)
-              </button>
-              <button 
-                class="tab-btn" 
-                :class="{ active: accion === 'importar' }" 
-                @click="accion = 'importar'"
-              >
-                📥 Importar (Subir)
-              </button>
-            </div>
-
-            <div v-if="accion === 'exportar'" class="export-card card fade-in mb-3">
-               <h3 class="text-hacienda">🏛️ Reportes Legales</h3>
-               <p class="text-sm-hacienda">Genera archivos para Hacienda, Libros Físicos o tablas en Excel.</p>
-               <div class="export-controls mt-2">
-                  <button v-if="moduloSeleccionado === 'todo'" @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block mb-2" :disabled="!nitSeleccionado">
-                    📦 Descargar F07 (JSON Consolidado)
-                  </button>
-
-                  <div class="flex-buttons gap-2 mt-2">
-                    <button 
-                       v-if="moduloSeleccionado !== 'todo'" 
-                       @click="descargarAnexoCSV" 
-                       class="btn btn-success flex-1" 
-                       :disabled="!nitSeleccionado">
-                      {{ textoBotonCSV }}
-                    </button>
-
-                    <button 
-                       v-if="moduloSeleccionado !== 'todo'"
-                       @click="generarLibroContableExcel" 
-                       class="btn btn-primary flex-1" 
-                       :disabled="!nitSeleccionado || cargando">
-                      📊 Libro (Excel)
-                    </button>
-                    
-                    <button 
-                       v-if="moduloSeleccionado !== 'todo'"
-                       @click="generarLibroContablePDF" 
-                       class="btn btn-purple flex-1" 
-                       :disabled="!nitSeleccionado || cargando">
-                      🖨️ Libro (PDF)
-                    </button>
-
-                    <button 
-                       v-if="moduloSeleccionado === 'todo'"
-                       @click="generarPDFMensual" 
-                       class="btn btn-danger flex-1" 
-                       :disabled="!nitSeleccionado || cargando">
-                      📄 Generar Resumen PDF
-                    </button>
-                  </div>
-               </div>
-            </div>
-
-            <div class="config-body">
+          <div :class="['step-wrapper', { 'is-disabled': !nitSeleccionado }]">
+            
+            <div class="card fade-in delay-100">
+              <div class="card-header">
+                <h2>2. Seleccione Módulo</h2>
+                <span class="badge-info">Origen de los datos</span>
+              </div>
               
-              <div v-if="accion === 'exportar'" class="animate-slide">
-                <div class="form-grid">
-                  <div class="form-group">
-                    <label class="form-label">Mes a Reportar</label>
-                    <select v-model="mes" class="form-control">
-                      <option v-for="m in meses" :key="m" :value="m">{{ m }}</option>
-                    </select>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Año</label>
-                    <input type="number" v-model="anio" class="form-control">
-                  </div>
+              <div class="grid-modulos">
+                <div 
+                  v-for="mod in modulos" 
+                  :key="mod.id" 
+                  class="modulo-item compact" 
+                  :class="{ active: moduloSeleccionado === mod.id }"
+                  @click="moduloSeleccionado = mod.id"
+                >
+                  <div class="icon-circle small">{{ mod.icono }}</div>
+                  <span class="nombre small-text">{{ mod.nombre }}</span>
+                  <div class="check-mark" v-if="moduloSeleccionado === mod.id">✔</div>
                 </div>
-                <div class="info-note">
-                  <small>📅 Se generará un backup JSON de seguridad de este módulo.</small>
-                </div>
-              </div>
-
-              <div v-if="accion === 'importar'" class="import-info animate-slide">
-                <div class="icon-big">🧐</div>
-                <div class="text-content">
-                  <h4>Validación Requerida</h4>
-                  <p>Para asegurar la integridad de los datos, serás redirigido al <strong>Lector Inteligente</strong>.</p>
-                </div>
-              </div>
-
-              <div class="action-area mt-3">
-                <button @click="procesarAccion" class="btn btn-dark btn-block" :disabled="cargando || (accion === 'exportar' && !nitSeleccionado)">
-                  {{ cargando ? 'Procesando...' : (accion === 'exportar' ? '🚀 Generar Backup del Módulo (JSON)' : '🔍 Ir al Lector Inteligente') }}
-                </button>
               </div>
             </div>
-          </div>
-        </div>
+
+            <div class="card fade-in delay-100" v-if="accion === 'exportar'">
+              <div class="card-header">
+                <h2>3. Periodo a Reportar</h2>
+                <span class="badge-info">Filtro de fecha</span>
+              </div>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label class="form-label">Mes de la declaración</label>
+                  <select v-model="mes" class="form-control">
+                    <option v-for="m in meses" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Año</label>
+                  <input type="number" v-model="anio" class="form-control">
+                </div>
+              </div>
+            </div>
+
+            <div class="card fade-in delay-200">
+              <div class="card-header">
+                <h2>{{ accion === 'exportar' ? '4.' : '3.' }} Complemento de Acción</h2>
+                <span class="badge-info">Operación final</span>
+              </div>
+
+              <div class="tabs-container">
+                <button class="tab-btn" :class="{ active: accion === 'exportar' }" @click="accion = 'exportar'">📤 Exportar (Bajar)</button>
+                <button class="tab-btn" :class="{ active: accion === 'importar' }" @click="accion = 'importar'">📥 Importar (Subir)</button>
+              </div>
+
+              <div class="config-body mt-3">
+                
+                <div v-if="accion === 'exportar'" class="export-card animate-slide">
+                   <h3 class="text-hacienda">🏛️ Reportes Legales y Backups</h3>
+                   <p class="text-sm-hacienda">Genera archivos para Hacienda, Libros Físicos o tablas en Excel.</p>
+                   
+                   <div class="export-controls mt-3">
+                      <button v-if="moduloSeleccionado === 'todo'" @click="descargarAnexosHacienda" class="btn btn-dark-blue btn-block mb-3" :disabled="!nitSeleccionado">
+                        📦 Descargar F07 (JSON Consolidado Hacienda)
+                      </button>
+
+                      <button v-if="moduloSeleccionado !== 'todo'" @click="procesarAccion" class="btn btn-dark btn-block mb-3" :disabled="cargando || !nitSeleccionado">
+                        {{ cargando ? 'Procesando...' : '🚀 Generar Backup del Módulo (JSON Interno)' }}
+                      </button>
+
+                      <div class="flex-buttons gap-2 mt-2">
+                        <button 
+                           v-if="moduloSeleccionado !== 'todo'" 
+                           @click="descargarAnexoCSV" 
+                           class="btn btn-success flex-1" 
+                           :disabled="!nitSeleccionado">
+                          {{ textoBotonCSV }}
+                        </button>
+
+                        <button 
+                           v-if="moduloSeleccionado !== 'todo'"
+                           @click="generarLibroContableExcel" 
+                           class="btn btn-primary flex-1" 
+                           :disabled="!nitSeleccionado || cargando">
+                          📊 Libro (Excel)
+                        </button>
+                        
+                        <button 
+                           v-if="moduloSeleccionado !== 'todo'"
+                           @click="generarLibroContablePDF" 
+                           class="btn btn-purple flex-1" 
+                           :disabled="!nitSeleccionado || cargando">
+                          🖨️ Libro (PDF)
+                        </button>
+
+                        <button 
+                           v-if="moduloSeleccionado === 'todo'"
+                           @click="generarPDFMensual" 
+                           class="btn btn-danger flex-1" 
+                           :disabled="!nitSeleccionado || cargando">
+                          📄 Generar Resumen General (PDF)
+                        </button>
+                      </div>
+                   </div>
+                </div>
+
+                <div v-if="accion === 'importar'" class="import-info animate-slide">
+                  <div class="icon-big">🧐</div>
+                  <div class="text-content">
+                    <h4>Validación Inteligente</h4>
+                    <p>Al continuar, serás redirigido al <strong>Lector DTE</strong> para procesar de forma segura la información del contribuyente seleccionado.</p>
+                  </div>
+                </div>
+
+                <div class="action-area mt-2" v-if="accion === 'importar'">
+                  <button @click="procesarAccion" class="btn btn-primary btn-block btn-lg" :disabled="cargando || !nitSeleccionado">
+                    🔍 Ir al Lector Inteligente
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+          </div> </div>
 
         <div class="right-col">
           <div class="card full-height fade-in delay-200">
             <div class="card-header">
-              <h2>📊 Resultado del Backup</h2>
+              <h2>📊 Resultado del Backup JSON</h2>
               <span class="badge-info">Vista previa</span>
             </div>
 
             <div v-if="!resultado" class="empty-state">
-              <span class="empty-icon">📄</span>
-              <h3>Esperando operación</h3>
-              <p>Seleccione un módulo y configure los parámetros para ver el resultado aquí.</p>
+              <span class="empty-icon">{{ !nitSeleccionado ? '🏢' : '📄' }}</span>
+              <h3>{{ !nitSeleccionado ? 'Esperando Contribuyente' : 'Esperando operación' }}</h3>
+              <p>{{ !nitSeleccionado ? 'Selecciona una empresa declarante a la izquierda para activar los controles.' : 'Los resultados de los backups JSON internos se mostrarán aquí. Los reportes Excel/PDF se descargan directamente.' }}</p>
             </div>
 
             <div v-else class="resultado-container">
@@ -171,7 +175,7 @@
                 </div>
               </div>
 
-              <div class="stats-grid">
+              <div class="stats-grid mt-2">
                 <div class="stat-item">
                   <span class="label">Registros</span>
                   <span class="value">{{ resultado.cantidad }}</span>
@@ -182,7 +186,7 @@
                 </div>
               </div>
 
-              <div class="code-preview">
+              <div class="code-preview mt-2">
                 <div class="code-header">Vista Previa (Snippet)</div>
                 <pre class="json-code">{{ resultado.snippet }}</pre>
               </div>
@@ -215,7 +219,7 @@ const router = useRouter();
 const hostname = window.location.hostname;
 const BASE_URL = `http://${hostname}:3000`;
 
-const moduloSeleccionado = ref('todo'); // 🛡️ Por defecto inicia en Reporte General
+const moduloSeleccionado = ref('todo'); 
 const accion = ref('exportar');
 const mes = ref('Febrero'); 
 const anio = ref(new Date().getFullYear());
@@ -231,9 +235,9 @@ const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "
 const modulos = [
   { id: 'todo', nombre: 'Reporte General', icono: '📦' },
   { id: 'compras', nombre: 'Compras', icono: '🛒' },
-  { id: 'ventas_cf', nombre: 'Consumidor Final', icono: '🧾' }, 
-  { id: 'ventas_ccf', nombre: 'Crédito Fiscal', icono: '💼' }, 
-  { id: 'sujetos', nombre: 'Sujetos Excluidos', icono: '🚫' },
+  { id: 'ventas_cf', nombre: 'Cons. Final', icono: '🧾' }, 
+  { id: 'ventas_ccf', nombre: 'C. Fiscal', icono: '💼' }, 
+  { id: 'sujetos', nombre: 'S. Excluidos', icono: '🚫' },
 ];
 
 onMounted(async () => {
@@ -247,7 +251,7 @@ onMounted(async () => {
 
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
-        case 'todo': return '📋 CSV (No disponible en General)';
+        case 'todo': return '📋 CSV (No disponible)';
         case 'compras': return '📋 CSV (Compras)';
         case 'ventas_cf': return '📋 CSV (Cons. Final)';
         case 'ventas_ccf': return '📋 CSV (Crédito Fiscal)';
@@ -321,16 +325,8 @@ const construirFilaConEstilo = (fila, esCabecera = false, esTotal = false) => {
 // 🛡️ GENERAR LIBRO CONTABLE EN EXCEL (.XLSX)
 // =======================================================
 const generarLibroContableExcel = async () => {
-    if (!nitSeleccionado.value || !mes.value || !anio.value) {
-        alert("Seleccione Empresa, Mes y Año.");
-        return;
-    }
-
-    // 🛡️ REGLA: Excel no soporta el reporte general (son tablas distintas)
-    if (moduloSeleccionado.value === 'todo') {
-        alert("📊 Para el Reporte General completo, por favor utilice el botón de 'Resumen PDF' o genere el Backup JSON. Los libros de Excel se descargan seleccionando un módulo individual (Ej. Compras).");
-        return;
-    }
+    if (!nitSeleccionado.value || !mes.value || !anio.value) { alert("Seleccione Empresa, Mes y Año."); return; }
+    if (moduloSeleccionado.value === 'todo') { alert("📊 Para el Reporte General completo, use PDF o JSON."); return; }
 
     try {
         cargando.value = true;
@@ -363,23 +359,15 @@ const generarLibroContableExcel = async () => {
             const registros = data.anexo3_compras ? data.anexo3_compras.slice() : []; 
             
             bodyTabla = registros.map((c, idx) => {
-                const exen = getNum(c.internas_exentas);
-                const impExen = getNum(c.importaciones_exentas);
-                const grav = getNum(c.internas_gravadas);
-                const impGrav = getNum(c.importaciones_gravadas);
-                const iva = getNum(c.credito_fiscal);
-                const percibido = getNum(c.iva_percibido);
-                const sujetos = getNum(c.sujetos_excluidos);
-                const total = getNum(c.total);
+                const exen = getNum(c.internas_exentas); const impExen = getNum(c.importaciones_exentas);
+                const grav = getNum(c.internas_gravadas); const impGrav = getNum(c.importaciones_gravadas);
+                const iva = getNum(c.credito_fiscal); const percibido = getNum(c.iva_percibido);
+                const sujetos = getNum(c.sujetos_excluidos); const total = getNum(c.total);
 
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.impExen = getNum((totales.impExen || 0) + impExen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.impGrav = getNum((totales.impGrav || 0) + impGrav);
-                totales.iva = getNum((totales.iva || 0) + iva);
-                totales.percibido = getNum((totales.percibido || 0) + percibido);
-                totales.sujetos = getNum((totales.sujetos || 0) + sujetos);
-                totales.total = getNum((totales.total || 0) + total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.impExen = getNum((totales.impExen || 0) + impExen);
+                totales.grav = getNum((totales.grav || 0) + grav); totales.impGrav = getNum((totales.impGrav || 0) + impGrav);
+                totales.iva = getNum((totales.iva || 0) + iva); totales.percibido = getNum((totales.percibido || 0) + percibido);
+                totales.sujetos = getNum((totales.sujetos || 0) + sujetos); totales.total = getNum((totales.total || 0) + total);
 
                 return [idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, c.nombre_proveedor, exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
             });
@@ -391,14 +379,8 @@ const generarLibroContableExcel = async () => {
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = getNum(v.exentas);
-                const grav = getNum(v.gravadas);
-                const total = getNum(v.total);
-
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.total = getNum((totales.total || 0) + total);
-
+                const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const total = getNum(v.total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.total = getNum((totales.total || 0) + total);
                 return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, exen, grav, total ];
             });
             bodyTabla.push(['', '', 'TOTALES:', totales.exen, totales.grav, totales.total]);
@@ -409,16 +391,8 @@ const generarLibroContableExcel = async () => {
             const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
-                const exen = getNum(v.exentas);
-                const grav = getNum(v.gravadas);
-                const iva = getNum(v.debito_fiscal);
-                const total = getNum(v.total);
-
-                totales.exen = getNum((totales.exen || 0) + exen);
-                totales.grav = getNum((totales.grav || 0) + grav);
-                totales.iva = getNum((totales.iva || 0) + iva);
-                totales.total = getNum((totales.total || 0) + total);
-
+                const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const iva = getNum(v.debito_fiscal); const total = getNum(v.total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.iva = getNum((totales.iva || 0) + iva); totales.total = getNum((totales.total || 0) + total);
                 return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, v.nombre, exen, grav, iva, total];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.grav, totales.iva, totales.total]);
@@ -429,12 +403,8 @@ const generarLibroContableExcel = async () => {
             const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice() : [];
 
             bodyTabla = registros.map((s, idx) => {
-                const monto = getNum(s.monto);
-                const retencion = getNum(s.retencion);
-
-                totales.monto = getNum((totales.monto || 0) + monto);
-                totales.retencion = getNum((totales.retencion || 0) + retencion);
-
+                const monto = getNum(s.monto); const retencion = getNum(s.retencion);
+                totales.monto = getNum((totales.monto || 0) + monto); totales.retencion = getNum((totales.retencion || 0) + retencion);
                 return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, monto, retencion ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.monto, totales.retencion]);
@@ -458,115 +428,49 @@ const generarLibroContableExcel = async () => {
         XLSX.utils.book_append_sheet(wb, ws, "LibroContable");
         
         XLSX.writeFile(wb, `Libro_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.xlsx`);
-        
-        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE EXCEL', detalles: `Libro Excel exportado: ${tituloLibro}` }).catch(()=>console.log("Auditoria omitida"));
+        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE EXCEL', detalles: `Libro Excel exportado: ${tituloLibro}` }).catch(()=>{});
 
-    } catch (error) {
-        console.error("Error generando Excel:", error);
-        alert("🚨 Ocurrió un error al generar el archivo Excel.");
-    } finally {
-        cargando.value = false;
-    }
+    } catch (error) { alert("🚨 Ocurrió un error al generar el archivo Excel."); } finally { cargando.value = false; }
 };
 
 // =======================================================
-// 🛡️ GENERAR LIBRO CONTABLE FÍSICO EN PDF (OFICIO AL LÍMITE + TRUNCADO)
+// 🛡️ GENERAR LIBRO CONTABLE FÍSICO EN PDF
 // =======================================================
 const generarLibroContablePDF = async () => {
-    if (!nitSeleccionado.value || !mes.value || !anio.value) {
-        alert("Seleccione Empresa, Mes y Año.");
-        return;
-    }
-
-    if (moduloSeleccionado.value === 'todo') {
-        return generarPDFMensual();
-    }
+    if (!nitSeleccionado.value || !mes.value || !anio.value) { alert("Seleccione Empresa, Mes y Año."); return; }
+    if (moduloSeleccionado.value === 'todo') return generarPDFMensual();
 
     try {
         cargando.value = true;
-        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
-            params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value }
-        });
-        
+        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, { params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value } });
         const data = res.data;
         const nombreEmpresa = data.identificacion.razon_social;
         
-        // 📏 CAMBIO A TAMAÑO OFICIO HORIZONTAL (l = landscape, legal = oficio)
         const doc = new jsPDF('l', 'mm', 'legal'); 
+        const margenSup = 19.1; const margenInf = 19.1; const margenLat = 2.0; const posEncabezado = 7.6; const pageWidth = doc.internal.pageSize.getWidth();
         
-        // 📏 MÁRGENES AL LÍMITE DE LA PÁGINA (2mm por lado)
-        const margenSup = 19.1;
-        const margenInf = 19.1;
-        const margenLat = 2.0; 
-        const posEncabezado = 7.6; 
-        const pageWidth = doc.internal.pageSize.getWidth();
-        
-        let tituloLibro = "";
-        let bodyTabla = [];
-        let headTabla = [];
-        let totales = {};
-        let configColumnas = {};
-
-        const getNum = (val) => {
-            const parsed = parseFloat(val);
-            return isNaN(parsed) ? 0 : Number(parsed.toFixed(2));
-        };
-
-        // ✂️ Al ser tamaño Oficio (más ancho), permitimos hasta 45 letras antes de truncar
-        const truncarTexto = (texto, max = 45) => {
-            if (!texto) return '';
-            return texto.length > max ? texto.substring(0, max) + '...' : texto;
-        };
+        let tituloLibro = ""; let bodyTabla = []; let headTabla = []; let totales = {}; let configColumnas = {};
+        const getNum = (val) => { const parsed = parseFloat(val); return isNaN(parsed) ? 0 : Number(parsed.toFixed(2)); };
+        const truncarTexto = (texto, max = 45) => { if (!texto) return ''; return texto.length > max ? texto.substring(0, max) + '...' : texto; };
 
         if (moduloSeleccionado.value === 'compras') {
             tituloLibro = "LIBRO DE COMPRAS";
-            headTabla = [[
-                'N°', 'Fecha\nEmisión', 'N° de\nDocumento', 'NIT\nProveedor', 'Nombre del\nProveedor', 
-                'Compras\nExentas', 'Import. e\nInter. Exentas', 'Compras\nGravadas', 
-                'Import. e\nInter. Gravadas', 'Crédito\nFiscal', 'Anticipo a\nCta IVA Perc.', 
-                'Compras a\nSuj. Excluidos', 'Total\nCompras'
-            ]];
-            
-            // Ajustamos anchos base para aprovechar el extra de Oficio
-            configColumnas = { 
-                0: { halign: 'center', cellWidth: 9 },  
-                1: { halign: 'center', cellWidth: 18 }, 
-                2: { halign: 'center', cellWidth: 38, fontSize: 8.5 },
-                3: { halign: 'center', cellWidth: 28 }
-            };
-
+            headTabla = [[ 'N°', 'Fecha\nEmisión', 'N° de\nDocumento', 'NIT\nProveedor', 'Nombre del\nProveedor', 'Compras\nExentas', 'Import. e\nInter. Exentas', 'Compras\nGravadas', 'Import. e\nInter. Gravadas', 'Crédito\nFiscal', 'Anticipo a\nCta IVA Perc.', 'Compras a\nSuj. Excluidos', 'Total\nCompras' ]];
+            configColumnas = { 0: { halign: 'center', cellWidth: 9 }, 1: { halign: 'center', cellWidth: 18 }, 2: { halign: 'center', cellWidth: 38, fontSize: 8.5 }, 3: { halign: 'center', cellWidth: 28 } };
             const registros = data.anexo3_compras ? data.anexo3_compras.slice() : []; 
             
             bodyTabla = registros.map((c, idx) => {
-                const exen = getNum(c.internas_exentas); const impExen = getNum(c.importaciones_exentas);
-                const grav = getNum(c.internas_gravadas); const impGrav = getNum(c.importaciones_gravadas);
-                const iva = getNum(c.credito_fiscal); const percibido = getNum(c.iva_percibido);
-                const sujetos = getNum(c.sujetos_excluidos); const total = getNum(c.total);
+                const exen = getNum(c.internas_exentas); const impExen = getNum(c.importaciones_exentas); const grav = getNum(c.internas_gravadas); const impGrav = getNum(c.importaciones_gravadas); const iva = getNum(c.credito_fiscal); const percibido = getNum(c.iva_percibido); const sujetos = getNum(c.sujetos_excluidos); const total = getNum(c.total);
+                totales.exen = getNum((totales.exen || 0) + exen); totales.impExen = getNum((totales.impExen || 0) + impExen); totales.grav = getNum((totales.grav || 0) + grav); totales.impGrav = getNum((totales.impGrav || 0) + impGrav); totales.iva = getNum((totales.iva || 0) + iva); totales.percibido = getNum((totales.percibido || 0) + percibido); totales.sujetos = getNum((totales.sujetos || 0) + sujetos); totales.total = getNum((totales.total || 0) + total);
 
-                totales.exen = getNum((totales.exen || 0) + exen); totales.impExen = getNum((totales.impExen || 0) + impExen);
-                totales.grav = getNum((totales.grav || 0) + grav); totales.impGrav = getNum((totales.impGrav || 0) + impGrav);
-                totales.iva = getNum((totales.iva || 0) + iva); totales.percibido = getNum((totales.percibido || 0) + percibido);
-                totales.sujetos = getNum((totales.sujetos || 0) + sujetos); totales.total = getNum((totales.total || 0) + total);
-
-                return [
-                    idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, truncarTexto(c.nombre_proveedor, 45), 
-                    `$${exen.toFixed(2)}`, `$${impExen.toFixed(2)}`, `$${grav.toFixed(2)}`, 
-                    `$${impGrav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${percibido.toFixed(2)}`, 
-                    `$${sujetos.toFixed(2)}`, `$${total.toFixed(2)}`
-                ];
+                return [ idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, truncarTexto(c.nombre_proveedor, 45), `$${exen.toFixed(2)}`, `$${impExen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${impGrav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${percibido.toFixed(2)}`, `$${sujetos.toFixed(2)}`, `$${total.toFixed(2)}` ];
             });
-            bodyTabla.push(['', '', '', '', 'TOTALES:', 
-                `$${(totales.exen||0).toFixed(2)}`, `$${(totales.impExen||0).toFixed(2)}`, 
-                `$${(totales.grav||0).toFixed(2)}`, `$${(totales.impGrav||0).toFixed(2)}`, 
-                `$${(totales.iva||0).toFixed(2)}`, `$${(totales.percibido||0).toFixed(2)}`, 
-                `$${(totales.sujetos||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`
-            ]);
+            bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.impExen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.impGrav||0).toFixed(2)}`, `$${(totales.iva||0).toFixed(2)}`, `$${(totales.percibido||0).toFixed(2)}`, `$${(totales.sujetos||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
             headTabla = [['N°', 'Fecha\nEmisión', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas']];
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
-
             configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 60 } };
 
             bodyTabla = registros.map((v, idx) => {
@@ -580,14 +484,12 @@ const generarLibroContablePDF = async () => {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
             headTabla = [['N°', 'Fecha\nEmisión', 'N° Comprobante\nCCF', 'NIT\nCliente', 'Razón\nSocial', 'Exentas', 'Gravadas', 'Débito Fiscal\n(IVA)', 'Total\nVentas']];
             const registros = data.anexo2_credito_fiscal ? data.anexo2_credito_fiscal.slice() : [];
-
             configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 40, fontSize: 8.5 } };
 
             bodyTabla = registros.map((v, idx) => {
                 const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const iva = getNum(v.debito_fiscal); const total = getNum(v.total);
                 totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.iva = getNum((totales.iva || 0) + iva); totales.total = getNum((totales.total || 0) + total);
-                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, truncarTexto(v.nombre, 45), 
-                `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
+                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, truncarTexto(v.nombre, 45), `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${iva.toFixed(2)}`, `$${total.toFixed(2)}`];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.iva||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
@@ -595,31 +497,23 @@ const generarLibroContablePDF = async () => {
             tituloLibro = "LIBRO DE COMPRAS A SUJETOS EXCLUIDOS";
             headTabla = [['N°', 'Fecha\nEmisión', 'N° Documento', 'NIT / DUI', 'Nombre del\nSujeto', 'Monto de\nOperación', 'Retención\nAplicada']];
             const registros = data.anexo5_sujetos_excluidos ? data.anexo5_sujetos_excluidos.slice() : [];
-
             configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 45 } };
 
             bodyTabla = registros.map((s, idx) => {
                 const monto = getNum(s.monto); const retencion = getNum(s.retencion);
                 totales.monto = getNum((totales.monto || 0) + monto); totales.retencion = getNum((totales.retencion || 0) + retencion);
-                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, truncarTexto(s.nombre, 45), 
-                `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
+                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, truncarTexto(s.nombre, 45), `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
         }
 
-        // 📏 ENCABEZADO
-        doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 58, 138); 
-        doc.text(tituloLibro, margenLat, posEncabezado + 4);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 58, 138); doc.text(tituloLibro, margenLat, posEncabezado + 4);
         doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(51, 65, 85);
         doc.text(`Contribuyente: ${nombreEmpresa} | NIT: ${nitSeleccionado.value} | Periodo: ${mes.value} ${anio.value}`, margenLat, posEncabezado + 9);
-        
         doc.setLineWidth(0.3); doc.line(margenLat, posEncabezado + 11, pageWidth - margenLat, posEncabezado + 11); 
 
-        // 📏 TABLA
         autoTable(doc, {
-            startY: margenSup, 
-            margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, 
-            head: headTabla, body: bodyTabla, theme: 'grid', 
+            startY: margenSup, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, head: headTabla, body: bodyTabla, theme: 'grid', 
             headStyles: { fillColor: [51, 65, 85], textColor: 255, fontSize: 9.5, halign: 'center', cellPadding: 1.5, minCellHeight: 12 },
             bodyStyles: { fontSize: 10, cellPadding: 1.5, textColor: [31, 41, 55], overflow: 'linebreak' }, 
             alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: configColumnas,
@@ -631,48 +525,28 @@ const generarLibroContablePDF = async () => {
                 }
             },
             didDrawPage: function (data) {
-                const str = "Página " + doc.internal.getNumberOfPages();
-                doc.setFontSize(8);
-                doc.text(str, pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' });
+                doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' });
             }
         });
 
         doc.save(`Libro_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
-        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE PDF', detalles: `Libro impreso: ${tituloLibro}` }).catch(()=>console.log("Auditoria omitida"));
-    } catch (error) {
-        console.error("Error generando Libro Contable:", error);
-        alert("🚨 Ocurrió un error al generar el Libro Físico.");
-    } finally { cargando.value = false; }
+        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'LIBRO CONTABLE PDF', detalles: `Libro impreso: ${tituloLibro}` }).catch(()=>{});
+    } catch (error) { alert("🚨 Ocurrió un error al generar el Libro Físico."); } finally { cargando.value = false; }
 };
 
 // =======================================================
-// 🛡️ GENERAR PDF RESUMEN MENSUAL (OFICIO AL LÍMITE + TRUNCADO)
+// 🛡️ GENERAR PDF RESUMEN MENSUAL
 // =======================================================
 const generarPDFMensual = async () => {
     try {
         cargando.value = true;
-        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, {
-            params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value }
-        });
-        
+        const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, { params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value } });
         const data = res.data;
-        // 📏 CAMBIO A TAMAÑO OFICIO
         const doc = new jsPDF('l', 'mm', 'legal'); 
-        
-        const margenSup = 19.1;
-        const margenInf = 19.1;
-        const margenLat = 2.0; 
-        const posEncabezado = 7.6; 
-        const pageWidth = doc.internal.pageSize.getWidth();
+        const margenSup = 19.1; const margenInf = 19.1; const margenLat = 2.0; const posEncabezado = 7.6; const pageWidth = doc.internal.pageSize.getWidth();
+        const truncarTexto = (texto, max = 40) => { if (!texto) return ''; return texto.length > max ? texto.substring(0, max) + '...' : texto; };
 
-        // ✂️ En oficio podemos permitir hasta 40 letras en el resumen sin problema
-        const truncarTexto = (texto, max = 40) => {
-            if (!texto) return '';
-            return texto.length > max ? texto.substring(0, max) + '...' : texto;
-        };
-
-        doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(15, 118, 110); 
-        doc.text("RentaLimpio - Resumen Tributario", margenLat, posEncabezado + 4);
+        doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(15, 118, 110); doc.text("RentaLimpio - Resumen Tributario", margenLat, posEncabezado + 4);
         doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(51, 65, 85);
         doc.text(`Empresa: ${data.identificacion.razon_social} | NIT: ${data.identificacion.nit} | Periodo: ${mes.value} / ${anio.value}`, margenLat, posEncabezado + 9);
         doc.setLineWidth(0.3); doc.line(margenLat, posEncabezado + 11, pageWidth - margenLat, posEncabezado + 11); 
@@ -682,32 +556,16 @@ const generarPDFMensual = async () => {
         if (data.anexo3_compras && data.anexo3_compras.length > 0) {
             doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("1. Compras (Crédito Fiscal Recibido)", margenLat, startY);
             autoTable(doc, {
-                startY: startY + 4, 
-                margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, 
+                startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf }, 
                 head: [['Fecha', 'Proveedor\n/ NIT', 'DTE', 'Exen.\nLoc.', 'Exen.\nImp/Int', 'Grav.\nLoc.', 'Grav.\nImp/Int', 'IVA', 'Perci-\nbido', 'Suj.\nExclu.', 'Total']],
                 body: data.anexo3_compras.map(c => {
-                    const exen = parseFloat(c.internas_exentas || 0).toFixed(2);
-                    const impExen = parseFloat(c.importaciones_exentas || 0).toFixed(2);
-                    const grav = parseFloat(c.internas_gravadas || 0).toFixed(2);
-                    const impGrav = parseFloat(c.importaciones_gravadas || 0).toFixed(2);
-                    const iva = parseFloat(c.credito_fiscal || 0).toFixed(2);
-                    const percibido = parseFloat(c.iva_percibido || 0).toFixed(2);
-                    const sujetos = parseFloat(c.sujetos_excluidos || 0).toFixed(2);
-                    const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0);
+                    const exen = parseFloat(c.internas_exentas || 0).toFixed(2); const impExen = parseFloat(c.importaciones_exentas || 0).toFixed(2); const grav = parseFloat(c.internas_gravadas || 0).toFixed(2); const impGrav = parseFloat(c.importaciones_gravadas || 0).toFixed(2); const iva = parseFloat(c.credito_fiscal || 0).toFixed(2); const percibido = parseFloat(c.iva_percibido || 0).toFixed(2); const sujetos = parseFloat(c.sujetos_excluidos || 0).toFixed(2); const otros = parseFloat(c.otros_montos || c.otro_atributo || c.ComOtroAtributo || 0);
                     const total = (parseFloat(exen) + parseFloat(grav) + parseFloat(iva) + otros).toFixed(2);
-                    
-                    return [ 
-                        formatearFecha(c.fecha), 
-                        `${truncarTexto(c.nombre_proveedor, 40)}\n${c.nit_proveedor}`, 
-                        c.numero, `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}`
-                    ]
+                    return [ formatearFecha(c.fecha), `${truncarTexto(c.nombre_proveedor, 40)}\n${c.nit_proveedor}`, c.numero, `$${exen}`, `$${impExen}`, `$${grav}`, `$${impGrav}`, `$${iva}`, `$${percibido}`, `$${sujetos}`, `$${total}` ]
                 }),
                 theme: 'striped', headStyles: { fillColor: [15, 118, 110], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
                 columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 40 } },
-                didDrawPage: function (data) { 
-                    doc.setFontSize(8); 
-                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
-                }
+                didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
             });
             startY = doc.lastAutoTable.finalY + 12;
         }
@@ -718,17 +576,10 @@ const generarPDFMensual = async () => {
             autoTable(doc, {
                 startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf },
                 head: [['Fecha', 'Cliente\n/ NIT', 'DTE', 'Gravadas', 'Débito\nFiscal', 'Total']],
-                body: data.anexo2_credito_fiscal.map(v => [
-                    formatearFecha(v.fecha), 
-                    `${truncarTexto(v.nombre, 40)}\n${v.nit_cliente}`, 
-                    v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}`
-                ]),
+                body: data.anexo2_credito_fiscal.map(v => [ formatearFecha(v.fecha), `${truncarTexto(v.nombre, 40)}\n${v.nit_cliente}`, v.numero, `$${v.gravadas}`, `$${v.debito_fiscal}`, `$${v.total}` ]),
                 theme: 'striped', headStyles: { fillColor: [3, 105, 161], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
                 columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 40 } },
-                didDrawPage: function (data) { 
-                    doc.setFontSize(8); 
-                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
-                }
+                didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
             });
             startY = doc.lastAutoTable.finalY + 12;
         }
@@ -742,53 +593,33 @@ const generarPDFMensual = async () => {
                 body: data.anexo1_consumidor_final.map(v => [formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${v.exentas}`, `$${v.gravadas}`, `$${v.total}`]),
                 theme: 'striped', headStyles: { fillColor: [217, 119, 6], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
                 columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 1: { halign: 'center', cellWidth: 45 } },
-                didDrawPage: function (data) { 
-                    doc.setFontSize(8); 
-                    doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); 
-                }
+                didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
             });
             startY = doc.lastAutoTable.finalY + 12;
         }
 
         if (startY === margenSup) { doc.setFont("helvetica", "italic"); doc.text("No se encontraron registros operados en este periodo.", margenLat, startY); }
         doc.save(`Resumen_Mensual_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
-        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'PDF RESUMEN', detalles: `Generado PDF ${mes.value}/${anio.value}` }).catch(()=>console.log("Auditoria omitida"));
-    } catch (error) { 
-        console.error("Error generando PDF:", error); 
-        alert("🚨 No se pudo generar el documento PDF."); 
-    } finally { cargando.value = false; }
+        axios.post(`${BASE_URL}/api/historial/pdf`, { modulo: 'PDF RESUMEN', detalles: `Generado PDF ${mes.value}/${anio.value}` }).catch(()=>{});
+    } catch (error) { alert("🚨 No se pudo generar el documento PDF."); } finally { cargando.value = false; }
 };
 
-// =======================================================
-// 🛡️ DESCARGAR ANEXO JSON (F-07 HACIENDA)
-// =======================================================
 const descargarAnexosHacienda = async () => {
     if (!nitSeleccionado.value || !mes.value || !anio.value) { alert("Auditoría: Debe seleccionar Empresa, Mes y Año."); return; }
     try {
         const res = await axios.get(`${BASE_URL}/api/reportes/anexos-hacienda`, { params: { nit: nitSeleccionado.value, mes: mes.value, anio: anio.value } });
-        
         const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(res.data, null, 4));
-        const downloadAnchorNode = document.createElement('a');
-        downloadAnchorNode.setAttribute("href", dataStr); 
+        const downloadAnchorNode = document.createElement('a'); downloadAnchorNode.setAttribute("href", dataStr); 
         downloadAnchorNode.setAttribute("download", `Anexos_Hacienda_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`);
         document.body.appendChild(downloadAnchorNode); downloadAnchorNode.click(); downloadAnchorNode.remove();
-        
         alert("✅ Archivo JSON F-07 para Hacienda generado correctamente.");
     } catch (error) { alert(`🚨 Error: ${error.response?.data?.message || "No se pudo generar el reporte JSON."}`); }
 };
 
-// =======================================================
-// 🛡️ DESCARGAR ANEXO CSV
-// =======================================================
 const descargarAnexoCSV = async () => {
     const m = mes.value; const a = anio.value; const nitEmpresa = nitSeleccionado.value;
     if (!nitEmpresa || !m || !a) { alert("Auditoría: Debe seleccionar Empresa, Mes y Año."); return; }
-    
-    // 🛡️ REGLA: CSV no soporta el reporte general
-    if (moduloSeleccionado.value === 'todo') {
-        alert("⚠️ La exportación a CSV se hace por anexo individual. Por favor, seleccione un módulo específico (ej. Compras) en la lista superior izquierda.");
-        return;
-    }
+    if (moduloSeleccionado.value === 'todo') { alert("⚠️ La exportación a CSV se hace por anexo individual. Seleccione un módulo específico."); return; }
 
     let endpoint = ''; let filename = '';
     switch (moduloSeleccionado.value) {
@@ -807,9 +638,6 @@ const descargarAnexoCSV = async () => {
     } catch (error) { alert("🚨 No se pudo generar el CSV desde el servidor."); } finally { cargando.value = false; }
 };
 
-// =======================================================
-// 🛡️ EXPORTAR JSON BACKUP INTERNO DE LA APP
-// =======================================================
 const procesarAccion = async () => {
     if (accion.value === 'importar') { router.push('/lector-json'); return; }
     if (!nitSeleccionado.value) { alert("Seleccione una empresa."); return; }
@@ -840,7 +668,7 @@ const procesarAccion = async () => {
         
         resultado.value = { 
             tipo: 'success', 
-            titulo: 'Backup Generado', 
+            titulo: 'Backup Interno Generado', 
             archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`, 
             cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'), 
             total: totalPreview, 
@@ -874,7 +702,12 @@ const descargarArchivoReal = () => {
 .dashboard-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px; max-width: 1400px; margin: 0 auto; }
 .left-col { display: flex; flex-direction: column; gap: 20px; }
 .right-col { display: flex; flex-direction: column; }
+
+.step-wrapper { display: flex; flex-direction: column; gap: 20px; transition: all 0.3s ease; }
+.step-wrapper.is-disabled { opacity: 0.5; pointer-events: none; filter: grayscale(80%); }
+
 .card { background: white; border-radius: 12px; border: 1px solid rgba(85, 194, 183, 0.15); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); padding: 20px; animation: fadeIn 0.4s ease-out; }
+.border-primary { border-top: 4px solid #55C2B7; }
 .full-height { height: 100%; min-height: 400px; display: flex; flex-direction: column; }
 .delay-100 { animation-delay: 0.1s; }
 .delay-200 { animation-delay: 0.2s; }
@@ -882,27 +715,29 @@ const descargarArchivoReal = () => {
 .mb-2 { margin-bottom: 10px; }
 .mt-2 { margin-top: 10px; }
 .mt-3 { margin-top: 15px; }
+.m-0 { margin: 0; }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 10px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
 .card-header h2 { font-size: 1.1rem; color: #111827; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-weight: 600; }
+.badge-info.warning { background: #fef3c7; color: #b45309; }
 
-.grid-modulos { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
-.modulo-item { border: 1px solid #e5e7eb; border-radius: 10px; padding: 15px 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 8px; transition: all 0.2s; background: #f9fafb; position: relative; }
-.modulo-item:hover { border-color: #55C2B7; background: #f0fdfa; transform: translateY(-2px); }
-.modulo-item.active { border-color: #55C2B7; background: #f0fdfa; box-shadow: 0 0 0 2px rgba(85, 194, 183, 0.2); }
-.icon-circle { font-size: 1.5rem; background: white; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-.nombre { font-size: 0.85rem; font-weight: 600; color: #4b5563; text-align: center; }
+.grid-modulos { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; margin-top: 15px; }
+.modulo-item.compact { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; transition: all 0.2s; background: #f9fafb; position: relative; }
+.modulo-item.compact:hover { border-color: #55C2B7; background: #f0fdfa; transform: translateY(-2px); }
+.modulo-item.compact.active { border-color: #55C2B7; background: #f0fdfa; box-shadow: 0 0 0 2px rgba(85, 194, 183, 0.2); }
+.icon-circle.small { font-size: 1.2rem; background: white; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.nombre.small-text { font-size: 0.75rem; font-weight: 600; color: #4b5563; text-align: center; }
 .modulo-item.active .nombre { color: #0f766e; }
-.check-mark { position: absolute; top: 5px; right: 5px; color: #55C2B7; font-size: 0.8rem; }
+.check-mark { position: absolute; top: 4px; right: 4px; color: #55C2B7; font-size: 0.7rem; }
 
 .tabs-container { display: flex; background: #f3f4f6; padding: 4px; border-radius: 8px; margin-bottom: 20px; }
 .tab-btn { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 6px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all 0.2s; }
 .tab-btn.active { background: white; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-.export-card { background: #f8fafc; border: 1px dashed #94a3b8; }
+.export-card { background: #f8fafc; border: 1px dashed #94a3b8; padding: 15px; border-radius: 8px; }
 .text-hacienda { font-size: 1rem; color: #1e3a8a; margin: 0; font-weight: 700; }
 .text-sm-hacienda { font-size: 0.85rem; color: #64748b; margin: 5px 0 0 0; }
 .btn-dark-blue { background: #1e3a8a; color: white; font-weight: 600; padding: 10px; border-radius: 6px; border:none; cursor: pointer; }
@@ -915,9 +750,9 @@ const descargarArchivoReal = () => {
 .form-label { font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 5px; }
 .form-control { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.9rem; background: #fff; }
 .form-control:focus { border-color: #55C2B7; outline: none; }
-.select-highlight { border-color: #55C2B7; border-width: 2px; }
+.select-highlight { border-color: #55C2B7; border-width: 2px; background-color: #f0fdfa; }
 .fw-bold { font-weight: 700; }
-.info-note { font-size: 0.8rem; color: #6b7280; margin-top: 5px; background: #f3f4f6; padding: 8px; border-radius: 6px; }
+.text-dark { color: #1f2937; }
 
 .import-info { background: #fff7ed; border: 1px dashed #fdba74; border-radius: 8px; padding: 15px; display: flex; align-items: center; gap: 15px; }
 .icon-big { font-size: 2rem; }
