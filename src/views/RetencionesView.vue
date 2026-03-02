@@ -152,7 +152,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="ret in retencionesFiltradas" :key="ret.idRetenciones">
+                <tr v-for="ret in retencionesFiltradas" :key="ret.idRetenciones" :class="{'row-anulada': esAnulado(ret.RetenNumDoc)}">
                   <td>
                     <div class="fw-bold text-dark">{{ formatearFechaVisual(ret.RetenFecha) }}</div>
                     <small class="text-muted">Declarado: <strong class="text-primary">{{ ret.RetenMesDeclarado || '---' }}</strong></small>
@@ -161,17 +161,21 @@
                     <span class="badge-empresa">{{ ret.iddeclaNIT || 'Sin Asignar' }}</span>
                   </td>
                   <td>
-                    <span class="fw-bold text-dark">{{ ret.RetenNomAgente || '---' }}</span>
+                    <span class="fw-bold" :class="esAnulado(ret.RetenNumDoc) ? 'text-muted' : 'text-dark'">{{ ret.RetenNomAgente || '---' }}</span>
                     <small class="d-block text-muted text-xs mt-1">NIT: {{ ret.RetenNitAgente }}</small>
                   </td>
                   <td>
-                    <span class="doc-number">{{ ret.RetenNumDoc }}</span>
+                    <span class="doc-number" :class="{'text-danger border-danger': esAnulado(ret.RetenNumDoc)}">{{ ret.RetenNumDoc }}</span>
                     <small v-if="ret.RetenCodGeneracion" class="d-block text-muted text-xs mt-1" :title="ret.RetenCodGeneracion">{{ truncarCodGen(ret.RetenCodGeneracion) }}</small>
                   </td>
                   <td class="text-right text-muted">${{ parseFloat(ret.RetenMontoSujeto || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-danger">-${{ parseFloat(ret.RetenMontoDeReten || 0).toFixed(2) }}</td>
-                  <td class="text-center">
-                    <button class="btn-icon" @click="prepararEdicion(ret)" title="Editar">✏️</button>
+                  <td class="text-right fw-bold" :class="esAnulado(ret.RetenNumDoc) ? 'text-muted' : 'text-danger'">
+                    -${{ parseFloat(ret.RetenMontoDeReten || 0).toFixed(2) }}
+                  </td>
+                  <td class="text-center actions-cell">
+                    <button v-if="!esAnulado(ret.RetenNumDoc)" class="btn-icon" @click="prepararEdicion(ret)" title="Editar">✏️</button>
+                    <button v-if="!esAnulado(ret.RetenNumDoc)" class="btn-icon text-warning" @click="anularRetencion(ret.idRetenciones)" title="Anular Documento">🚫</button>
+                    
                     <button class="btn-icon text-danger" @click="eliminarRetencion(ret.idRetenciones)" title="Eliminar">🗑️</button>
                   </td>
                 </tr>
@@ -262,6 +266,10 @@ const calcularRetencion = () => {
     }
 };
 
+const esAnulado = (numDoc) => {
+    return numDoc && numDoc.toUpperCase().includes('ANULADO');
+};
+
 const cargarDeclarantes = async () => {
     try {
         const res = await axios.get(`${BASE_URL}/api/declarantes`);
@@ -309,13 +317,28 @@ const guardarRetencion = async () => {
     }
 };
 
+// 🛡️ NUEVA FUNCIÓN: ANULAR RETENCIÓN
+const anularRetencion = async (id) => {
+    if (!confirm("⚠️ ¿Está seguro que desea ANULAR este comprobante de retención? Sus montos pasarán a $0.00.")) return;
+    
+    const headers = { 'x-usuario': sessionStorage.getItem('username') || 'Sistema' };
+    
+    try {
+        await axios.put(`${API_URL}/anular/${id}`, {}, { headers });
+        alert("Retención anulada con éxito.");
+        await cargarRetenciones();
+    } catch (error) {
+        alert(error.response?.data?.message || 'Error al anular. Verifique sus permisos de Administrador.');
+    }
+};
+
 const eliminarRetencion = async (id) => {
-    if(!confirm('¿Eliminar este comprobante de retención?')) return;
+    if(!confirm('🚨 ¿Eliminar DEFINITIVAMENTE este comprobante de retención de la base de datos?')) return;
     const headers = { 'x-usuario': sessionStorage.getItem('username') || 'Sistema' };
     try {
         await axios.delete(`${API_URL}/${id}`, { headers });
         await cargarRetenciones();
-    } catch (e) { alert(e.response?.data?.message || 'Error al eliminar.'); }
+    } catch (e) { alert(e.response?.data?.message || 'Error al eliminar. Verifique sus permisos de Administrador.'); }
 };
 
 const prepararEdicion = (ret) => {
@@ -429,7 +452,15 @@ onMounted(() => {
 .table tr:hover td { background-color: #f9fafb; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
 
-.text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-muted { color: #6b7280; } .text-dark { color: #1f2937; } .fw-bold { font-weight: 700; } .text-xs { font-size: 0.75rem; } .text-right { text-align: right; } .text-center { text-align: center; } .text-primary { color: #55C2B7; } .d-block { display: block; } .mt-1 { margin-top: 4px; }
+/* 🛡️ ESTILOS PARA FILAS ANULADAS */
+.row-anulada td { background-color: #fef2f2 !important; color: #9ca3af !important; text-decoration: line-through; }
+.row-anulada .doc-number { text-decoration: none; background-color: #fee2e2; }
+.row-anulada .badge-empresa { filter: grayscale(100%); opacity: 0.7; }
+.row-anulada .text-dark, .row-anulada .text-danger { color: #9ca3af !important; }
+.border-danger { border: 1px solid #ef4444; }
+
+.text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-muted { color: #6b7280; } .text-dark { color: #1f2937; } .fw-bold { font-weight: 700; } .text-xs { font-size: 0.75rem; } .text-right { text-align: right; } .text-center { text-align: center; } .text-primary { color: #55C2B7; } .text-warning { color: #f59e0b; } .d-block { display: block; } .mt-1 { margin-top: 4px; }
+.actions-cell { min-width: 120px; }
 
 .alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
 .alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }

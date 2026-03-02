@@ -18,7 +18,7 @@ const formatoFechaCSV = (fechaISO) => {
 };
 
 // ==========================================
-// 🛡️ CONSULTAS SQL CON FILTRO DE ANULADOS
+// 🛡️ CONSULTAS SQL CON FILTRO DE ANULADOS Y ORDEN POR FECHA
 // ==========================================
 const qCompras = `
     SELECT c.* FROM compras c
@@ -45,6 +45,13 @@ const qVentasCCF = `
 `;
 
 const qSujetos = `SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC`;
+
+// 🛡️ AGREGADO: Consulta de Retenciones ordenada y excluyendo los anulados (que en el frontend se marcaban como "ANULADO")
+const qRetenciones = `
+    SELECT * FROM retenciones 
+    WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? AND RetenNumDoc NOT LIKE '%ANULADO%' 
+    ORDER BY RetenFecha ASC
+`;
 
 
 // ==========================================
@@ -98,13 +105,14 @@ export const exportarTodoJSON = async (req, res) => {
         const [ventasCCF] = await pool.query(qVentasCCF, [nit, mes, anio]);
         const [ventasCF] = await pool.query(qVentasCF, [nit, mes, anio]);
         const [sujetos] = await pool.query(qSujetos, [nit, mes, anio]);
+        const [retenciones] = await pool.query(qRetenciones, [nit, mes, anio]); // 🛡️ AGREGADO
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'TODOS LOS MÓDULOS (BACKUP)', `Periodo: ${mes}/${anio} - NIT: ${nit}`);
 
         res.json({
             backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() },
-            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos }
+            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos, retenciones } // 🛡️ AGREGADO
         });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -124,6 +132,7 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const [anexo2] = await pool.query(qVentasCCF, [nit, mes, anio]);
         const [anexo3] = await pool.query(qCompras, [nit, mes, anio]);
         const [anexo5] = await pool.query(qSujetos, [nit, mes, anio]);
+        const [anexo4] = await pool.query(qRetenciones, [nit, mes, anio]); // 🛡️ AGREGADO
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'EXPORTACION JSON', 'F-07 HACIENDA', `Periodo: ${mes}/${anio} - Empresa: ${nombreEmpresa}`);
@@ -157,6 +166,11 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
                 iva_percibido: "0.00", sujetos_excluidos: "0.00", credito_fiscal: Number(c.ComCredFiscal || 0).toFixed(2), 
                 otros_montos: Number(c.ComOtroAtributo || 0).toFixed(2), total: Number(c.ComTotal || 0).toFixed(2)
             })),
+            anexo4_retenciones: anexo4.map(r => ({
+                fecha: r.RetenFecha, nit_agente: sinGuiones(r.RetenNitAgente), 
+                documento: sinGuiones(r.RetenNumDoc), codigo_generacion: r.RetenCodGeneracion || '',
+                monto_sujeto: Number(r.RetenMontoSujeto || 0).toFixed(2), monto_retenido: Number(r.RetenMontoDeReten || 0).toFixed(2)
+            })), // 🛡️ AGREGADO: Asegura que las retenciones ordenadas lleguen al Excel y PDF
             anexo5_sujetos_excluidos: anexo5.map(s => ({
                 fecha: s.ComprasSujExcluFecha, nit: sinGuiones(s.ComprasSujExcluNIT), nombre: s.ComprasSujExcluNom,
                 documento: sinGuiones(s.ComprasSujExcluNumDoc), 
@@ -261,7 +275,7 @@ export const descargarAnexo3CSV = async (req, res) => {
                 (parseFloat(c.ComInternacGravBienes) || 0).toFixed(2), (parseFloat(c.ComImportGravBienes) || 0).toFixed(2),             
                 (parseFloat(c.ComImportGravServicios) || 0).toFixed(2), (parseFloat(c.ComCredFiscal) || 0).toFixed(2),                  
                 sumBase.toFixed(2), '', c.ComClasiRenta || '1', c.ComTipoCostoGastoRenta || '2',                      
-                c.ComTipoOpeRenta || '2', (parseFloat(c.ComImpExeNoSujetas) || 0) > 0 ? 1 : 1, '3'                                                 
+                c.ComTipoOpeRenta || '2', (parseFloat(c.ComImpExeNoSujetas) || 0) > 0 ? 1 : 1, '3'                                                
             ];
             return columnas.join(';'); 
         });
@@ -299,4 +313,37 @@ export const descargarAnexo5CSV = async (req, res) => {
         res.setHeader('Content-Disposition', `attachment; filename="Anexo5_SujetosExcluidos_${mes}_${anio}.csv"`);
         res.status(200).send('\uFEFF' + csvRows.join('\n'));
     } catch (error) { res.status(500).json({ error: error.message }); }
+};
+
+// 🛡️ AGREGADO: Exportar Retenciones a CSV (Con orden de fechas garantizado)
+export const exportarRetencionesCSV = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
+
+    try {
+        const [rows] = await pool.query(qRetenciones, [nit, mes, anio]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ message: "No hay retenciones operantes para este periodo." });
+        }
+
+        const csvRows = rows.map(r => {
+            const uuidVal = sinGuiones(r.RetenCodGeneracion) || sinGuiones(r.RetenNumDoc);
+            const columnas = [
+                formatoFechaCSV(r.RetenFecha), r.RetenListTipoDoc || '07', sinGuiones(r.RetenNitAgente),
+                r.RetenNomAgente ? `"${r.RetenNomAgente.toUpperCase()}"` : '""',
+                sinGuiones(r.RetenSerieDoc), uuidVal,
+                Number(r.RetenMontoSujeto || 0).toFixed(2), Number(r.RetenMontoDeReten || 0).toFixed(2),
+                r.RetenNumAnexo || '4'
+            ];
+            return columnas.join(';');
+        });
+
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="Retenciones_${mes}_${anio}.csv"`);
+        res.status(200).send('\uFEFF' + csvRows.join('\n'));
+
+    } catch (error) {
+        return res.status(500).json({ message: error.message });
+    }
 };

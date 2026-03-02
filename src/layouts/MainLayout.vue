@@ -36,18 +36,25 @@
           </div>
         </div>
 
-        <div class="nav-group dropdown">
+       <div class="nav-group dropdown">
           <button class="nav-btn">
-            💰 Ventas <span class="arrow">▾</span>
-          </button>
+          💰 Ventas <span class="arrow">▾</span>
+           </button>
           <div class="dropdown-menu">
-            <router-link to="/venta-consumidor" class="menu-item">🧾 Consumidor Final</router-link>
-            <router-link to="/venta-credito" class="menu-item">🏢 Crédito Fiscal</router-link>
-            <router-link to="/ventas-terceros" class="menu-item">🤝 Venta por Terceros</router-link>
-            <div class="divider"></div>
-            <router-link to="/clientes-menu" class="menu-item">👥 Gestión de Clientes</router-link>
-          </div>
+         <router-link to="/venta-consumidor" class="menu-item">🧾 Consumidor Final</router-link>
+         <router-link to="/venta-credito" class="menu-item">🏢 Crédito Fiscal</router-link>
+         <router-link to="/ventas-terceros" class="menu-item">🤝 Venta por Terceros</router-link>
+    
+        <div class="divider"></div>
+    
+        <router-link to="/notas-credito" class="menu-item">📉 Notas de Crédito</router-link>
+         <router-link to="/notas-debito" class="menu-item">📈 Notas de Débito</router-link>
+    
+         <div class="divider"></div>
+    
+         <router-link to="/clientes-menu" class="menu-item">👥 Gestión de Clientes</router-link>
         </div>
+      </div>
 
         <div class="nav-group dropdown">
           <button class="nav-btn">

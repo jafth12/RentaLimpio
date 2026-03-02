@@ -112,3 +112,40 @@ export const deleteRetencion = async (req, res) => {
         res.status(500).json({ message: 'Error al eliminar retención', error: error.message });
     }
 };
+
+// --- 5. ANULAR RETENCIÓN ---
+export const anularRetencion = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        // 1. Obtener los datos actuales antes de anular (para el historial)
+        const [rows] = await pool.query('SELECT * FROM retenciones WHERE idRetenciones = ?', [id]);
+        if (rows.length === 0) return res.status(404).json({ message: 'Retención no encontrada' });
+        
+        const retencion = rows[0];
+
+        // 2. Marcar como anulado (Montos a 0 y concatenar ANULADO al documento)
+        const numDocAnulado = retencion.RetenNumDoc.includes('ANULADO') 
+            ? retencion.RetenNumDoc 
+            : `${retencion.RetenNumDoc} (ANULADO)`;
+
+        const [result] = await pool.query(
+            `UPDATE retenciones SET 
+            RetenNumDoc = ?, 
+            RetenMontoSujeto = 0.00, 
+            RetenMontoDeReten = 0.00 
+            WHERE idRetenciones = ?`,
+            [numDocAnulado, id]
+        );
+
+        if (result.affectedRows === 0) return res.status(404).json({ message: 'No se pudo anular la retención' });
+
+        // 3. Registrar la acción en el historial
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        registrarAccion(usuario, 'ANULACION', 'RETENCIONES', `Documento Anulado: ${retencion.RetenNumDoc} | Empresa: ${retencion.iddeclaNIT}`);
+
+        res.json({ message: 'Retención anulada correctamente' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al anular retención', error: error.message });
+    }
+};
