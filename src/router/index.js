@@ -19,6 +19,7 @@ import DeclarantesView from '../views/DeclarantesView.vue';
 // 🛡️ IMPORTAR LA NUEVA VISTA DE HISTORIAL
 import HistorialView from '../views/HistorialView.vue';
 import AnuladosView from '../views/AnuladosView.vue';
+import RetencionesView from '@/views/RetencionesView.vue'
 
 const router = createRouter({
     history: createWebHistory(import.meta.env.BASE_URL),
@@ -120,9 +121,14 @@ const router = createRouter({
             component: AnuladosView,
             meta: {requiresAuth: true }
         },
+        {
+            path: '/retencion-1-declarante',
+            name: 'Retencion 1% al Declarante',
+            component: RetencionesView,
+            meta: {requiresAuth: true }
+        },
 
         // --- PÁGINAS EN CONSTRUCCIÓN ---
-        { path: '/retencion-1-declarante', name: 'Retencion 1% al Declarante', component: EnConstruccion },
         { path: '/retencion-13-terceros', name: 'Retencion 13% a Terceros', component: EnConstruccion },
         { path: '/retencion-1-terceros', name: 'Retencion 1% a Terceros', component: EnConstruccion },
 

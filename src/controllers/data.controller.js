@@ -61,6 +61,14 @@ const limpiarSujetos = (rows) => {
     });
 };
 
+const limpiarRetenciones = (rows) => {
+    rows.forEach(r => {
+        if (r.RetenFecha) r.RetenFecha = formatearFecha(r.RetenFecha);
+        r.RetenMontoSujeto = aMoneda(r.RetenMontoSujeto);
+        r.RetenMontoDeReten = aMoneda(r.RetenMontoDeReten);
+    });
+};
+
 // ==========================================
 // 1. EXPORTACIONES INDIVIDUALES APROPIADAS PARA IMPORTARSE LUEGO
 // ==========================================
@@ -68,10 +76,9 @@ export const exportarCompras = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        // 🛡️ Búsqueda por el mes a declarar asignado
         const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
         limpiarCompras(rows);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: rows, ventas_cf: [], ventas_ccf: [], sujetos_excluidos: [] } });
+        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: rows, ventas_cf: [], ventas_ccf: [], sujetos_excluidos: [], retenciones: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -79,10 +86,9 @@ export const exportarVentasConsumidor = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        // 🛡️ Búsqueda por el mes a declarar asignado (Ya NO usa MONTH(fecha))
         const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
         limpiarVentasCF(rows);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: rows, ventas_ccf: [], sujetos_excluidos: [] } });
+        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: rows, ventas_ccf: [], sujetos_excluidos: [], retenciones: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -90,10 +96,9 @@ export const exportarVentasCredito = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        // 🛡️ Búsqueda por el mes a declarar asignado
         const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
         limpiarVentasCCF(rows);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: [], ventas_ccf: rows, sujetos_excluidos: [] } });
+        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: [], ventas_ccf: rows, sujetos_excluidos: [], retenciones: [] } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -101,10 +106,19 @@ export const exportarSujetos = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        // 🛡️ Búsqueda por el mes a declarar asignado
         const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
         limpiarSujetos(rows);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: [], ventas_ccf: [], sujetos_excluidos: rows } });
+        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: [], ventas_ccf: [], sujetos_excluidos: rows, retenciones: [] } });
+    } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+export const exportarRetenciones = async (req, res) => {
+    const { mes, anio, nit } = req.query;
+    try {
+        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
+        const [rows] = await pool.query('SELECT * FROM retenciones WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? ORDER BY RetenFecha ASC', [nit, mes, anio]);
+        limpiarRetenciones(rows);
+        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: [], ventas_cf: [], ventas_ccf: [], sujetos_excluidos: [], retenciones: rows } });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
@@ -115,17 +129,17 @@ export const exportarTodoJSON = async (req, res) => {
     try {
         const [declarante] = await pool.query('SELECT * FROM declarante WHERE iddeclaNIT = ?', [nit]);
         
-        // 🛡️ AHORA TODAS LAS TABLAS DEL BACKUP EXPORTAN EXACTAMENTE LO QUE EL USUARIO ASIGNÓ AL MES
         const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
         const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
         const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
         const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
+        const [retenciones] = await pool.query('SELECT * FROM retenciones WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? ORDER BY RetenFecha ASC', [nit, mes, anio]); 
 
-        limpiarCompras(compras); limpiarVentasCCF(ventasCCF); limpiarVentasCF(ventasCF); limpiarSujetos(sujetos);
+        limpiarCompras(compras); limpiarVentasCCF(ventasCCF); limpiarVentasCF(ventasCF); limpiarSujetos(sujetos); limpiarRetenciones(retenciones); 
 
         res.json({
             backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() },
-            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos }
+            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos, retenciones } 
         });
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
@@ -143,7 +157,7 @@ export const importarTodoJSON = async (req, res) => {
     }
 
     const connection = await pool.getConnection();
-    const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, duplicados: 0, documentos_omitidos: [] };
+    const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, retenciones: 0, duplicados: 0, documentos_omitidos: [] };
     const limpiarCat = (val, def) => val ? (val.toString().match(/\d+/) || [def])[0] : def;
 
     try {
@@ -245,6 +259,43 @@ export const importarTodoJSON = async (req, res) => {
                     await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
                     reporte.sujetos++;
                 } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Sujeto Exc: ${s.ComprasSujExcluNumDoc || codGen}`); }
+            }
+        }
+
+        // 🛡️ 5. RETENCIONES 
+        const listaRetenciones = dataToImport.retenciones || [];
+        if (listaRetenciones.length) {
+            for (const r of listaRetenciones) {
+                const codGen = r.RetenCodGeneracion || null;
+                const [dup] = await connection.query(
+                    `SELECT idRetenciones FROM retenciones 
+                     WHERE iddeclaNIT = ? AND ((RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') OR (REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', '')))`, 
+                     [nitDeclarante, codGen, r.RetenNitAgente, r.RetenNumDoc]
+                );
+                
+                if (dup.length === 0) {
+                    const nuevaRetencion = {
+                        iddeclaNIT: nitDeclarante,
+                        RetenNitAgente: r.RetenNitAgente,
+                        RetenNomAgente: r.RetenNomAgente || '', 
+                        RetenFecha: formatearFecha(r.RetenFecha),
+                        RetenListTipoDoc: limpiarCat(r.RetenListTipoDoc, '07'),
+                        RetenSerieDoc: r.RetenSerieDoc || '',
+                        RetenNumDoc: r.RetenNumDoc,
+                        RetenCodGeneracion: codGen, 
+                        RetenMontoSujeto: r.RetenMontoSujeto || 0,
+                        RetenMontoDeReten: r.RetenMontoDeReten || 0,
+                        RetenDuiDelAgente: r.RetenDuiDelAgente || '',
+                        RetenMesDeclarado: r.RetenMesDeclarado || 'Importado',
+                        RetenAnioDeclarado: r.RetenAnioDeclarado || new Date().getFullYear().toString(),
+                        RetenNumAnexo: '4' 
+                    };
+                    await connection.query('INSERT INTO retenciones SET ?', nuevaRetencion);
+                    reporte.retenciones++;
+                } else { 
+                    reporte.duplicados++; 
+                    reporte.documentos_omitidos.push(`Retención: ${r.RetenNumDoc || codGen}`); 
+                }
             }
         }
 

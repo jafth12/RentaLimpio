@@ -232,12 +232,14 @@ const nitSeleccionado = ref('');
 
 const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
+// 🛡️ AÑADIMOS EL MÓDULO DE RETENCIONES AL MENÚ
 const modulos = [
   { id: 'todo', nombre: 'Reporte General', icono: '📦' },
   { id: 'compras', nombre: 'Compras', icono: '🛒' },
   { id: 'ventas_cf', nombre: 'Cons. Final', icono: '🧾' }, 
   { id: 'ventas_ccf', nombre: 'C. Fiscal', icono: '💼' }, 
   { id: 'sujetos', nombre: 'S. Excluidos', icono: '🚫' },
+  { id: 'retenciones', nombre: '1% Retención', icono: '🛡️' }, // <-- NUEVO MÓDULO AQUÍ
 ];
 
 onMounted(async () => {
@@ -249,6 +251,7 @@ onMounted(async () => {
     }
 });
 
+// 🛡️ AÑADIMOS EL NOMBRE DEL BOTÓN CSV PARA RETENCIONES
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
         case 'todo': return '📋 CSV (No disponible)';
@@ -256,6 +259,7 @@ const textoBotonCSV = computed(() => {
         case 'ventas_cf': return '📋 CSV (Cons. Final)';
         case 'ventas_ccf': return '📋 CSV (Crédito Fiscal)';
         case 'sujetos': return '📋 CSV (Sujetos)';
+        case 'retenciones': return '📋 CSV (Retenciones)'; // <-- NUEVO
         default: return '📋 CSV';
     }
 });
@@ -408,6 +412,19 @@ const generarLibroContableExcel = async () => {
                 return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, monto, retencion ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.monto, totales.retencion]);
+            
+        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES (EXCEL)
+        } else if (moduloSeleccionado.value === 'retenciones') {
+            tituloLibro = "REGISTRO DE RETENCIONES EFECTUADAS AL CONTRIBUYENTE (1%)";
+            headTabla = ['N°', 'Fecha', 'NIT Agente', 'N° Documento', 'Monto Sujeto', 'Monto Retenido'];
+            const registros = data.anexo4_retenciones ? data.anexo4_retenciones.slice() : [];
+
+            bodyTabla = registros.map((r, idx) => {
+                const sujeto = getNum(r.monto_sujeto); const retenido = getNum(r.monto_retenido);
+                totales.sujeto = getNum((totales.sujeto || 0) + sujeto); totales.retenido = getNum((totales.retenido || 0) + retenido);
+                return [ idx + 1, formatearFecha(r.fecha), r.nit_agente, r.documento, sujeto, retenido ];
+            });
+            bodyTabla.push(['', '', '', 'TOTALES:', totales.sujeto, totales.retenido]);
         }
 
         const wsData = [
@@ -505,6 +522,20 @@ const generarLibroContablePDF = async () => {
                 return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, truncarTexto(s.nombre, 45), `$${monto.toFixed(2)}`, `$${retencion.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
+            
+        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES (PDF)
+        } else if (moduloSeleccionado.value === 'retenciones') {
+            tituloLibro = "REGISTRO DE RETENCIONES EFECTUADAS AL CONTRIBUYENTE (1%)";
+            headTabla = [['N°', 'Fecha\nEmisión', 'NIT Agente\nRetenedor', 'N° Documento', 'Monto\nSujeto', 'Monto\nRetenido']];
+            const registros = data.anexo4_retenciones ? data.anexo4_retenciones.slice() : [];
+            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 45 } };
+
+            bodyTabla = registros.map((r, idx) => {
+                const sujeto = getNum(r.monto_sujeto); const retenido = getNum(r.monto_retenido);
+                totales.sujeto = getNum((totales.sujeto || 0) + sujeto); totales.retenido = getNum((totales.retenido || 0) + retenido);
+                return [ idx + 1, formatearFecha(r.fecha), r.nit_agente, r.documento, `$${sujeto.toFixed(2)}`, `$${retenido.toFixed(2)}` ];
+            });
+            bodyTabla.push(['', '', '', 'TOTALES:', `$${(totales.sujeto||0).toFixed(2)}`, `$${(totales.retenido||0).toFixed(2)}`]);
         }
 
         doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 58, 138); doc.text(tituloLibro, margenLat, posEncabezado + 4);
@@ -597,6 +628,21 @@ const generarPDFMensual = async () => {
             });
             startY = doc.lastAutoTable.finalY + 12;
         }
+        
+        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES AL RESUMEN PDF GENERAL
+        if (data.anexo4_retenciones && data.anexo4_retenciones.length > 0) {
+            if (startY > doc.internal.pageSize.getHeight() - margenInf - 20) { doc.addPage(); startY = margenSup; }
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("4. Retenciones Efectuadas al Contribuyente (1%)", margenLat, startY);
+            autoTable(doc, {
+                startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf },
+                head: [['Fecha', 'NIT Agente', 'N° Documento', 'Monto Sujeto', 'Monto Retenido']],
+                body: data.anexo4_retenciones.map(r => [formatearFecha(r.fecha), r.nit_agente, r.documento, `$${parseFloat(r.monto_sujeto||0).toFixed(2)}`, `$${parseFloat(r.monto_retenido||0).toFixed(2)}`]),
+                theme: 'striped', headStyles: { fillColor: [139, 92, 246], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
+                columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 45 } },
+                didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
+            });
+            startY = doc.lastAutoTable.finalY + 12;
+        }
 
         if (startY === margenSup) { doc.setFont("helvetica", "italic"); doc.text("No se encontraron registros operados en este periodo.", margenLat, startY); }
         doc.save(`Resumen_Mensual_${nitSeleccionado.value}_${mes.value}_${anio.value}.pdf`);
@@ -627,6 +673,7 @@ const descargarAnexoCSV = async () => {
         case 'ventas_cf': endpoint = '/api/reportes/anexo1-csv'; filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_ccf': endpoint = '/api/reportes/anexo2-csv'; filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'sujetos': endpoint = '/api/reportes/anexo5-csv'; filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; break;
+        case 'retenciones': endpoint = '/api/reportes/retenciones-csv'; filename = `Retenciones_${nitEmpresa}_${m}_${a}.csv`; break; // 🛡️ AÑADIDO PARA CSV
     }
 
     try {
@@ -651,6 +698,7 @@ const procesarAccion = async () => {
           case 'ventas_cf': endpoint = `${BASE_URL}/api/ventas-cf/exportar`; break; 
           case 'ventas_ccf': endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; break; 
           case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; 
+          case 'retenciones': endpoint = `${BASE_URL}/api/retenciones/exportar`; break; // 🛡️ AÑADIDO PARA JSON INTERNO
           default: endpoint = `${BASE_URL}/api/exportar-todo`;
         }
         
@@ -687,6 +735,7 @@ const descargarArchivoReal = () => {
 </script>
 
 <style scoped>
+/* LOS MISMOS ESTILOS QUE YA TENÍAS */
 .btn-purple { background: #8b5cf6; color: white; border: none; }
 .btn-purple:hover:not(:disabled) { background: #7c3aed; }
 .flex-buttons { display: flex; align-items: center; width: 100%; flex-wrap: wrap; }
