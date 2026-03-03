@@ -255,7 +255,7 @@
                   </td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.idconsfinal)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-danger" @click="eliminarVenta(venta)" title="Eliminar">🗑️</button>
                     <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>

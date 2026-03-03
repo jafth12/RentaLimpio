@@ -91,7 +91,6 @@ export const exportarTodoJSON = async (req, res) => {
         const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
         const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
         const [retenciones] = await pool.query('SELECT * FROM retenciones WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? ORDER BY RetenFecha ASC', [nit, mes, anio]); 
-        
         const [notas] = await pool.query('SELECT * FROM notas_credito WHERE iddeclaNIT = ? AND NCMesDeclarado = ? AND NCAnioDeclarado = ? ORDER BY NCFecha ASC', [nit, mes, anio]); 
 
         res.json({
@@ -120,11 +119,8 @@ export const importarTodoJSON = async (req, res) => {
     try {
         await connection.beginTransaction();
 
-        // 🛡️ CORRECCIÓN: Búsqueda flexible de NIT para evitar colisiones por guiones
         const [existeD] = await connection.query('SELECT iddeclaNIT FROM declarante WHERE REPLACE(iddeclaNIT, "-", "") = REPLACE(?, "-", "")', [nitFront]);
         if (existeD.length === 0) throw new Error(`El declarante ${nitFront} no existe en su base de datos.`);
-        
-        // Usar siempre el NIT extraído de la base de datos para mantener integridad referencial
         const nitDeclarante = existeD[0].iddeclaNIT;
 
         // 1. COMPRAS
@@ -143,21 +139,33 @@ export const importarTodoJSON = async (req, res) => {
                 }
 
                 if (tipoDte === '05' || tipoDte === '06') {
-                    const [dup] = await connection.query(`SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? AND ((NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') OR (REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
+                    // 🛡️ REGLA RELAJADA: Permite si los UUID son distintos
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(c.ComFecha), NCClaseDoc: c.ComClase || '4', NCTipoDoc: tipoDte,
                             NCNumero: c.ComNumero, NCCodGeneracion: codGen, NCNitContraparte: c.proveedor_ProvNIT, NCNombreContraparte: c.ComNomProve,
-                            NCNumDocOrigen: 'N/A', // 🛡️ CORRECCIÓN: Campo obligatorio
-                            NCMontoGravado: c.ComIntGrav || 0, NCMontoExento: c.ComIntExe || 0, NCIva: c.ComCredFiscal || 0,
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: c.ComIntGrav || 0, NCMontoExento: c.ComIntExe || 0, NCIva: c.ComCredFiscal || 0,
                             NCCotran: cotrans, NCFovial: fovial, NCTotal: c.ComTotal || 0, NCTipo: 'COMPRA',
                             NCMesDeclarado: extraerMes(c.ComFecha, c.ComMesDeclarado), NCAnioDeclarado: extraerAnio(c.ComFecha, c.ComAnioDeclarado), NCAnexo: '3'
                         };
                         await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
                         reporte.compras++; 
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota: ${c.ComNumero}`); }
                 } else {
-                    const [dup] = await connection.query(`SELECT idcompras FROM compras WHERE iddeclaNIT = ? AND ((ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') OR (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
+                    const [dup] = await connection.query(`
+                        SELECT idcompras FROM compras WHERE iddeclaNIT = ? 
+                        AND (
+                            (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
+                            OR 
+                            ((ComCodGeneracion IS NULL OR ComCodGeneracion = '') AND REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
                     if (dup.length === 0) {
                         const nuevaCompra = {
                             iddeclaNIT: nitDeclarante, proveedor_ProvNIT: c.proveedor_ProvNIT, ComNomProve: c.ComNomProve,
@@ -170,7 +178,7 @@ export const importarTodoJSON = async (req, res) => {
                         };
                         await connection.query('INSERT INTO compras SET ?', nuevaCompra);
                         reporte.compras++;
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Compra: ${c.ComNumero}`); }
                 }
             }
         }
@@ -183,21 +191,32 @@ export const importarTodoJSON = async (req, res) => {
                 const tipoDte = limpiarCat(v.FisTipoDoc, '03');
 
                 if (tipoDte === '05' || tipoDte === '06') {
-                    const [dup] = await connection.query(`SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? AND ((NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') OR (REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.FiscFecha), NCClaseDoc: v.FisClasDoc || '4', NCTipoDoc: tipoDte,
                             NCNumero: v.FiscNumDoc, NCCodGeneracion: codGen, NCNitContraparte: v.FiscNit, NCNombreContraparte: v.FiscNomRazonDenomi,
-                            NCNumDocOrigen: 'N/A', // 🛡️ CORRECCIÓN: Campo obligatorio
-                            NCMontoGravado: v.FiscVtaGravLocal || 0, NCMontoExento: v.FiscVtaExen || 0, NCIva: v.FiscDebitoFiscal || 0,
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: v.FiscVtaGravLocal || 0, NCMontoExento: v.FiscVtaExen || 0, NCIva: v.FiscDebitoFiscal || 0,
                             NCTotal: v.FiscTotalVtas || 0, NCTipo: 'VENTA',
                             NCMesDeclarado: extraerMes(v.FiscFecha, v.FiscMesDeclarado), NCAnioDeclarado: extraerAnio(v.FiscFecha, v.FiscAnioDeclarado), NCAnexo: '2'
                         };
                         await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
                         reporte.ventas_ccf++;
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota CCF: ${v.FiscNumDoc}`); }
                 } else {
-                    const [dup] = await connection.query(`SELECT idCredFiscal FROM credfiscal WHERE iddeclaNIT = ? AND ((FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') OR (REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
+                    const [dup] = await connection.query(`
+                        SELECT idCredFiscal FROM credfiscal WHERE iddeclaNIT = ? 
+                        AND (
+                            (FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') 
+                            OR 
+                            ((FiscCodGeneracion IS NULL OR FiscCodGeneracion = '') AND REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
                     if (dup.length === 0) {
                         const nuevoCCF = {
                             iddeclaNIT: nitDeclarante, FiscFecha: formatearFecha(v.FiscFecha), FisClasDoc: v.FisClasDoc || '4', FisTipoDoc: tipoDte,
@@ -209,7 +228,7 @@ export const importarTodoJSON = async (req, res) => {
                         };
                         await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
                         reporte.ventas_ccf++;
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`CCF: ${v.FiscNumDoc}`); }
                 }
             }
         }
@@ -222,21 +241,32 @@ export const importarTodoJSON = async (req, res) => {
                 const tipoDte = limpiarCat(v.ConsTipoDoc, '01');
 
                 if (tipoDte === '05' || tipoDte === '06') {
-                    const [dup] = await connection.query(`SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? AND ((NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') OR (REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.ConsFecha), NCClaseDoc: v.ConsClaseDoc || '4', NCTipoDoc: tipoDte,
                             NCNumero: v.ConsNumDocAL || v.ConsNumDocDEL, NCCodGeneracion: codGen, NCNitContraparte: v.ConsNumDocIdentCliente || '', NCNombreContraparte: v.ConsNomRazonCliente || 'Cliente General',
-                            NCNumDocOrigen: 'N/A', // 🛡️ CORRECCIÓN: Campo obligatorio
-                            NCMontoGravado: v.ConsVtaGravLocales || 0, NCMontoExento: v.ConsVtaExentas || 0, NCIva: 0,
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: v.ConsVtaGravLocales || 0, NCMontoExento: v.ConsVtaExentas || 0, NCIva: 0,
                             NCTotal: v.ConsTotalVta || 0, NCTipo: 'VENTA',
                             NCMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), NCAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), NCAnexo: '1'
                         };
                         await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
                         reporte.ventas_cf++;
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota CF: ${v.ConsNumDocAL || v.ConsNumDocDEL}`); }
                 } else {
-                    const [dup] = await connection.query(`SELECT idconsfinal FROM consumidorfinal WHERE iddeclaNIT = ? AND ((ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') OR (REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
+                    const [dup] = await connection.query(`
+                        SELECT idconsfinal FROM consumidorfinal WHERE iddeclaNIT = ? 
+                        AND (
+                            (ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') 
+                            OR 
+                            ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
                     if (dup.length === 0) {
                         const nuevoCF = {
                             iddeclaNIT: nitDeclarante, ConsFecha: formatearFecha(v.ConsFecha), ConsClaseDoc: v.ConsClaseDoc || '4', ConsTipoDoc: tipoDte,
@@ -247,7 +277,7 @@ export const importarTodoJSON = async (req, res) => {
                         };
                         await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
                         reporte.ventas_cf++;
-                    } else { reporte.duplicados++; }
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Consumidor Final: ${v.ConsNumDocAL || v.ConsNumDocDEL}`); }
                 }
             }
         }
@@ -257,7 +287,13 @@ export const importarTodoJSON = async (req, res) => {
         if (listaSujetos.length) {
             for (const s of listaSujetos) {
                 const codGen = s.ComprasSujExcluCodGeneracion || null;
-                const [dup] = await connection.query(`SELECT idComSujExclui FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ((ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') OR (REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]);
+                const [dup] = await connection.query(`
+                    SELECT idComSujExclui FROM comprassujexcluidos WHERE iddeclaNIT = ? 
+                    AND (
+                        (ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') 
+                        OR 
+                        ((ComprasSujExcluCodGeneracion IS NULL OR ComprasSujExcluCodGeneracion = '') AND REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', ''))
+                    )`, [nitDeclarante, codGen, s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]);
                 if (dup.length === 0) {
                     const nuevoSujeto = {
                         iddeclaNIT: nitDeclarante, ComprasSujExcluNIT: s.ComprasSujExcluNIT, ComprasSujExcluNom: s.ComprasSujExcluNom,
@@ -279,7 +315,13 @@ export const importarTodoJSON = async (req, res) => {
         if (listaRetenciones.length) {
             for (const r of listaRetenciones) {
                 const codGen = r.RetenCodGeneracion || null;
-                const [dup] = await connection.query(`SELECT idRetenciones FROM retenciones WHERE iddeclaNIT = ? AND ((RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') OR (REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, r.RetenNitAgente, r.RetenNumDoc]);
+                const [dup] = await connection.query(`
+                    SELECT idRetenciones FROM retenciones WHERE iddeclaNIT = ? 
+                    AND (
+                        (RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') 
+                        OR 
+                        ((RetenCodGeneracion IS NULL OR RetenCodGeneracion = '') AND REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', ''))
+                    )`, [nitDeclarante, codGen, r.RetenNitAgente, r.RetenNumDoc]);
                 if (dup.length === 0) {
                     const nuevaRetencion = {
                         iddeclaNIT: nitDeclarante, RetenNitAgente: r.RetenNitAgente, RetenNomAgente: r.RetenNomAgente || '', 
@@ -295,27 +337,11 @@ export const importarTodoJSON = async (req, res) => {
             }
         }
 
-        // 6. RECUPERAR NOTAS DE CRÉDITO AISLADAS
-        const listaNotas = dataToImport.notas_credito || [];
-        if (listaNotas.length) {
-            for (const n of listaNotas) {
-                const codGen = n.NCCodGeneracion || null;
-                const [dup] = await connection.query(`SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? AND ((NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') OR (REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', '')))`, [nitDeclarante, codGen, n.NCNumero, n.NCNitContraparte]);
-                if (dup.length === 0) {
-                    const backupNota = { ...n, NCFecha: formatearFecha(n.NCFecha) };
-                    delete backupNota.idNotaCredito; 
-                    await connection.query('INSERT INTO notas_credito SET ?', backupNota);
-                    reporte.notas++;
-                } else { reporte.duplicados++; }
-            }
-        }
-
         await connection.commit();
         res.json({ message: "Importación finalizada con éxito.", detalle: reporte });
 
     } catch (e) {
         await connection.rollback();
-        // 🛡️ CORRECCIÓN: Mandamos el texto de error limpio al frontend
         res.status(400).json({ message: e.message });
     } finally { connection.release(); }
 };

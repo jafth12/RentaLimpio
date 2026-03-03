@@ -169,7 +169,6 @@
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
-import MainLayout from '../layouts/MainLayout.vue';
 
 const router = useRouter();
 const hostname = window.location.hostname;
@@ -216,7 +215,6 @@ watch(miNit, (nuevoValor) => {
   }
 });
 
-// Extrae el mes real del documento JSON original
 const obtenerMesNombre = (fechaIso) => {
     if (!fechaIso) return 'Enero';
     const partes = fechaIso.split('T')[0].split('-');
@@ -226,7 +224,6 @@ const obtenerMesNombre = (fechaIso) => {
     return meses[mesNum - 1] || 'Enero';
 };
 
-// --- NORMALIZADOR DE ESTRUCTURA ---
 const normalizarPayload = (json) => {
   return {
     backup_info: json.backup_info || json.encabezado || { 
@@ -239,7 +236,7 @@ const normalizarPayload = (json) => {
       ventas_ccf: json.data?.ventas_ccf || json.modulos?.ventas_credito_fiscal || [],
       ventas_cf: json.data?.ventas_cf || json.modulos?.ventas_consumidor || [],
       sujetos_excluidos: json.data?.sujetos_excluidos || json.modulos?.sujetos_excluidos || [],
-      retenciones: json.data?.retenciones || json.modulos?.retenciones || [] // 🛡️ AGREGADO
+      retenciones: json.data?.retenciones || json.modulos?.retenciones || []
     }
   };
 };
@@ -257,24 +254,16 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   
   const total = parseFloat(resumen.totalPagar) || 0;
   let iva = parseFloat(resumen.totalIva) || 0;
-  
-  let fovial = 0;
-  let cotrans = 0;
+  let fovial = 0; let cotrans = 0;
 
   if (resumen.tributos) {
-    const tribIva = resumen.tributos.find(t => t.codigo === '20'); 
-    if (tribIva) iva = parseFloat(tribIva.valor) || 0;
-
-    const tribFovial = resumen.tributos.find(t => t.codigo === 'D1');
-    const tribCotrans = resumen.tributos.find(t => t.codigo === 'C8');
-    
-    if (tribFovial) fovial = parseFloat(tribFovial.valor) || 0;
-    if (tribCotrans) cotrans = parseFloat(tribCotrans.valor) || 0;
+    const tribIva = resumen.tributos.find(t => t.codigo === '20'); if (tribIva) iva = parseFloat(tribIva.valor) || 0;
+    const tribFovial = resumen.tributos.find(t => t.codigo === 'D1'); const tribCotrans = resumen.tributos.find(t => t.codigo === 'C8');
+    if (tribFovial) fovial = parseFloat(tribFovial.valor) || 0; if (tribCotrans) cotrans = parseFloat(tribCotrans.valor) || 0;
   }
   
   const gravado = parseFloat(resumen.totalGravada) || (total - iva);
 
-  // 🛡️ MEJORA: Hacienda a veces usa "numDocumento" en lugar de "nit"
   const emisorNit = limpiarNit(emisor.nit || emisor.numDocumento);
   const emisorNrc = limpiarNit(emisor.nrc);
   const receptorNit = limpiarNit(receptor.nit || receptor.numDocumento);
@@ -284,76 +273,41 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const soyEmisor = (emisorNit === nitUsuario) || (nrcUsuario && emisorNrc === nrcUsuario);
 
   if (soyReceptor) {
-    
-    // 🛡️ DETECCIÓN DEL COMPROBANTE DE RETENCIÓN (DTE 07)
     if (tipoDte === '07') {
       return {
         modulo: 'retenciones',
         data: {
-          RetenNitAgente: emisorNit,
-          RetenNomAgente: emisor.nombre?.toUpperCase(), 
-          RetenFecha: fecha,
-          RetenListTipoDoc: '07', 
-          RetenSerieDoc: '',
-          RetenNumDoc: numero,
-          RetenCodGeneracion: codGen, 
-          
-          // 🛡️ CORRECCIÓN: Usando las llaves oficiales exactas de Hacienda para DTE 07
+          RetenNitAgente: emisorNit, RetenNomAgente: emisor.nombre?.toUpperCase(), RetenFecha: fecha, RetenListTipoDoc: '07', RetenSerieDoc: '', RetenNumDoc: numero, RetenCodGeneracion: codGen, 
           RetenMontoSujeto: parseFloat(resumen.totalSujetoRetencion) || parseFloat(resumen.totalPagar) || 0,
-          RetenMontoDeReten: parseFloat(resumen.totalIVAretenido) || 0,
-          
-          RetenDuiDelAgente: '',
-          RetenNumAnexo: '4',
-          RetenMesDeclarado: obtenerMesNombre(fecha),
-          RetenAnioDeclarado: fecha.split('-')[0]
+          RetenMontoDeReten: parseFloat(resumen.totalIVAretenido) || 0, RetenDuiDelAgente: '', RetenNumAnexo: '4', RetenMesDeclarado: obtenerMesNombre(fecha), RetenAnioDeclarado: fecha.split('-')[0]
         }
       };
     } else {
-      // ES UNA COMPRA NORMAL U OTRO GASTO
       return {
         modulo: 'compras',
         data: {
-          ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen,
-          proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(),
-          ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3',
-          ComMesDeclarado: obtenerMesNombre(fecha), 
-          ComAnioDeclarado: fecha.split('-')[0], 
-          comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
+          ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen, proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(), ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3', ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0], comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
         }
       };
     }
-
   } else if (soyEmisor) {
-   // 🛡️ RECONOCE CCF (03), NOTAS DE CRÉDITO (05) Y NOTAS DE DÉBITO (06)
-    if (tipoDte === '03' || tipoDte === '05' || tipoDte === '06') { 
+    // 🛡️ LÓGICA INTELIGENTE REPARADA PARA SEPARAR NOTAS CF Y CCF
+    const esClienteConNRC = receptorNrc && receptorNrc.length > 2;
+
+    if (tipoDte === '03' || ((tipoDte === '05' || tipoDte === '06') && esClienteConNRC)) { 
       return {
         modulo: 'ventas_ccf',
-        data: {
-          FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscNit: receptorNit,
-          FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, 
-          FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', 
-          FisTipoDoc: tipoDte, // 🛡️ ASIGNA EXACTAMENTE EL TIPO DEL JSON
-          FiscNumAnexo: '2'
-        }
+        data: { FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscNit: receptorNit, FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', FisTipoDoc: tipoDte, FiscNumAnexo: '2' }
       };
-    } else if (tipoDte === '01') {
+    } else if (tipoDte === '01' || ((tipoDte === '05' || tipoDte === '06') && !esClienteConNRC)) {
       return {
         modulo: 'ventas_cf',
-        data: {
-          ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero, ConsCodGeneracion: codGen,
-          ConsVtaGravLocales: gravado, ConsTotalVta: total, ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL',
-          ConsClaseDoc: '4', ConsTipoDoc: '01', ConsNumAnexo: '1'
-        }
+        data: { ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero, ConsCodGeneracion: codGen, ConsVtaGravLocales: gravado, ConsTotalVta: total, ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', ConsClaseDoc: '4', ConsTipoDoc: tipoDte, ConsNumAnexo: '1' }
       };
     } else if (tipoDte === '14') { 
       return {
         modulo: 'sujetos_excluidos',
-        data: {
-          ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero, ComprasSujExcluCodGeneracion: codGen,
-          ComprasSujExcluNIT: receptorNit, ComprasSujExcluNom: receptor.nombre?.toUpperCase(),
-          ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: (total * 0.10).toFixed(2),
-          ComprasSujExcluTipoDoc: '14', ComprasSujExcluAnexo: '5'
-        }
+        data: { ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero, ComprasSujExcluCodGeneracion: codGen, ComprasSujExcluNIT: receptorNit, ComprasSujExcluNom: receptor.nombre?.toUpperCase(), ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: (total * 0.10).toFixed(2), ComprasSujExcluTipoDoc: '14', ComprasSujExcluAnexo: '5' }
       };
     }
   }
@@ -372,10 +326,16 @@ const cargarArchivo = (event) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
 
-        if (!miNit.value && jsonRaw.receptor) {
-            let emp = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === limpiarNit(jsonRaw.receptor.nit || jsonRaw.receptor.numDocumento));
-            if (!emp && jsonRaw.receptor.nrc) {
-                emp = declarantesDB.value.find(d => limpiarNit(d.declaNRC) === limpiarNit(jsonRaw.receptor.nrc));
+        // 🛡️ REPARADO: Busca inteligentemente el NIT analizando si eres emisor o receptor (soporta arrays)
+        let docPrueba = Array.isArray(jsonRaw) ? jsonRaw[0] : jsonRaw;
+        docPrueba = docPrueba.dteJson || docPrueba.dte || docPrueba;
+
+        if (!miNit.value) {
+            let emp = null;
+            if (docPrueba.emisor) emp = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === limpiarNit(docPrueba.emisor.nit || docPrueba.emisor.numDocumento));
+            if (!emp && docPrueba.receptor) {
+                emp = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === limpiarNit(docPrueba.receptor.nit || docPrueba.receptor.numDocumento));
+                if (!emp && docPrueba.receptor.nrc) emp = declarantesDB.value.find(d => limpiarNit(d.declaNRC) === limpiarNit(docPrueba.receptor.nrc));
             }
             if (emp) miNit.value = limpiarNit(emp.iddeclaNIT); 
         }
@@ -394,7 +354,6 @@ const cargarArchivo = (event) => {
             };
         }
         
-        // 🛡️ CASO 1: JSON Anexos Hacienda (F-07)
         if (jsonRaw.identificacion && (jsonRaw.anexo3_compras || jsonRaw.anexo1_consumidor_final || jsonRaw.anexo4_retenciones)) {
           if (jsonRaw.anexo3_compras) {
               jsonRaw.anexo3_compras.forEach(c => payloadFinal.value.data.compras.push({
@@ -417,12 +376,10 @@ const cargarArchivo = (event) => {
           }
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 2: Backup Propio del Sistema
         else if (jsonRaw.modulos || jsonRaw.data) { 
           payloadFinal.value = normalizarPayload(jsonRaw);
           datosProcesados.value = true;
         } 
-        // 🛡️ CASO 3: DTE(s) Original(es) de Hacienda
         else { 
           const lista = Array.isArray(jsonRaw) ? jsonRaw : [jsonRaw];
           lista.forEach(doc => {

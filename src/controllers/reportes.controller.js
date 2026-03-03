@@ -17,6 +17,16 @@ const formatoFechaCSV = (fechaISO) => {
     return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
 };
 
+// 🛡️ FORMATEADOR INTELIGENTE PARA LIBROS (Inyecta negativo si es NC 05)
+const formatearMontoLibro = (tipoDocumento, monto) => {
+    const valorAbsoluto = Math.abs(Number(monto || 0));
+    // Si es Nota de Crédito (05) y tiene valor, lo hacemos negativo para que reste en Excel/PDF
+    if (tipoDocumento === '05' && valorAbsoluto > 0) {
+        return `-${valorAbsoluto.toFixed(2)}`;
+    }
+    return valorAbsoluto.toFixed(2);
+};
+
 // ==========================================
 // 🛡️ CONSULTAS SQL UNIFICADAS CON NOTAS DE CRÉDITO Y FILTRO DE ANULADOS
 // ==========================================
@@ -148,7 +158,6 @@ export const exportarTodoJSON = async (req, res) => {
     try {
         const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
         
-        // 🛡️ AHORA TODOS FILTRAN LOS ANULADOS AUTOMÁTICAMENTE
         const [compras] = await pool.query(qCompras, [nit, mes, anio, nit, mes, anio]);
         const [ventasCCF] = await pool.query(qVentasCCF, [nit, mes, anio, nit, mes, anio]);
         const [ventasCF] = await pool.query(qVentasCF, [nit, mes, anio]);
@@ -195,33 +204,33 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
                 resolucion: sinGuiones(v.ConsNumResolu), serie: v.ConsNumSerie || '',
                 del: sinGuiones(v.ConsNumDocDEL), al: sinGuiones(v.ConsNumDocAL),
                 codigo_generacion: v.ConsCodGeneracion || '', 
-                exentas: Math.abs(Number(v.ConsVtaExentas || 0)).toFixed(2), 
-                gravadas: Math.abs(Number(v.ConsVtaGravLocales || 0)).toFixed(2), 
-                total: Math.abs(Number(v.ConsTotalVta || 0)).toFixed(2)
+                exentas: formatearMontoLibro(v.ConsTipoDoc, v.ConsVtaExentas), 
+                gravadas: formatearMontoLibro(v.ConsTipoDoc, v.ConsVtaGravLocales), 
+                total: formatearMontoLibro(v.ConsTipoDoc, v.ConsTotalVta)
             })),
             anexo2_credito_fiscal: anexo2.map(v => ({
                 fecha: v.FiscFecha, tipo: v.FisTipoDoc, numero: sinGuiones(v.FiscNumDoc),
                 codigo_generacion: v.FiscCodGeneracion || '', 
                 nit_cliente: sinGuiones(v.FiscNit) || '0000', nrc_cliente: sinGuiones(v.FiscNumContInter) || '0', nombre: v.FiscNomRazonDenomi,
                 documento_origen: sinGuiones(v.NCNumDocOrigen) || '',
-                exentas: Math.abs(Number(v.FiscVtaExen || 0)).toFixed(2), 
-                gravadas: Math.abs(Number(v.FiscVtaGravLocal || 0)).toFixed(2),
-                debito_fiscal: Math.abs(Number(v.FiscDebitoFiscal || 0)).toFixed(2), 
-                total: Math.abs(Number(v.FiscTotalVtas || 0)).toFixed(2)
+                exentas: formatearMontoLibro(v.FisTipoDoc, v.FiscVtaExen), 
+                gravadas: formatearMontoLibro(v.FisTipoDoc, v.FiscVtaGravLocal),
+                debito_fiscal: formatearMontoLibro(v.FisTipoDoc, v.FiscDebitoFiscal), 
+                total: formatearMontoLibro(v.FisTipoDoc, v.FiscTotalVtas)
             })),
             anexo3_compras: anexo3.map(c => ({
                 fecha: c.ComFecha, clase: c.ComClase, tipo: c.ComTipo, numero: sinGuiones(c.ComNumero),
                 codigo_generacion: c.ComCodGeneracion || '', 
                 nit_proveedor: sinGuiones(c.proveedor_ProvNIT) || '0000', nombre_proveedor: c.ComNomProve,
                 documento_origen: sinGuiones(c.NCNumDocOrigen) || '',
-                internas_exentas: Math.abs(Number(c.ComIntExe || 0)).toFixed(2), 
-                internas_gravadas: Math.abs(Number(c.ComIntGrav || 0)).toFixed(2),
-                importaciones_exentas: Math.abs(Number((parseFloat(c.ComInternacioExe) || 0) + (parseFloat(c.ComImpExeNoSujetas) || 0))).toFixed(2),
-                importaciones_gravadas: Math.abs(Number((parseFloat(c.ComInternacGravBienes) || 0) + (parseFloat(c.ComImportGravBienes) || 0) + (parseFloat(c.ComImportGravServicios) || 0))).toFixed(2),
+                internas_exentas: formatearMontoLibro(c.ComTipo, c.ComIntExe), 
+                internas_gravadas: formatearMontoLibro(c.ComTipo, c.ComIntGrav),
+                importaciones_exentas: formatearMontoLibro(c.ComTipo, (parseFloat(c.ComInternacioExe) || 0) + (parseFloat(c.ComImpExeNoSujetas) || 0)),
+                importaciones_gravadas: formatearMontoLibro(c.ComTipo, (parseFloat(c.ComInternacGravBienes) || 0) + (parseFloat(c.ComImportGravBienes) || 0) + (parseFloat(c.ComImportGravServicios) || 0)),
                 iva_percibido: "0.00", sujetos_excluidos: "0.00", 
-                credito_fiscal: Math.abs(Number(c.ComCredFiscal || 0)).toFixed(2), 
-                otros_montos: Math.abs(Number(c.ComOtroAtributo || 0)).toFixed(2), 
-                total: Math.abs(Number(c.ComTotal || 0)).toFixed(2)
+                credito_fiscal: formatearMontoLibro(c.ComTipo, c.ComCredFiscal), 
+                otros_montos: formatearMontoLibro(c.ComTipo, c.ComOtroAtributo), 
+                total: formatearMontoLibro(c.ComTipo, c.ComTotal)
             })),
             anexo4_retenciones: anexo4.map(r => ({
                 fecha: r.RetenFecha, nit_agente: sinGuiones(r.RetenNitAgente), 
