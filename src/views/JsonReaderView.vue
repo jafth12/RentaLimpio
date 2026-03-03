@@ -324,17 +324,19 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
     }
 
   } else if (soyEmisor) {
-    
-    if (tipoDte === '03') { 
+   // 🛡️ RECONOCE CCF (03), NOTAS DE CRÉDITO (05) Y NOTAS DE DÉBITO (06)
+    if (tipoDte === '03' || tipoDte === '05' || tipoDte === '06') { 
       return {
         modulo: 'ventas_ccf',
         data: {
           FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscNit: receptorNit,
           FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, 
-          FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', FisTipoDoc: '03', FiscNumAnexo: '2'
+          FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', 
+          FisTipoDoc: tipoDte, // 🛡️ ASIGNA EXACTAMENTE EL TIPO DEL JSON
+          FiscNumAnexo: '2'
         }
       };
-    } else if (tipoDte === '01') { 
+    } else if (tipoDte === '01') {
       return {
         modulo: 'ventas_cf',
         data: {

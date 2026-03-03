@@ -3,12 +3,12 @@
     <div class="ventas-container">
       <div class="header-section">
         <div class="title-box">
-          <h1>🏢 Ventas Crédito Fiscal</h1>
-          <p class="subtitle">Emisión de Comprobantes de Crédito Fiscal (Anexo 2)</p>
+          <h1>🏢 Ventas Crédito Fiscal y Notas</h1>
+          <p class="subtitle">Emisión de CCF, Notas de Crédito y Débito (Anexo 2)</p>
         </div>
         <div class="header-actions">
           <button @click="alternarVista" class="btn btn-primary">
-            {{ mostrandoLista ? '➕ Nuevo CCF' : '📋 Ver Historial' }}
+            {{ mostrandoLista ? '➕ Nuevo Documento' : '📋 Ver Historial' }}
           </button>
         </div>
       </div>
@@ -16,11 +16,19 @@
       <div class="main-content">
         <div v-if="!mostrandoLista" class="card fade-in">
           <div class="card-header">
-            <h2>{{ modoEdicion ? '✏️ Editar CCF' : '✨ Nuevo Crédito Fiscal' }}</h2>
+            <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
             <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}</span>
           </div>
 
           <form @submit.prevent="guardarVenta" class="form-body">
+            
+            <div v-if="formulario.tipoDocumento === '05'" class="alert alert-warning mb-4 fade-in">
+                <strong>💡 Llenado de Nota de Crédito:</strong> Ingrese el monto o excedente que está <b>devolviendo o descontando</b> de la factura original. <em>(Nota: En el Anexo de Hacienda, estos valores se ingresan en positivo; ellos los restan automáticamente).</em>
+            </div>
+            <div v-if="formulario.tipoDocumento === '06'" class="alert alert-info mb-4 fade-in">
+                <strong>💡 Llenado de Nota de Débito:</strong> Ingrese el <b>cargo extra o excedente a cobrar</b> que no se incluyó en el Comprobante de Crédito Fiscal original.
+            </div>
+
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento</h3>
               <div class="form-grid four-cols">
@@ -32,6 +40,15 @@
                       <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
                          {{ d.declarante }}
                       </option>
+                   </select>
+                </div>
+
+                <div class="form-group" style="grid-column: span 2;">
+                   <label class="form-label text-primary-dark">🏷️ Tipo de Documento <span class="text-danger">*</span></label>
+                   <select v-model="formulario.tipoDocumento" class="form-control border-primary fw-bold" required>
+                      <option value="03">03 - Comprobante de Crédito Fiscal (CCF)</option>
+                      <option value="05">05 - Nota de Crédito (NC)</option>
+                      <option value="06">06 - Nota de Débito (ND)</option>
                    </select>
                 </div>
 
@@ -52,16 +69,21 @@
                   <input type="number" v-model="formulario.anioDeclarado" class="form-control" min="2000" required>
                 </div>
 
+                <div class="form-group">
+                  <label class="form-label">Serie (Opcional)</label>
+                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
+                </div>
+
                 <div class="form-group" style="grid-column: span 2;">
                   <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
                    <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
                 </div>
 
                 <div class="form-group" style="grid-column: span 2;">
-                   <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
+                   <label class="form-label">Número Control (DTE) <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
-                      <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
+                      <input type="text" :value="ccfParts.part1" class="dte-part w-2ch bg-transparent" readonly>
                       <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
                       <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
                       <span class="dte-sep">P</span>
@@ -70,10 +92,6 @@
                    </div>
                 </div>
 
-                <div class="form-group">
-                  <label class="form-label">Serie (Opcional)</label>
-                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
-                </div>
               </div>
             </div>
 
@@ -91,7 +109,7 @@
               </div>
             </div>
 
-            <div class="form-section bg-light">
+            <div class="form-section bg-light p-3 rounded-lg border">
               <h3 class="section-title">💰 Clasificación y Montos</h3>
               
               <div class="form-grid mt-2 mb-3">
@@ -119,17 +137,57 @@
               </div>
 
               <div class="montos-wrapper">
-                <div class="monto-group"><label class="monto-label">Ventas Gravadas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('gravadas')"></div></div>
-                <div class="monto-group"><label class="monto-label text-success">13% Débito Fiscal</label><div class="input-wrapper"><span class="currency text-success">+</span><input type="number" v-model="formulario.debitoFiscal" step="0.01" class="form-control monto-input text-success" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')"></div></div>
-                <div class="monto-group"><label class="monto-label">Ventas Exentas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('exentas')"></div></div>
-                <div class="monto-group"><label class="monto-label">Ventas No Sujetas</label><div class="input-wrapper"><span class="currency">$</span><input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('noSujetas')"></div></div>
-                <div class="monto-group total-group"><label class="monto-label">TOTAL A COBRAR</label><div class="input-wrapper"><span class="currency">$</span><input v-model="formulario.total" type="text" class="form-control total-input" readonly></div></div>
+                <div class="monto-group">
+                    <label class="monto-label">
+                        {{ formulario.tipoDocumento === '05' ? 'Devolución / Descuento (Base)' : (formulario.tipoDocumento === '06' ? 'Cargo Extra (Base)' : 'Base Gravada') }}
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="currency">$</span>
+                        <input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('gravadas')">
+                    </div>
+                </div>
+
+                <div class="monto-group">
+                    <label class="monto-label text-success">
+                        {{ formulario.tipoDocumento === '05' ? 'IVA a Revertir (13%)' : (formulario.tipoDocumento === '06' ? 'IVA Adicional (13%)' : '13% IVA (Débito)') }}
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="currency text-success">{{ formulario.tipoDocumento === '05' ? '-' : '+' }}</span>
+                        <input type="number" v-model="formulario.debitoFiscal" step="0.01" class="form-control monto-input text-success" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')">
+                    </div>
+                </div>
+
+                <div class="monto-group">
+                    <label class="monto-label">Exentas</label>
+                    <div class="input-wrapper">
+                        <span class="currency">$</span>
+                        <input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('exentas')">
+                    </div>
+                </div>
+
+                <div class="monto-group">
+                    <label class="monto-label">No Sujetas</label>
+                    <div class="input-wrapper">
+                        <span class="currency">$</span>
+                        <input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('noSujetas')">
+                    </div>
+                </div>
+
+                <div class="monto-group total-group">
+                    <label class="monto-label text-primary">
+                        {{ formulario.tipoDocumento === '05' ? 'TOTAL NOTA DE CRÉDITO' : (formulario.tipoDocumento === '06' ? 'TOTAL NOTA DE DÉBITO' : 'TOTAL DOCUMENTO') }}
+                    </label>
+                    <div class="input-wrapper">
+                        <span class="currency text-primary">$</span>
+                        <input v-model="formulario.total" type="text" class="form-control total-input text-primary" readonly>
+                    </div>
+                </div>
               </div>
             </div>
 
             <div class="form-actions">
               <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">{{ cargando ? 'Procesando...' : (modoEdicion ? 'Actualizar Registro CCF' : '💾 Guardar en BD') }}</button>
+              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">{{ cargando ? 'Procesando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar en BD') }}</button>
             </div>
 
             <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
@@ -140,7 +198,7 @@
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
-             <h3>📋 Historial de Créditos Fiscales</h3>
+             <h3>📋 Historial de Documentos (Anexo 2)</h3>
              
              <div class="history-filters">
                 <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
@@ -178,7 +236,7 @@
                   <th style="width: 40px; text-align: center;">
                     <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="row-checkbox" title="Seleccionar todo">
                   </th>
-                  <th>Fecha</th><th>Anexo</th><th>Cliente (NRC)</th><th>N° CCF</th><th class="text-right">Gravado</th><th class="text-right text-success">Débito 13%</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
+                  <th>Fecha</th><th>Tipo</th><th>Cliente (NRC)</th><th>N° Documento</th><th class="text-right">Base</th><th class="text-right text-success">IVA (13%)</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -190,15 +248,23 @@
                     <div class="fw-bold text-dark">{{ formatearFecha(venta.FiscFecha) }}</div>
                     <small class="text-muted">Declarado: <strong class="text-primary">{{ venta.FiscMesDeclarado || 'N/A' }}</strong></small>
                   </td>
-                  <td><span class="badge-anexo">Anexo 2</span></td>
+                  <td>
+                     <span class="badge-type" :class="{'blue': venta.FisTipoDoc === '03', 'orange': venta.FisTipoDoc === '05', 'purple': venta.FisTipoDoc === '06'}">
+                         {{ venta.FisTipoDoc === '05' ? 'NC (05)' : (venta.FisTipoDoc === '06' ? 'ND (06)' : 'CCF (03)') }}
+                     </span>
+                  </td>
                   <td><div class="fw-bold text-dark">{{ venta.FiscNomRazonDenomi || 'Desconocido' }}</div><small class="text-muted">{{ venta.FiscNit || 'N/A' }}</small></td>
                   <td><span class="doc-number">{{ venta.FiscNumDoc || 'N/A' }}</span></td>
-                  <td class="text-right text-muted">${{ parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold text-success">+${{ parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2) }}</td>
+                  <td class="text-right text-muted">
+                    <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2) }}
+                  </td>
+                  <td class="text-right fw-bold" :class="venta.FisTipoDoc === '05' ? 'text-danger' : 'text-success'">
+                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${{ parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2) }}
+                  </td>
                   <td class="text-right fw-bold text-dark">${{ parseFloat(venta.FiscTotalVtas || 0).toFixed(2) }}</td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarVenta(venta.idCredFiscal)" title="Eliminar">🗑️</button>
+                    <button class="btn-icon text-danger" @click="eliminarVenta(venta)" title="Eliminar">🗑️</button>
                     <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>
@@ -224,7 +290,7 @@ const API_URL = `${BASE_URL}/api/ventas-CCF`;
 const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 // --- LÓGICA DE LA MÁSCARA DTE ---
-const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+const ccfParts = ref({ part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 const handleLetraInput = (e) => { 
     let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); 
     ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto(); 
@@ -246,13 +312,16 @@ const formulario = ref({
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
+    tipoDocumento: '03',
     numero_control: '', uuid_dte: '', serie: '', cliente: '', nrc: '',
     tipo_operacion: '1', tipo_ingreso: '1',
-    gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00'
+    gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
+    total: '0.00',
+    origenTabla: 'credfiscal'
 });
 
 const listaVentas = ref([]); 
-const listaAnuladosGlobal = ref([]); // 🛡️ NUEVO: Almacena los anulados
+const listaAnuladosGlobal = ref([]); 
 const todosLosDeclarantes = ref([]); 
 const mostrandoLista = ref(true);
 const modoEdicion = ref(false);
@@ -285,6 +354,7 @@ const aplicarCambioMasivo = async () => {
                 fecha: ventaOri.FiscFecha ? ventaOri.FiscFecha.split('T')[0] : null,
                 mesDeclarado: bulkMes.value,
                 anioDeclarado: bulkAnio.value,
+                tipoDocumento: ventaOri.FisTipoDoc || '03',
                 serie: ventaOri.FiscSerieDoc,
                 numero_control: ventaOri.FiscNumDoc,
                 uuid_dte: ventaOri.FiscCodGeneracion,
@@ -314,6 +384,14 @@ watch(() => formulario.value.fecha, (nuevaFecha) => {
         const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
         formulario.value.mesDeclarado = mesesOptions[mesIdx];
         formulario.value.anioDeclarado = nuevaFecha.split('-')[0];
+    }
+});
+
+// 🛡️ SINCRONIZA LA MÁSCARA DTE CON EL SELECT DE TIPO DE DOCUMENTO
+watch(() => formulario.value.tipoDocumento, (val) => {
+    if(val) {
+        ccfParts.value.part1 = val;
+        actualizarNumeroCompleto();
     }
 });
 
@@ -375,13 +453,11 @@ const cargarDatos = async () => {
         const resV = await axios.get(API_URL);
         listaVentas.value = resV.data || [];
 
-        // 🛡️ CARGAMOS LA LISTA DE ANULADOS PARA CRUCE VISUAL
         const resA = await axios.get(`${BASE_URL}/api/anulados`);
         listaAnuladosGlobal.value = resA.data || [];
     } catch (error) { console.error("Error cargando BD", error); }
 };
 
-// 🛡️ FUNCIÓN DE VERIFICACIÓN DE ANULADOS
 const esAnulado = (doc) => {
     const dte = doc.FiscNumDoc;
     const uuid = doc.FiscCodGeneracion;
@@ -393,29 +469,32 @@ const esAnulado = (doc) => {
 
 const guardarVenta = async () => { 
     if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
-    actualizarNumeroCompleto(); 
-    cargando.value = true;
-    calcularTotalGeneral(); 
+    actualizarNumeroCompleto(); cargando.value = true; calcularTotalGeneral(); 
     
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
-            tipoMensaje.value = 'success'; mensaje.value = '¡CCF actualizado en BD!';
+            // 🛡️ AQUI SE AÑADE EL ORIGEN
+            await axios.put(`${API_URL}/${idEdicion.value}?origen=${formulario.value.origenTabla}`, formulario.value);
+            tipoMensaje.value = 'success'; mensaje.value = '¡Actualizado en BD!';
         } else {
             await axios.post(API_URL, formulario.value);
-            tipoMensaje.value = 'success'; mensaje.value = '¡CCF guardado en BD!';
+            tipoMensaje.value = 'success'; mensaje.value = '¡Guardado en BD!';
         }
-        await cargarDatos(); 
-        setTimeout(() => { resetForm(); mostrandoLista.value = true; }, 1500);
+        await cargarDatos(); setTimeout(() => { resetForm(); mostrandoLista.value = true; }, 1500);
     } catch (error) { 
-        tipoMensaje.value = 'error'; 
-        mensaje.value = error.response?.data?.message || 'Error del servidor.'; 
+        tipoMensaje.value = 'error'; mensaje.value = error.response?.data?.message || 'Error del servidor.'; 
     } finally { cargando.value = false; }
 };
 
-const eliminarVenta = async (id) => { 
-    if(!confirm('¿Eliminar este CCF permanentemente de la Base de Datos?')) return;
-    try { await axios.delete(`${API_URL}/${id}`); await cargarDatos(); } catch (e) { alert('No se pudo eliminar el registro.'); }
+// 🛡️ IMPORTANTE: Ahora recibe el objeto VENTA completo, no solo el ID
+const eliminarVenta = async (venta) => { 
+    if(!confirm('¿Eliminar permanentemente de la Base de Datos?')) return;
+    try { 
+        // Identifica de qué tabla borrarlo
+        const idBorrar = venta.idCredFiscal || venta.idconsfinal;
+        await axios.delete(`${API_URL}/${idBorrar}?origen=${venta.OrigenTabla}`); 
+        await cargarDatos(); 
+    } catch (e) { alert('Error.'); }
 };
 
 const prepararEdicion = (venta) => { 
@@ -424,7 +503,7 @@ const prepararEdicion = (venta) => {
     const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
     const match = rawNum.replace(/-/g, '').match(regex);
     
-    ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: venta.FisTipoDoc || '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
 
     const limpiarCodigoCat = (txt) => { const m = (txt||'').toString().match(/\d+/); return m ? m[0] : '1'; };
 
@@ -433,6 +512,7 @@ const prepararEdicion = (venta) => {
         fecha: fSegura,
         mesDeclarado: venta.FiscMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
         anioDeclarado: venta.FiscAnioDeclarado || fSegura.substring(0,4),
+        tipoDocumento: venta.FisTipoDoc || '03',
         numero_control: rawNum,
         uuid_dte: venta.FiscCodGeneracion || '',
         serie: venta.FiscSerieDoc || '',
@@ -447,17 +527,18 @@ const prepararEdicion = (venta) => {
         total: parseFloat(venta.FiscTotalVtas || 0).toFixed(2)
     }; 
     idEdicion.value = venta.idCredFiscal; modoEdicion.value = true; mostrandoLista.value = false; 
+    formulario.value.origenTabla = venta.OrigenTabla;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), numero_control: '', uuid_dte: '', serie: '', cliente: '', nrc: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00' };
-    ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '03', numero_control: '', uuid_dte: '', serie: '', cliente: '', nrc: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00' };
+    ccfParts.value = { part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
+    formulario.value.origenTabla = 'credfiscal';
 };
 
-// 🛡️ LÓGICA DE ANULACIÓN ACTUALIZADA (NO BORRA LA VENTA)
 const anularDocumento = async (ventaOriginal) => {
     if(esAnulado(ventaOriginal)) {
         alert("Este documento ya se encuentra anulado en el sistema.");
@@ -469,11 +550,11 @@ const anularDocumento = async (ventaOriginal) => {
     try {
         const payloadAnulado = {
             iddeclaNIT: ventaOriginal.iddeclaNIT,
-            fecha: ventaOriginal.FiscFecha,
+            fecha: ventaOriginal.FiscFecha ? ventaOriginal.FiscFecha.split('T')[0] : new Date().toISOString().split('T')[0],
             mesDeclarado: ventaOriginal.FiscMesDeclarado,
             anioDeclarado: ventaOriginal.FiscAnioDeclarado,
             tipoDeta: '1', 
-            tipoDoc: ventaOriginal.FisTipoDoc || '03',
+            tipoDoc: ventaOriginal.FisTipoDoc || '03', 
             uuid_dte: ventaOriginal.FiscCodGeneracion,
             desde: ventaOriginal.FiscNumDoc, 
             hasta: ventaOriginal.FiscNumDoc, 
@@ -483,10 +564,8 @@ const anularDocumento = async (ventaOriginal) => {
         };
 
         await axios.post(`${BASE_URL}/api/anulados`, payloadAnulado);
-        
-        // ¡YA NO HACEMOS EL AXIOS DELETE AQUÍ! El documento se queda en la tabla y se tacha.
         alert("✅ Documento Anulado exitosamente. Ya no sumará en los reportes.");
-        await cargarDatos(); // Recarga la tabla de ventas y la de anulados para aplicar el CSS
+        await cargarDatos(); 
     } catch (error) {
         alert("🚨 No se pudo completar la anulación: " + (error.response?.data?.message || error.message));
     }
@@ -499,7 +578,6 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* ESTILOS EXISTENTES ... */
 .ventas-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
@@ -509,7 +587,14 @@ onMounted(cargarDatos);
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
+
+/* Badges Dinámicos de Tipo de Documento */
+.badge-type { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em; }
+.badge-type.blue { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.badge-type.orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
+.badge-type.purple { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
 .badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
+
 .form-section { margin-bottom: 30px; }
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
@@ -517,6 +602,7 @@ onMounted(cargarDatos);
 .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
 .form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
 .form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
+.border-primary { border-color: #55C2B7; border-width: 2px; }
 
 .uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
 .select-catalogo { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 600; }
@@ -540,13 +626,14 @@ onMounted(cargarDatos);
 .table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
 .doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
-.alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
-.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.alert { padding: 12px; border-radius: 6px; font-weight: 500; text-align: center; }
+.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; margin-top: 20px; }
+.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; margin-top: 20px; }
+.alert-warning { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; text-align: left; }
+.alert-info { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-align: left; }
 .text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-primary { color: #55C2B7; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
-/* Asignación Masiva y Filtros */
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
 .filter-input { max-width: 200px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
 .filter-year { max-width: 100px; font-weight: 600; }
@@ -572,24 +659,11 @@ onMounted(cargarDatos);
 .dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
 .w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
 .dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
+.bg-transparent { background-color: transparent !important; }
 .text-xs { font-size: 0.75rem; }
 
-/* 🛡️ NUEVO CSS PARA FILAS ANULADAS */
-.is-anulado td {
-    background-color: #fee2e2 !important;
-    color: #991b1b !important;
-    text-decoration: line-through;
-    opacity: 0.7;
-}
-.is-anulado .doc-number::after {
-    content: " (ANULADO)";
-    color: #dc2626;
-    font-size: 0.7rem;
-    font-weight: 800;
-    text-decoration: none !important;
-    display: inline-block;
-    margin-left: 5px;
-}
+.is-anulado td { background-color: #fee2e2 !important; color: #991b1b !important; text-decoration: line-through; opacity: 0.7; }
+.is-anulado .doc-number::after { content: " (ANULADO)"; color: #dc2626; font-size: 0.7rem; font-weight: 800; text-decoration: none !important; display: inline-block; margin-left: 5px; }
 
 @media (max-width: 768px) {
   .montos-wrapper { flex-direction: column; }
