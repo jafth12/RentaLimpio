@@ -8,6 +8,7 @@ export const getVentasCF = async (req, res) => {
             SELECT 
                 idconsfinal, iddeclaNIT, ConsFecha, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, 
                 ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, 
+                ConsNumResolu, ConsNumMaqRegistro, 
                 ConsNumDocIdentCliente, ConsNomRazonCliente, 
                 ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, 
                 ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsMesDeclarado, ConsAnioDeclarado, 
@@ -19,7 +20,9 @@ export const getVentasCF = async (req, res) => {
             SELECT 
                 idNotaCredito as idconsfinal, iddeclaNIT, NCFecha as ConsFecha, NCClaseDoc as ConsClaseDoc, 
                 NCTipoDoc as ConsTipoDoc, NULL as ConsSerieDoc, NCNumero as ConsNumDocDEL, NCNumero as ConsNumDocAL, 
-                NCCodGeneracion as ConsCodGeneracion, NCNitContraparte as ConsNumDocIdentCliente, 
+                NCCodGeneracion as ConsCodGeneracion, 
+                NULL as ConsNumResolu, NULL as ConsNumMaqRegistro, 
+                NCNitContraparte as ConsNumDocIdentCliente, 
                 NCNombreContraparte as ConsNomRazonCliente, NCMontoExento as ConsVtaExentas, 0.00 as ConsVtaNoSujetas, 
                 NCMontoGravado as ConsVtaGravLocales, NCTotal as ConsTotalVta, '1' as ConsTipoOpera, 
                 '1' as ConsTipoIngreso, NCAnexo as ConsNumAnexo, NCMesDeclarado as ConsMesDeclarado, 
@@ -60,8 +63,8 @@ export const createVentasCF = async (req, res) => {
     try {
         const d = req.body;
 
-        if (!d.iddeclaNIT || !d.numero_control) {
-            return res.status(400).json({ message: 'Empresa y Número DTE son obligatorios.' });
+        if (!d.iddeclaNIT) {
+            return res.status(400).json({ message: 'La Empresa / Declarante es obligatoria.' });
         }
 
         const gravadas = parseFloat(d.gravadas) || 0;
@@ -73,55 +76,70 @@ export const createVentasCF = async (req, res) => {
 
         const docCliente = d.documentoCliente || '';
         const nomCliente = d.cliente || 'Cliente General';
-        const numControl = d.numero_control || '';
-        const uuidDte = d.uuid_dte || '';
+        
+        // 🛡️ LÓGICA DE VALIDACIÓN CRUZADA: DTE vs FÍSICO
+        const esFisico = d.modoIngreso === 'fisico';
+        const claseDoc = esFisico ? (d.maquina ? '2' : '1') : '4'; 
+        
+        const numDel = esFisico ? d.desde : d.numero_control;
+        const numAl = esFisico ? d.hasta : d.numero_control;
+        const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const serie = d.serie || null;
+        const resolucion = esFisico ? d.resolucion : null;
+        const maquina = esFisico ? d.maquina : null;
+
+        // 🚨 NUEVAS VALIDACIONES ESTRICTAS E INTELIGENTES (AQUÍ ESTABA EL DETALLE)
+        if (esFisico) {
+            if (!numDel || !numAl) return res.status(400).json({ message: '⚠️ Los correlativos DEL y AL son obligatorios para los documentos Físicos.' });
+            if (!resolucion) return res.status(400).json({ message: '⚠️ El número de Resolución es obligatorio para los documentos Físicos.' });
+        } else {
+            if (!numDel || !uuidDte) return res.status(400).json({ message: '⚠️ El Número de Control y el UUID son obligatorios para los documentos Electrónicos (DTE).' });
+        }
 
         if (tipoDoc === '05' || tipoDoc === '06') {
-            // 🛡️ REGLA RELAJADA PARA CREACIÓN (Notas)
             const [duplicado] = await pool.query(
                 `SELECT idNotaCredito FROM notas_credito 
                  WHERE iddeclaNIT = ? AND (
                      (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
                      OR ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', ''))
                  )`,
-                [d.iddeclaNIT, uuidDte, numControl]
+                [d.iddeclaNIT, uuidDte, numDel]
             );
 
-            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Documento duplicado en Notas de Crédito.' });
+            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Este documento o rango ya fue registrado en Notas de Crédito.' });
 
             const query = `
                 INSERT INTO notas_credito 
                 (iddeclaNIT, NCFecha, NCClaseDoc, NCTipoDoc, NCNumero, NCCodGeneracion, NCNitContraparte, NCNombreContraparte, NCNumDocOrigen, NCMontoGravado, NCMontoExento, NCIva, NCTotal, NCTipo, NCMesDeclarado, NCAnioDeclarado, NCAnexo) 
-                VALUES (?, ?, '4', ?, ?, ?, ?, ?, 'N/A', ?, ?, 0, ?, 'VENTA', ?, ?, '1')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'N/A', ?, ?, 0, ?, 'VENTA', ?, ?, '1')
             `;
-            const values = [d.iddeclaNIT, d.fecha, tipoDoc, numControl, uuidDte, docCliente, nomCliente, gravadas, exentas, total, d.mesDeclarado, d.anioDeclarado];
+            const values = [d.iddeclaNIT, d.fecha, claseDoc, tipoDoc, numDel, uuidDte, docCliente, nomCliente, gravadas, exentas, total, d.mesDeclarado, d.anioDeclarado];
             
             const [result] = await pool.query(query, values);
-            registrarAccion(usuario, 'CREACION', 'ANEXO 1 (NOTAS)', `Doc: ${numControl} - Total: $${total}`);
+            registrarAccion(usuario, 'CREACION', 'ANEXO 1 (NOTAS)', `Doc: ${numDel} - Total: $${total}`);
             res.status(201).json({ message: 'Nota Guardada Exitosamente', id: result.insertId });
 
         } else {
-            // 🛡️ REGLA RELAJADA PARA CREACIÓN (CF)
             const [duplicado] = await pool.query(
                 `SELECT idconsfinal FROM consumidorfinal 
                  WHERE iddeclaNIT = ? AND (
                      (ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') 
-                     OR ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
+                     OR ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocDEL, '-', '') = REPLACE(?, '-', '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
                  )`,
-                [d.iddeclaNIT, uuidDte, numControl]
+                [d.iddeclaNIT, uuidDte, numDel, numAl]
             );
 
-            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Documento duplicado. Este documento ya se encuentra registrado.' });
+            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Este Documento Físico o Rango ya se encuentra registrado en el sistema.' });
 
             const query = `
                 INSERT INTO consumidorfinal 
-                (iddeclaNIT, ConsFecha, ConsMesDeclarado, ConsAnioDeclarado, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsNomRazonCliente, ConsNumDocIdentCliente) 
-                VALUES (?, ?, ?, ?, '4', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', ?, ?)
+                (iddeclaNIT, ConsFecha, ConsMesDeclarado, ConsAnioDeclarado, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, ConsNumResolu, ConsNumMaqRegistro, ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsNomRazonCliente, ConsNumDocIdentCliente) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', ?, ?)
             `;
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, tipoDoc, d.serie || null, numControl, numControl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente];
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente];
 
             const [result] = await pool.query(query, values);
-            registrarAccion(usuario, 'CREACION', 'ANEXO 1', `Doc: ${numControl} - Total: $${total}`);
+            registrarAccion(usuario, 'CREACION', 'ANEXO 1', `Doc/Rango: ${numDel} - Total: $${total}`);
             res.status(201).json({ message: 'Documento Guardado Exitosamente', id: result.insertId });
         }
 
@@ -147,57 +165,72 @@ export const updateVentasCF = async (req, res) => {
 
         const docCliente = d.documentoCliente || '';
         const nomCliente = d.cliente || 'Cliente General';
-        const numControl = d.numero_control || '';
-        const uuidDte = d.uuid_dte || '';
+        
+        // 🛡️ LÓGICA DE VALIDACIÓN CRUZADA: DTE vs FÍSICO
+        const esFisico = d.modoIngreso === 'fisico';
+        const claseDoc = esFisico ? (d.maquina ? '2' : '1') : '4';
+        
+        const numDel = esFisico ? d.desde : d.numero_control;
+        const numAl = esFisico ? d.hasta : d.numero_control;
+        const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const serie = d.serie || null;
+        const resolucion = esFisico ? d.resolucion : null;
+        const maquina = esFisico ? d.maquina : null;
+
+        // 🚨 VALIDACIONES AL ACTUALIZAR
+        if (esFisico) {
+            if (!numDel || !numAl) return res.status(400).json({ message: '⚠️ Los correlativos DEL y AL son obligatorios.' });
+            if (!resolucion) return res.status(400).json({ message: '⚠️ El número de Resolución es obligatorio.' });
+        } else {
+            if (!numDel || !uuidDte) return res.status(400).json({ message: '⚠️ El Número de Control y el UUID son obligatorios.' });
+        }
 
         if (origen === 'notas_credito') {
-            // 🛡️ REGLA RELAJADA PARA EDICIÓN (Notas)
             const [duplicado] = await pool.query(
                 `SELECT idNotaCredito FROM notas_credito 
                  WHERE iddeclaNIT = ? AND idNotaCredito != ? AND (
                      (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
                      OR ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', ''))
                  )`,
-                [d.iddeclaNIT, id, uuidDte, numControl]
+                [d.iddeclaNIT, id, uuidDte, numDel]
             );
 
-            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRA Nota con ese mismo Número o UUID.' });
+            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRA Nota registrada igual.' });
 
             const query = `
                 UPDATE notas_credito SET 
-                    iddeclaNIT=?, NCFecha=?, NCTipoDoc=?, NCNumero=?, NCCodGeneracion=?, NCNitContraparte=?, NCNombreContraparte=?, NCMontoGravado=?, NCMontoExento=?, NCTotal=?, NCMesDeclarado=?, NCAnioDeclarado=?
+                    iddeclaNIT=?, NCFecha=?, NCClaseDoc=?, NCTipoDoc=?, NCNumero=?, NCCodGeneracion=?, NCNitContraparte=?, NCNombreContraparte=?, NCMontoGravado=?, NCMontoExento=?, NCTotal=?, NCMesDeclarado=?, NCAnioDeclarado=?
                 WHERE idNotaCredito = ?
             `;
-            const values = [d.iddeclaNIT, d.fecha, tipoDoc, numControl, uuidDte, docCliente, nomCliente, gravadas, exentas, total, d.mesDeclarado, d.anioDeclarado, id];
+            const values = [d.iddeclaNIT, d.fecha, claseDoc, tipoDoc, numDel, uuidDte, docCliente, nomCliente, gravadas, exentas, total, d.mesDeclarado, d.anioDeclarado, id];
 
             const [result] = await pool.query(query, values);
             if (result.affectedRows === 0) return res.status(404).json({ message: 'Nota no encontrada' });
-            registrarAccion(usuario, 'MODIFICACION', 'ANEXO 1 (NOTAS)', `DTE: ${numControl}`);
+            registrarAccion(usuario, 'MODIFICACION', 'ANEXO 1 (NOTAS)', `DTE: ${numDel}`);
             res.json({ message: 'Nota actualizada correctamente' });
 
         } else {
-            // 🛡️ REGLA RELAJADA PARA EDICIÓN (CF)
             const [duplicado] = await pool.query(
                 `SELECT idconsfinal FROM consumidorfinal 
                  WHERE iddeclaNIT = ? AND idconsfinal != ? AND (
                      (ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') 
-                     OR ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
+                     OR ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocDEL, '-', '') = REPLACE(?, '-', '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
                  )`,
-                [d.iddeclaNIT, id, uuidDte, numControl]
+                [d.iddeclaNIT, id, uuidDte, numDel, numAl]
             );
 
-            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO documento con ese mismo Número o UUID.' });
+            if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO documento o rango registrado igual.' });
 
             const query = `
                 UPDATE consumidorfinal SET 
-                    iddeclaNIT=?, ConsFecha=?, ConsMesDeclarado=?, ConsAnioDeclarado=?, ConsTipoDoc=?, ConsSerieDoc=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsCodGeneracion=?, ConsVtaExentas=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, ConsTotalVta=?, ConsTipoOpera=?, ConsTipoIngreso=?, ConsNomRazonCliente=?, ConsNumDocIdentCliente=?
+                    iddeclaNIT=?, ConsFecha=?, ConsMesDeclarado=?, ConsAnioDeclarado=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsSerieDoc=?, ConsNumResolu=?, ConsNumMaqRegistro=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsCodGeneracion=?, ConsVtaExentas=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, ConsTotalVta=?, ConsTipoOpera=?, ConsTipoIngreso=?, ConsNomRazonCliente=?, ConsNumDocIdentCliente=?
                 WHERE idconsfinal = ?
             `;
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, tipoDoc, d.serie || null, numControl, numControl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente, id];
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente, id];
 
             const [result] = await pool.query(query, values);
             if (result.affectedRows === 0) return res.status(404).json({ message: 'Documento no encontrado' });
-            registrarAccion(usuario, 'MODIFICACION', 'ANEXO 1', `DTE: ${numControl}`);
+            registrarAccion(usuario, 'MODIFICACION', 'ANEXO 1', `DTE/Rango: ${numDel}`);
             res.json({ message: 'Documento actualizado correctamente' });
         }
 

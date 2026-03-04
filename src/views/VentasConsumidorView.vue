@@ -15,9 +15,20 @@
 
       <div class="main-content">
         <div v-if="!mostrandoLista" class="card fade-in">
-          <div class="card-header">
-            <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
-            <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Clientes Finales' }}</span>
+          
+          <div class="card-header flex-between">
+            <div>
+              <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
+              <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Clientes Finales' }}</span>
+            </div>
+            <div class="toggle-switch">
+               <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                  <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico (DTE)
+               </label>
+               <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                  <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico / Rango
+               </label>
+            </div>
           </div>
 
           <form @submit.prevent="guardarVenta" class="form-body">
@@ -37,9 +48,7 @@
                    <label class="form-label text-dark fw-bold">🏢 Empresa / Declarante <span class="text-danger">*</span></label>
                    <select v-model="formulario.iddeclaNIT" class="form-control" required>
                       <option value="" disabled>-- Seleccione Empresa --</option>
-                      <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                         {{ d.declarante }}
-                      </option>
+                      <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
                    </select>
                 </div>
 
@@ -74,12 +83,12 @@
                   <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
                   <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
                    <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
                    <label class="form-label">Número Control (DTE) <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
@@ -90,6 +99,23 @@
                       <input type="text" :value="dteParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
                       <input type="text" :value="dteParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
                    </div>
+                </div>
+
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Número de Resolución <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.resolucion" class="form-control" placeholder="15042-RES-CR-..." required>
+                </div>
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Máquina Registradora (Si es Tiquete)</label>
+                  <input type="text" v-model="formulario.maquina" class="form-control" placeholder="Opcional">
+                </div>
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Correlativo DEL <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.desde" class="form-control fw-bold" placeholder="Ej: 1" required>
+                </div>
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Correlativo AL <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.hasta" class="form-control fw-bold" placeholder="Ej: 100" required>
                 </div>
 
               </div>
@@ -193,7 +219,7 @@
              <div style="display: flex; align-items: center; gap: 10px;">
                  <h3>📋 Historial de Ventas (Anexo 1)</h3>
                  <span class="badge-count">{{ ventasFiltradas.length }} documentos</span>
-             </div>3>
+             </div>
              
              <div class="history-filters">
                 <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
@@ -231,7 +257,7 @@
                   <th style="width: 40px; text-align: center;">
                     <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="row-checkbox" title="Seleccionar todo">
                   </th>
-                  <th>Fecha</th><th>Tipo</th><th>Cliente</th><th>N° Documento</th><th class="text-right">Gravadas</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
+                  <th>Fecha</th><th>Tipo</th><th>Clase</th><th>Cliente</th><th>Doc / Rango</th><th class="text-right">Gravadas</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -248,8 +274,19 @@
                          {{ venta.ConsTipoDoc === '05' ? 'NC (05)' : (venta.ConsTipoDoc === '06' ? 'ND (06)' : 'Factura (01)') }}
                      </span>
                   </td>
-                  <td><div class="fw-bold text-dark">{{ venta.ConsNomRazonCliente || 'Cliente General' }}</div></td>
-                  <td><span class="doc-number">{{ venta.ConsNumDocAL || 'N/A' }}</span></td>
+                  <td>
+                     <span class="badge-type" :class="{'blue': venta.ConsClaseDoc === '4', 'green': venta.ConsClaseDoc !== '4'}">
+                         {{ venta.ConsClaseDoc === '4' ? 'DTE' : 'Físico' }}
+                     </span>
+                  </td>
+                  <td><div class="fw-bold text-dark">{{ truncarTexto(venta.ConsNomRazonCliente) || 'Cliente General' }}</div></td>
+                  
+                  <td>
+                     <span class="doc-number text-xs" :title="venta.ConsCodGeneracion || venta.ConsNumResolu">
+                         {{ venta.ConsClaseDoc === '4' ? venta.ConsNumDocAL : `Del: ${venta.ConsNumDocDEL} Al: ${venta.ConsNumDocAL}` }}
+                     </span>
+                  </td>
+                  
                   <td class="text-right text-muted">
                     <span v-if="venta.ConsTipoDoc === '05'" class="text-danger">-</span>${{ parseFloat(venta.ConsVtaGravLocales || 0).toFixed(2) }}
                   </td>
@@ -259,10 +296,10 @@
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
                     <button class="btn-icon text-danger" @click="eliminarVenta(venta)" title="Eliminar">🗑️</button>
-                    <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
+                    <button v-if="!esAnulado(venta)" class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>
-                <tr v-if="ventasFiltradas.length === 0"><td colspan="8" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
+                <tr v-if="ventasFiltradas.length === 0"><td colspan="9" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
               </tbody>
             </table>
           </div>
@@ -302,12 +339,14 @@ const actualizarNumeroCompleto = () => {
 
 // --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
+    modoIngreso: 'dte', // 🛡️ NUEVO MODO
     iddeclaNIT: '', 
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
-    tipoDocumento: '01', // 🛡️ NUEVO: Tipo de documento
+    tipoDocumento: '01', 
     numero_control: '', uuid_dte: '', serie: '', 
+    resolucion: '', maquina: '', desde: '', hasta: '', // 🛡️ CAMPOS FÍSICOS
     cliente: 'Cliente General', documentoCliente: '', 
     tipo_operacion: '1', tipo_ingreso: '1', 
     gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
@@ -343,13 +382,20 @@ const aplicarCambioMasivo = async () => {
             const ventaOri = listaVentas.value.find(v => v.idconsfinal === id);
             if (!ventaOri) return Promise.resolve();
 
+            const esFisico = ventaOri.ConsClaseDoc !== '4';
+
             const payload = {
+                modoIngreso: esFisico ? 'fisico' : 'dte',
                 iddeclaNIT: ventaOri.iddeclaNIT,
                 fecha: ventaOri.ConsFecha ? ventaOri.ConsFecha.split('T')[0] : null,
                 mesDeclarado: bulkMes.value,
                 anioDeclarado: bulkAnio.value,
-                tipoDocumento: ventaOri.ConsTipoDoc || '01', // 🛡️ Mantenemos el tipo
+                tipoDocumento: ventaOri.ConsTipoDoc || '01', 
                 serie: ventaOri.ConsSerieDoc,
+                resolucion: ventaOri.ConsNumResolu,
+                maquina: ventaOri.ConsNumMaqRegistro,
+                desde: ventaOri.ConsNumDocDEL,
+                hasta: ventaOri.ConsNumDocAL,
                 numero_control: ventaOri.ConsNumDocAL,
                 uuid_dte: ventaOri.ConsCodGeneracion,
                 cliente: ventaOri.ConsNomRazonCliente,
@@ -380,7 +426,6 @@ watch(() => formulario.value.fecha, (nuevaFecha) => {
     }
 });
 
-// 🛡️ SINCRONIZA LA MÁSCARA DTE CON EL TIPO DE DOCUMENTO
 watch(() => formulario.value.tipoDocumento, (val) => {
     if(val) {
         dteParts.value.part1 = val;
@@ -388,7 +433,6 @@ watch(() => formulario.value.tipoDocumento, (val) => {
     }
 });
 
-// 🛡️ NUEVO: Función para calcular y asignar el total directamente al formulario
 const calcularTotalGeneral = () => {
     const g = parseFloat(formulario.value.gravadas) || 0; 
     const e = parseFloat(formulario.value.exentas) || 0;
@@ -400,9 +444,7 @@ const totalCalculado = computed(() => {
     const g = parseFloat(formulario.value.gravadas) || 0; 
     const e = parseFloat(formulario.value.exentas) || 0;
     const n = parseFloat(formulario.value.noSujetas) || 0; 
-    const total = g + e + n;
-    // Opcional: Podrías actualizar formulario.value.total aquí también, pero es mejor usar calcularTotalGeneral al enviar
-    return total.toFixed(2);
+    return (g + e + n).toFixed(2);
 });
 
 // --- FILTROS ---
@@ -466,14 +508,13 @@ const esAnulado = (doc) => {
 const guardarVenta = async () => { 
     if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
     
-    actualizarNumeroCompleto(); 
-    calcularTotalGeneral(); // 🛡️ AHORA SÍ EXISTE Y SE LLAMA CORRECTAMENTE
+    if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto(); 
+    calcularTotalGeneral(); 
     
     cargando.value = true; 
     
     try {
         if(modoEdicion.value) {
-            // 🛡️ AQUI SE AÑADE EL ORIGEN
             await axios.put(`${API_URL}/${idEdicion.value}?origen=${formulario.value.origenTabla}`, formulario.value);
             tipoMensaje.value = 'success'; mensaje.value = '¡Actualizado en BD!';
         } else {
@@ -490,11 +531,9 @@ const guardarVenta = async () => {
     }
 };
 
-// 🛡️ IMPORTANTE: Ahora recibe el objeto VENTA completo, no solo el ID
 const eliminarVenta = async (venta) => { 
     if(!confirm('¿Eliminar permanentemente de la Base de Datos?')) return;
     try { 
-        // Identifica de qué tabla borrarlo
         const idBorrar = venta.idCredFiscal || venta.idconsfinal;
         await axios.delete(`${API_URL}/${idBorrar}?origen=${venta.OrigenTabla}`); 
         await cargarDatos(); 
@@ -504,22 +543,32 @@ const eliminarVenta = async (venta) => {
 const prepararEdicion = (venta) => {
     let fSegura = venta.ConsFecha ? venta.ConsFecha.split('T')[0] : new Date().toISOString().split('T')[0];
     const rawNum = venta.ConsNumDocAL || '';
-    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
-    const match = rawNum.replace(/-/g, '').match(regex);
-    
-    dteParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: venta.ConsTipoDoc || '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    const esDTE = venta.ConsClaseDoc === '4';
+
+    if (esDTE) {
+        const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+        const match = rawNum.replace(/-/g, '').match(regex);
+        dteParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: venta.ConsTipoDoc || '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    } else {
+        dteParts.value = { part1: '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    }
 
     const limpiarCodigoCat = (txt) => { const m = (txt||'').toString().match(/\d+/); return m ? m[0] : '1'; };
 
     formulario.value = { 
+        modoIngreso: esDTE ? 'dte' : 'fisico',
         iddeclaNIT: venta.iddeclaNIT,
         fecha: fSegura,
         mesDeclarado: venta.ConsMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
         anioDeclarado: venta.ConsAnioDeclarado || fSegura.substring(0,4),
-        tipoDocumento: venta.ConsTipoDoc || '01', // 🛡️ EXTRAE EL TIPO
+        tipoDocumento: venta.ConsTipoDoc || '01', 
         numero_control: rawNum,
         uuid_dte: venta.ConsCodGeneracion || '',
         serie: venta.ConsSerieDoc || '',
+        resolucion: venta.ConsNumResolu || '',
+        maquina: venta.ConsNumMaqRegistro || '',
+        desde: venta.ConsNumDocDEL || '',
+        hasta: venta.ConsNumDocAL || '',
         cliente: venta.ConsNomRazonCliente || '',
         documentoCliente: venta.ConsNumDocIdentCliente || '',
         tipo_operacion: limpiarCodigoCat(venta.ConsTipoOpera), 
@@ -528,7 +577,7 @@ const prepararEdicion = (venta) => {
         exentas: parseFloat(venta.ConsVtaExentas || 0).toFixed(2),
         noSujetas: parseFloat(venta.ConsVtaNoSujetas || 0).toFixed(2),
         total: parseFloat(venta.ConsTotalVta || 0).toFixed(2),
-        origenTabla: venta.OrigenTabla // 🛡️ IMPORTANTE
+        origenTabla: venta.OrigenTabla 
     }; 
     idEdicion.value = venta.idconsfinal; modoEdicion.value = true; mostrandoLista.value = false;
 };
@@ -536,7 +585,7 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'consumidorfinal' };
+    formulario.value = { modoIngreso: 'dte', iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', resolucion: '', maquina: '', desde: '', hasta: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'consumidorfinal' };
     dteParts.value = { part1: '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -552,12 +601,12 @@ const anularDocumento = async (ventaOriginal) => {
             mesDeclarado: ventaOriginal.ConsMesDeclarado,
             anioDeclarado: ventaOriginal.ConsAnioDeclarado,
             tipoDeta: '1', 
-            tipoDoc: ventaOriginal.ConsTipoDoc || '01', // 🛡️ USA EL TIPO ORIGINAL
+            tipoDoc: ventaOriginal.ConsTipoDoc || '01', 
             uuid_dte: ventaOriginal.ConsCodGeneracion || '',
             desde: ventaOriginal.ConsNumDocDEL || ventaOriginal.ConsNumDocAL || '', 
             hasta: ventaOriginal.ConsNumDocAL || '', 
             serie: ventaOriginal.ConsSerieDoc || '',
-            resolucion: '',
+            resolucion: ventaOriginal.ConsNumResolu || '',
             anexo: '7'
         };
 
@@ -569,6 +618,7 @@ const anularDocumento = async (ventaOriginal) => {
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
+const truncarTexto = (t) => t && t.length > 20 ? t.substring(0, 20) + '...' : t;
 
 onMounted(cargarDatos);
 </script>
@@ -583,13 +633,20 @@ onMounted(cargarDatos);
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
-.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
+.badge-count { font-size: 0.8rem; background: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
 
-/* Badges Dinámicos de Tipo de Documento */
+/* 🛡️ Switch Layout */
+.toggle-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0; }
+.toggle-switch label { cursor: pointer; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; color: #64748b; border-radius: 6px; transition: all 0.2s; margin: 0; display: flex; align-items: center; justify-content: center; }
+.toggle-switch label.active { background: white; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.d-none { display: none; }
+
+/* Badges Dinámicos de Tipo y Clase de Documento */
 .badge-type { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em; }
 .badge-type.blue { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
 .badge-type.orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
 .badge-type.purple { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.badge-type.green { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 
 .form-section { margin-bottom: 30px; }
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }

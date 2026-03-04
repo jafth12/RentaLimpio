@@ -3,7 +3,6 @@ import { registrarAccion } from './historial.controller.js';
 
 // --- FUNCIONES AUXILIARES ---
 const obtenerNumeroMes = (m) => {
-    // 🛡️ CORREGIDO: Mapa limpio y normalizado para evitar fallos con Octubre
     const nombreMes = (m || "").trim();
     const mapa = { 
         "Enero":"01", "Febrero":"02", "Marzo":"03", "Abril":"04", 
@@ -16,17 +15,46 @@ const obtenerNumeroMes = (m) => {
 const formatearFecha = (fecha) => { if (!fecha) return null; return fecha.toString().split('T')[0]; };
 const sinGuiones = (texto) => { if (!texto) return ''; return texto.toString().replace(/-/g, ''); };
 
-// 🛡️ FECHA CSV (HACIENDA EXIGE DD/MM/YYYY)
-const formatoFechaCSV = (fechaISO) => {
-    if (!fechaISO) return '';
-    const d = new Date(fechaISO);
-    return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+// 🛡️ FECHA CSV (HACIENDA EXIGE EXACTAMENTE DD/MM/YYYY) - UTC BLINDADO
+const formatoFechaCSV = (fechaValor) => {
+    if (!fechaValor) return '';
+    try {
+        let str = fechaValor.toString();
+        
+        // 1. Buscamos el patrón YYYY-MM-DD
+        const matchYYYYMMDD = str.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+        if (matchYYYYMMDD) {
+            const anio = matchYYYYMMDD[1];
+            const mes = String(matchYYYYMMDD[2]).padStart(2, '0');
+            const dia = String(matchYYYYMMDD[3]).padStart(2, '0');
+            return `${dia}/${mes}/${anio}`; 
+        }
+        
+        // 2. Buscamos el patrón DD-MM-YYYY
+        const matchDDMMYYYY = str.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+        if (matchDDMMYYYY) {
+            const dia = String(matchDDMMYYYY[1]).padStart(2, '0');
+            const mes = String(matchDDMMYYYY[2]).padStart(2, '0');
+            const anio = matchDDMMYYYY[3];
+            return `${dia}/${mes}/${anio}`;
+        }
+
+        // 3. Respaldo por objeto Date nativo (Usamos UTC para evitar desfases de horario)
+        if (fechaValor instanceof Date) {
+            const dia = String(fechaValor.getUTCDate()).padStart(2, '0');
+            const mes = String(fechaValor.getUTCMonth() + 1).padStart(2, '0');
+            const anio = fechaValor.getUTCFullYear();
+            return `${dia}/${mes}/${anio}`;
+        }
+        
+        return str; 
+    } catch (error) {
+        return '';
+    }
 };
 
-// 🛡️ FORMATEADOR INTELIGENTE PARA LIBROS (Inyecta negativo si es NC 05)
 const formatearMontoLibro = (tipoDocumento, monto) => {
     const valorAbsoluto = Math.abs(Number(monto || 0));
-    // Si es Nota de Crédito (05) y tiene valor, lo hacemos negativo para que reste en Excel/PDF
     if (tipoDocumento === '05' && valorAbsoluto > 0) {
         return `-${valorAbsoluto.toFixed(2)}`;
     }
@@ -34,7 +62,7 @@ const formatearMontoLibro = (tipoDocumento, monto) => {
 };
 
 // ==========================================
-// 🛡️ CONSULTAS SQL UNIFICADAS CON NOTAS DE CRÉDITO Y FILTRO DE ANULADOS
+// 🛡️ CONSULTAS SQL UNIFICADAS
 // ==========================================
 const qCompras = `
     SELECT 
@@ -117,7 +145,6 @@ const qRetenciones = `
     ORDER BY RetenFecha ASC
 `;
 
-
 // ==========================================
 // 1. EXPORTACIONES INDIVIDUALES JSON (Backup)
 // ==========================================
@@ -157,7 +184,6 @@ export const exportarSujetos = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-// 🛡️ REPARADO: Se agregó la función exportarRetenciones que se había borrado
 export const exportarRetenciones = async (req, res) => {
     const { mes, anio, nit } = req.query;
     try {
@@ -188,7 +214,6 @@ export const exportarTodoJSON = async (req, res) => {
     } catch (error) { res.status(500).json({ message: error.message }); }
 };
 
-
 // --- 0. GENERADOR DEL JSON GENERAL PARA PDF/EXCEL ---
 export const generarAnexosHaciendaJSON = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -204,8 +229,6 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
         const [anexo3] = await pool.query(qCompras, [nit, mes, anio, nit, mes, anio]);
         const [anexo5] = await pool.query(qSujetos, [nit, mes, anio]);
         const [anexo4] = await pool.query(qRetenciones, [nit, mes, anio]);
-        
-        // 🛡️ NUEVO: Consulta de Anulados (Anexo 7)
         const [anexo7] = await pool.query(`SELECT * FROM anuladosextraviados WHERE iddeclaNIT = ? AND AnulMesDeclarado = ? AND AnulAnioDeclarado = ? ORDER BY DetaDocFecha ASC`, [nit, mes, anio]);
 
         const usuario = req.headers['x-usuario'] || 'Sistema';
@@ -262,7 +285,6 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
                 monto: Math.abs(Number(s.ComprasSujExcluMontoOpera || 0)).toFixed(2), 
                 retencion: Math.abs(Number(s.ComprasSujExcluMontoReten || 0)).toFixed(2)
             })),
-            // 🛡️ NUEVO: Mapeo de Anulados
             anexo7_anulados: anexo7.map(a => ({
                 fecha: a.DetaDocFecha,
                 tipo_doc: a.DetaDocTipoDoc || '01',
@@ -278,74 +300,194 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
     } catch (error) { res.status(500).json({ message: "Error técnico en reportes", error: error.message }); }
 };
 
-// --- EXPORTACIONES CSV (MANTENER EN POSITIVO SIEMPRE) ---
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL)
+// ========================================================================
 export const descargarAnexo1CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
     try {
         const [rows] = await pool.query(qVentasCF, [nit, mes, anio]);
-        if (rows.length === 0) return res.status(404).json({ message: "Sin datos." });
+        if (rows.length === 0) return res.status(404).json({ message: "Sin datos operantes para este periodo." });
+        
         const csvRows = rows.map(v => {
-            const uuidVal = sinGuiones(v.ConsCodGeneracion) || sinGuiones(v.ConsNumDocAL);
+            const esFisico = v.ConsClaseDoc !== '4';
+            let resolucion, serie, del, al, maquina, uuidCol;
+
+            if (esFisico) {
+                resolucion = sinGuiones(v.ConsNumResolu) || '0';
+                serie = sinGuiones(v.ConsSerieDoc) || '';
+                del = sinGuiones(v.ConsNumDocDEL) || '0';
+                al = sinGuiones(v.ConsNumDocAL) || '0';
+                maquina = sinGuiones(v.ConsNumMaqRegistro) || '';
+                uuidCol = '';
+            } else {
+                const uuidLimpio = sinGuiones(v.ConsCodGeneracion) || sinGuiones(v.ConsNumDocAL);
+                const numControlLimpio = sinGuiones(v.ConsNumDocAL);
+                
+                resolucion = numControlLimpio; 
+                serie = uuidLimpio;            
+                del = uuidLimpio;              
+                al = uuidLimpio;               
+                maquina = uuidLimpio;          
+                uuidCol = uuidLimpio;          
+            }
+
+            const dui = sinGuiones(v.ConsNumDocIdentCliente) || '';
+            const tipoOpera = v.ConsTipoOpera ? String(v.ConsTipoOpera).padStart(2, '0') : '01';
+            const tipoIngreso = v.ConsTipoIngreso ? String(v.ConsTipoIngreso).padStart(2, '0') : '01';
+
             const columnas = [
-                formatoFechaCSV(v.ConsFecha), v.ConsClaseDoc || '4', (v.ConsTipoDoc || "01").padStart(2, '0'), '', '',
-                uuidVal, uuidVal, sinGuiones(v.ConsNumDocDEL), sinGuiones(v.ConsNumDocAL), '',
-                Math.abs(v.ConsVtaExentas).toFixed(2), '0.00', Math.abs(v.ConsVtaNoSujetas).toFixed(2), 
-                Math.abs(v.ConsVtaGravLocales).toFixed(2), '0.00', '0.00', '0.00', '0.00', '0.00', 
-                Math.abs(v.ConsTotalVta).toFixed(2), v.ConsTipoOpera || '1', v.ConsTipoIngreso || '1', '1'
+                formatoFechaCSV(v.ConsFecha),               
+                v.ConsClaseDoc || '4',                      
+                (v.ConsTipoDoc || "01").padStart(2, '0'),   
+                resolucion,                                 
+                serie,                                      
+                del,                                        
+                al,                                         
+                maquina,                                    
+                uuidCol,                                    
+                dui,                                        
+                Math.abs(v.ConsVtaExentas).toFixed(2),      
+                '0.00',                                     
+                '0.00',                                     
+                Math.abs(v.ConsVtaGravLocales).toFixed(2),  
+                '0.00',                                     
+                '0.00',                                     
+                '0.00',                                     
+                '0.00',                                     
+                Math.abs(v.ConsVtaNoSujetas).toFixed(2),    
+                Math.abs(v.ConsTotalVta).toFixed(2),        
+                tipoOpera,                                  
+                tipoIngreso,                                
+                '1'                                         
             ];
             return columnas.join(';');
         });
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="Anexo1_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        
+        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
+        res.setHeader('Content-Disposition', `attachment; filename="Anexo1_ConsumidorFinal_${mes}_${anio}.csv"`);
+        res.status(200).send(csvRows.join('\r\n'));
+    } catch (error) { 
+        res.status(500).json({ error: error.message }); 
+    }
 };
 
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL)
+// ========================================================================
 export const descargarAnexo2CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
     try {
         const [rows] = await pool.query(qVentasCCF, [nit, mes, anio, nit, mes, anio]);
         if (rows.length === 0) return res.status(404).json({ message: "Sin datos." });
+        
         const csvRows = rows.map(v => {
-            const uuidVal = sinGuiones(v.FiscCodGeneracion) || sinGuiones(v.FiscNumDoc);
+            const esFisico = v.FisClasDoc !== '4';
+            
+            const resolucion = esFisico ? (sinGuiones(v.FiscNumResol) || '0') : '0';
+            const serie = esFisico ? (sinGuiones(v.FiscSerieDoc) || '0') : '0';
+            const numDoc = sinGuiones(v.FiscNumDoc) || '0';
+            const uuidVal = esFisico ? '' : (sinGuiones(v.FiscCodGeneracion) || numDoc);
+            const duiClien = sinGuiones(v.FiscNumDuiClien) || '';
+
             const columnas = [
-                formatoFechaCSV(v.FiscFecha), v.FisClasDoc || '4', (v.FisTipoDoc || "03").padStart(2, '0'), '', '', 
-                sinGuiones(v.FiscNumDoc), uuidVal, sinGuiones(v.FiscNit), `"${(v.FiscNomRazonDenomi || "").toUpperCase()}"`,
-                Math.abs(v.FiscVtaExen).toFixed(2), Math.abs(v.FiscVtaNoSujetas).toFixed(2), 
-                Math.abs(v.FiscVtaGravLocal).toFixed(2), Math.abs(v.FiscDebitoFiscal).toFixed(2), '0.00', '0.00', 
-                Math.abs(v.FiscTotalVtas).toFixed(2), v.BusFiscTipoOperaRenta || '1', v.BusFiscTipoIngresoRenta || '1', '2'
+                formatoFechaCSV(v.FiscFecha),                 
+                v.FisClasDoc || '4',                          
+                (v.FisTipoDoc || "03").padStart(2, '0'),      
+                resolucion,                                   
+                serie,                                        
+                numDoc,                                       
+                uuidVal,                                      
+                sinGuiones(v.FiscNit),                        
+                `"${(v.FiscNomRazonDenomi || "").toUpperCase()}"`, 
+                Math.abs(v.FiscVtaExen).toFixed(2),           
+                Math.abs(v.FiscVtaNoSujetas).toFixed(2),      
+                Math.abs(v.FiscVtaGravLocal).toFixed(2),      
+                Math.abs(v.FiscDebitoFiscal).toFixed(2),      
+                '0.00',                                       
+                '0.00',                                       
+                Math.abs(v.FiscTotalVtas).toFixed(2),         
+                duiClien,                                     
+                v.BusFiscTipoOperaRenta || '1',               
+                v.BusFiscTipoIngresoRenta || '1',             
+                '2'                                           
             ];
             return columnas.join(';');
         });
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="Anexo2_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
+        
+        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
+        res.setHeader('Content-Disposition', `attachment; filename="Anexo2_CreditoFiscal_${mes}_${anio}.csv"`);
+        res.status(200).send(csvRows.join('\r\n'));
     } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 3 (COMPRAS)
+// ========================================================================
 export const descargarAnexo3CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
     try {
         const [rows] = await pool.query(qCompras, [nit, mes, anio, nit, mes, anio]);
         if (rows.length === 0) return res.status(404).json({ message: "Sin datos." });
+        
         const csvRows = rows.map(c => {
-            const numDoc = sinGuiones(c.ComCodGeneracion) || sinGuiones(c.ComNumero);
-            const total = Math.abs(parseFloat(c.ComTotal) || 0);
+            const numDoc = sinGuiones(c.ComNumero) || '0';
+            const nitProv = sinGuiones(c.proveedor_ProvNIT) || '';
+            const duiProv = sinGuiones(c.ComDuiProve) || '';
+            const nombreProv = (c.ComNomProve || "").toUpperCase().replace(/"/g, '');
+
+            const exentas = Math.abs(parseFloat(c.ComIntExe) || 0);
+            const intExentas = Math.abs(parseFloat(c.ComInternacioExe) || 0);
+            const impExentas = Math.abs(parseFloat(c.ComImpExeNoSujetas) || 0);
+            const gravadas = Math.abs(parseFloat(c.ComIntGrav) || 0);
+            const intGravadas = Math.abs(parseFloat(c.ComInternacGravBienes) || 0);
+            const impGravadasB = Math.abs(parseFloat(c.ComImportGravBienes) || 0);
+            const impGravadasS = Math.abs(parseFloat(c.ComImportGravServicios) || 0);
+            
+            const cf = Math.abs(parseFloat(c.ComCredFiscal) || 0).toFixed(2);
+            
+            const totalHacienda = (exentas + intExentas + impExentas + gravadas + intGravadas + impGravadasB + impGravadasS).toFixed(2);
+
             const columnas = [
-                formatoFechaCSV(c.ComFecha), c.ComClase || '4', (c.ComTipo || "03").padStart(2, '0'), numDoc, 
-                sinGuiones(c.proveedor_ProvNIT), `"${(c.ComNomProve || "").toUpperCase()}"`,
-                Math.abs(c.ComIntExe).toFixed(2), '0.00', '0.00', Math.abs(c.ComIntGrav).toFixed(2), 
-                '0.00', '0.00', '0.00', Math.abs(c.ComCredFiscal).toFixed(2), total.toFixed(2), '',
-                c.ComClasiRenta || '1', c.ComTipoCostoGasto || '2', c.ComTipoOpeRenta || '1', '1', '3'
+                formatoFechaCSV(c.ComFecha),            
+                c.ComClase || '4',                      
+                (c.ComTipo || "03").padStart(2, '0'),   
+                numDoc,                                 
+                nitProv,                                
+                nombreProv,                             
+                exentas.toFixed(2),                     
+                intExentas.toFixed(2),                  
+                impExentas.toFixed(2),                  
+                gravadas.toFixed(2),                    
+                intGravadas.toFixed(2),                 
+                impGravadasB.toFixed(2),                
+                impGravadasS.toFixed(2),                
+                cf,                                     
+                totalHacienda,                          
+                duiProv,                                
+                c.ComTipoOpeRenta || '1',               
+                c.ComClasiRenta || '2',                 
+                c.ComSecNum || '2',                     
+                c.ComTipoCostoGasto || '1',             
+                '3'                                     
             ];
-            return columnas.join(';'); 
+            return columnas.join(';');
         });
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="Anexo3_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
-    } catch (error) { res.status(500).json({ error: error.message }); }
+        
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
+        res.setHeader('Content-Disposition', `attachment; filename="Anexo3_Compras_${mes}_${anio}.csv"`);
+        res.status(200).send(csvRows.join('\r\n')); 
+
+    } catch (error) { 
+        res.status(500).json({ error: error.message }); 
+    }
 };
 
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 5 (SUJETOS EXCLUIDOS)
+// ========================================================================
 export const descargarAnexo5CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
@@ -368,15 +510,16 @@ export const descargarAnexo5CSV = async (req, res) => {
             return columnas.join(';');
         });
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo5_SujetosExcluidos_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
+        res.status(200).send(csvRows.join('\r\n'));
     } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
-// ------------------------------------------------------------------------
-// 🛡️ EXPORTACIÓN CSV ANEXO 4 (RETENCIONES 1%) - FORMATO OFICIAL F-07
-// ------------------------------------------------------------------------
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 4 (RETENCIONES 1%) 
+// ========================================================================
 export const exportarRetencionesCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
@@ -393,34 +536,35 @@ export const exportarRetencionesCSV = async (req, res) => {
             const numDocLimpio = sinGuiones(r.RetenNumDoc);
 
             const columnas = [
-                formatoFechaCSV(r.RetenFecha),                 // 1. Fecha de Emisión (DD/MM/YYYY)
-                '4',                                           // 2. Clase de Documento (4 = Electrónico)
-                '07',                                          // 3. Tipo de Documento (07 = Comprobante de Retención)
-                '0',                                           // 4. Resolución (0 obligatorio para DTE)
-                '0',                                           // 5. Serie (0 obligatorio para DTE)
-                numDocLimpio,                                  // 6. Número de Comprobante Interno
-                uuidLimpio || numDocLimpio,                    // 7. Identificador DTE (UUID)
-                sinGuiones(r.RetenNitAgente),                  // 8. NIT del Agente de Retención
-                r.RetenNomAgente ? `"${r.RetenNomAgente.toUpperCase()}"` : '""', // 9. Nombre del Agente de Retención
-                Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2),  // 10. Monto Sujeto a Retención
-                Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2), // 11. Monto Retenido (IVA)
-                '4'                                            // 12. Número de Anexo (4)
+                formatoFechaCSV(r.RetenFecha),                 
+                '4',                                           
+                '07',                                          
+                '0',                                           
+                '0',                                           
+                numDocLimpio,                                  
+                uuidLimpio || numDocLimpio,                    
+                sinGuiones(r.RetenNitAgente),                  
+                r.RetenNomAgente ? `"${r.RetenNomAgente.toUpperCase()}"` : '""', 
+                Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2),  
+                Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2), 
+                '4'                                            
             ];
             return columnas.join(';');
         });
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo4_Retenciones_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
+        res.status(200).send(csvRows.join('\r\n'));
 
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
 };
 
-// ------------------------------------------------------------------------
-// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) - FORMATO OFICIAL F-07
-// ------------------------------------------------------------------------
+// ========================================================================
+// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) 
+// ========================================================================
 export const exportarAnuladosCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
     if (!nit || !mes || !anio) return res.status(400).json({ message: "Faltan parámetros." });
@@ -431,28 +575,28 @@ export const exportarAnuladosCSV = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ message: "No hay documentos anulados operantes para este periodo." });
 
         const csvRows = rows.map(a => {
-            // Limpiamos los UUID y Números de Control (Hacienda los exige sin guiones)
             const uuidLimpio = sinGuiones(a.DetaDocCodGeneracion);
             const numControlLimpio = sinGuiones(a.DetaDocDesde) || sinGuiones(a.DetaDocHasta);
 
             const columnas = [
-                formatoFechaCSV(a.DetaDocFecha),               // 1. Fecha de Emisión (DD/MM/YYYY)
-                '4',                                           // 2. Clase de Documento (4 = Electrónico)
-                (a.DetaDocTipoDoc || "01").padStart(2, '0'),   // 3. Tipo de Documento (01, 03, 05...)
-                '0',                                           // 4. Resolución (0 obligatorio para DTE)
-                '0',                                           // 5. Serie (0 obligatorio para DTE)
-                numControlLimpio,                              // 6. Número Correlativo Del
-                numControlLimpio,                              // 7. Número Correlativo Al
-                uuidLimpio,                                    // 8. Identificador DTE (UUID)
-                a.DetaDocTipoDeta || '1',                      // 9. Tipo de Detalle (1=Anulado, 2=Extraviado)
-                '7'                                            // 10. Número de Anexo
+                formatoFechaCSV(a.DetaDocFecha),               
+                '4',                                           
+                (a.DetaDocTipoDoc || "01").padStart(2, '0'),   
+                '0',                                           
+                '0',                                           
+                numControlLimpio,                              
+                numControlLimpio,                              
+                uuidLimpio,                                    
+                a.DetaDocTipoDeta || '1',                      
+                '7'                                            
             ];
             return columnas.join(';');
         });
 
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo7_Anulados_${mes}_${anio}.csv"`);
-        res.status(200).send('\uFEFF' + csvRows.join('\n'));
+        res.status(200).send(csvRows.join('\r\n'));
 
     } catch (error) {
         return res.status(500).json({ message: error.message });

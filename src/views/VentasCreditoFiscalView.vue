@@ -15,12 +15,23 @@
 
       <div class="main-content">
         <div v-if="!mostrandoLista" class="card fade-in">
-          <div class="card-header">
-            <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
-            <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}</span>
+          
+          <div class="card-header flex-between">
+            <div>
+              <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
+              <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}</span>
+            </div>
+            <div class="toggle-switch">
+               <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                  <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico (DTE)
+               </label>
+               <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                  <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico / Papel
+               </label>
+            </div>
           </div>
 
-          <form @submit.prevent="guardarVenta" class="form-body">
+          <form @submit.prevent="guardarVenta" class="form-body mt-4">
             
             <div v-if="formulario.tipoDocumento === '05'" class="alert alert-warning mb-4 fade-in">
                 <strong>💡 Llenado de Nota de Crédito:</strong> Ingrese el monto o excedente que está <b>devolviendo o descontando</b> de la factura original. <em>(Nota: En el Anexo de Hacienda, estos valores se ingresan en positivo; ellos los restan automáticamente).</em>
@@ -74,12 +85,12 @@
                   <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
                   <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
                    <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
                 </div>
 
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
                    <label class="form-label">Número Control (DTE) <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
@@ -90,6 +101,15 @@
                       <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
                       <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
                    </div>
+                </div>
+
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Número de Resolución <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.resolucion" class="form-control" placeholder="15042-RES-CR-..." required>
+                </div>
+                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
+                  <label class="form-label">Número Correlativo de CCF <span class="text-danger">*</span></label>
+                  <input type="text" v-model="formulario.numero_fisico" class="form-control fw-bold" placeholder="Ej: 12345" required>
                 </div>
 
               </div>
@@ -187,7 +207,7 @@
 
             <div class="form-actions">
               <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">{{ cargando ? 'Procesando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar en BD') }}</button>
+              <button type="submit" class="btn btn-success btn-lg shadow-btn" :disabled="cargando">{{ cargando ? 'Procesando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar en BD') }}</button>
             </div>
 
             <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
@@ -239,7 +259,7 @@
                   <th style="width: 40px; text-align: center;">
                     <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="row-checkbox" title="Seleccionar todo">
                   </th>
-                  <th>Fecha</th><th>Tipo</th><th>Cliente (NRC)</th><th>N° Documento</th><th class="text-right">Base</th><th class="text-right text-success">IVA (13%)</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
+                  <th>Fecha</th><th>Tipo</th><th>Clase</th><th>Cliente (NRC)</th><th>N° Documento</th><th class="text-right">Base</th><th class="text-right text-success">IVA (13%)</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -256,8 +276,13 @@
                          {{ venta.FisTipoDoc === '05' ? 'NC (05)' : (venta.FisTipoDoc === '06' ? 'ND (06)' : 'CCF (03)') }}
                      </span>
                   </td>
+                  <td>
+                     <span class="badge-type" :class="{'blue': venta.FisClasDoc === '4', 'green': venta.FisClasDoc !== '4'}">
+                         {{ venta.FisClasDoc === '4' ? 'DTE' : 'Físico' }}
+                     </span>
+                  </td>
                   <td><div class="fw-bold text-dark">{{ venta.FiscNomRazonDenomi || 'Desconocido' }}</div><small class="text-muted">{{ venta.FiscNit || 'N/A' }}</small></td>
-                  <td><span class="doc-number">{{ venta.FiscNumDoc || 'N/A' }}</span></td>
+                  <td><span class="doc-number text-xs" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span></td>
                   <td class="text-right text-muted">
                     <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2) }}
                   </td>
@@ -271,7 +296,7 @@
                     <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
                   </td>
                 </tr>
-                <tr v-if="ventasFiltradas.length === 0"><td colspan="9" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
+                <tr v-if="ventasFiltradas.length === 0"><td colspan="10" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
               </tbody>
             </table>
           </div>
@@ -311,15 +336,16 @@ const actualizarNumeroCompleto = () => {
 
 // --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
+    modoIngreso: 'dte', // 🛡️ NUEVO
     iddeclaNIT: '',
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
     tipoDocumento: '03',
-    numero_control: '', uuid_dte: '', serie: '', cliente: '', nrc: '',
+    numero_control: '', uuid_dte: '', serie: '', resolucion: '', numero_fisico: '', // 🛡️ CAMPOS FISICOS
+    cliente: '', nrc: '',
     tipo_operacion: '1', tipo_ingreso: '1',
     gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
-    total: '0.00',
     origenTabla: 'credfiscal'
 });
 
@@ -352,13 +378,18 @@ const aplicarCambioMasivo = async () => {
             const ventaOri = listaVentas.value.find(v => v.idCredFiscal === id);
             if (!ventaOri) return Promise.resolve();
 
+            const esFisico = ventaOri.FisClasDoc !== '4';
+
             const payload = {
+                modoIngreso: esFisico ? 'fisico' : 'dte',
                 iddeclaNIT: ventaOri.iddeclaNIT,
                 fecha: ventaOri.FiscFecha ? ventaOri.FiscFecha.split('T')[0] : null,
                 mesDeclarado: bulkMes.value,
                 anioDeclarado: bulkAnio.value,
                 tipoDocumento: ventaOri.FisTipoDoc || '03',
                 serie: ventaOri.FiscSerieDoc,
+                resolucion: ventaOri.FiscNumResol,
+                numero_fisico: ventaOri.FiscNumDoc,
                 numero_control: ventaOri.FiscNumDoc,
                 uuid_dte: ventaOri.FiscCodGeneracion,
                 nrc: ventaOri.FiscNit,
@@ -371,7 +402,7 @@ const aplicarCambioMasivo = async () => {
                 tipo_operacion: ventaOri.BusFiscTipoOperaRenta,
                 tipo_ingreso: ventaOri.BusFiscTipoIngresoRenta
             };
-            return axios.put(`${API_URL}/${id}`, payload);
+            return axios.put(`${API_URL}/${id}?origen=${ventaOri.OrigenTabla}`, payload);
         });
         await Promise.all(promesas);
         alert(`✅ ${seleccionados.value.length} documentos actualizados.`);
@@ -390,11 +421,10 @@ watch(() => formulario.value.fecha, (nuevaFecha) => {
     }
 });
 
-// 🛡️ SINCRONIZA LA MÁSCARA DTE CON EL SELECT DE TIPO DE DOCUMENTO
 watch(() => formulario.value.tipoDocumento, (val) => {
     if(val) {
         ccfParts.value.part1 = val;
-        actualizarNumeroCompleto();
+        if(formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto();
     }
 });
 
@@ -472,11 +502,13 @@ const esAnulado = (doc) => {
 
 const guardarVenta = async () => { 
     if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
-    actualizarNumeroCompleto(); cargando.value = true; calcularTotalGeneral(); 
     
+    if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto(); 
+    calcularTotalGeneral(); 
+    
+    cargando.value = true; 
     try {
         if(modoEdicion.value) {
-            // 🛡️ AQUI SE AÑADE EL ORIGEN
             await axios.put(`${API_URL}/${idEdicion.value}?origen=${formulario.value.origenTabla}`, formulario.value);
             tipoMensaje.value = 'success'; mensaje.value = '¡Actualizado en BD!';
         } else {
@@ -489,11 +521,9 @@ const guardarVenta = async () => {
     } finally { cargando.value = false; }
 };
 
-// 🛡️ IMPORTANTE: Ahora recibe el objeto VENTA completo, no solo el ID
 const eliminarVenta = async (venta) => { 
     if(!confirm('¿Eliminar permanentemente de la Base de Datos?')) return;
     try { 
-        // Identifica de qué tabla borrarlo
         const idBorrar = venta.idCredFiscal || venta.idconsfinal;
         await axios.delete(`${API_URL}/${idBorrar}?origen=${venta.OrigenTabla}`); 
         await cargarDatos(); 
@@ -503,22 +533,30 @@ const eliminarVenta = async (venta) => {
 const prepararEdicion = (venta) => { 
     let fSegura = venta.FiscFecha ? venta.FiscFecha.split('T')[0] : new Date().toISOString().split('T')[0];
     const rawNum = venta.FiscNumDoc || '';
-    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
-    const match = rawNum.replace(/-/g, '').match(regex);
+    const esDTE = venta.FisClasDoc === '4';
     
-    ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: venta.FisTipoDoc || '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    if (esDTE) {
+        const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+        const match = rawNum.replace(/-/g, '').match(regex);
+        ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: venta.FisTipoDoc || '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    } else {
+        ccfParts.value = { part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    }
 
     const limpiarCodigoCat = (txt) => { const m = (txt||'').toString().match(/\d+/); return m ? m[0] : '1'; };
 
     formulario.value = { 
+        modoIngreso: esDTE ? 'dte' : 'fisico',
         iddeclaNIT: venta.iddeclaNIT,
         fecha: fSegura,
         mesDeclarado: venta.FiscMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
         anioDeclarado: venta.FiscAnioDeclarado || fSegura.substring(0,4),
         tipoDocumento: venta.FisTipoDoc || '03',
-        numero_control: rawNum,
+        numero_control: esDTE ? rawNum : '',
+        numero_fisico: esDTE ? '' : rawNum,
         uuid_dte: venta.FiscCodGeneracion || '',
         serie: venta.FiscSerieDoc || '',
+        resolucion: venta.FiscNumResol || '',
         cliente: venta.FiscNomRazonDenomi || '',
         nrc: venta.FiscNit || '',
         tipo_operacion: limpiarCodigoCat(venta.BusFiscTipoOperaRenta),
@@ -527,27 +565,22 @@ const prepararEdicion = (venta) => {
         debitoFiscal: parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2),
         exentas: parseFloat(venta.FiscVtaExen || 0).toFixed(2),
         noSujetas: parseFloat(venta.FiscVtaNoSujetas || 0).toFixed(2),
-        total: parseFloat(venta.FiscTotalVtas || 0).toFixed(2)
+        total: parseFloat(venta.FiscTotalVtas || 0).toFixed(2),
+        origenTabla: venta.OrigenTabla
     }; 
     idEdicion.value = venta.idCredFiscal; modoEdicion.value = true; mostrandoLista.value = false; 
-    formulario.value.origenTabla = venta.OrigenTabla;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '03', numero_control: '', uuid_dte: '', serie: '', cliente: '', nrc: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00' };
+    formulario.value = { modoIngreso: 'dte', iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '03', numero_control: '', uuid_dte: '', serie: '', resolucion: '', numero_fisico: '', cliente: '', nrc: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'credfiscal' };
     ccfParts.value = { part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
-    formulario.value.origenTabla = 'credfiscal';
 };
 
 const anularDocumento = async (ventaOriginal) => {
-    if(esAnulado(ventaOriginal)) {
-        alert("Este documento ya se encuentra anulado en el sistema.");
-        return;
-    }
-
+    if(esAnulado(ventaOriginal)) { alert("Este documento ya se encuentra anulado en el sistema."); return; }
     if(!confirm('⚠️ ¿Está seguro que desea ANULAR este documento?\nSe marcará como inoperante en pantalla y se excluirá de los reportes a Hacienda.')) return;
     
     try {
@@ -562,16 +595,14 @@ const anularDocumento = async (ventaOriginal) => {
             desde: ventaOriginal.FiscNumDoc, 
             hasta: ventaOriginal.FiscNumDoc, 
             serie: ventaOriginal.FiscSerieDoc || '',
-            resolucion: '',
+            resolucion: ventaOriginal.FiscNumResol || '',
             anexo: '7'
         };
 
         await axios.post(`${BASE_URL}/api/anulados`, payloadAnulado);
         alert("✅ Documento Anulado exitosamente. Ya no sumará en los reportes.");
         await cargarDatos(); 
-    } catch (error) {
-        alert("🚨 No se pudo completar la anulación: " + (error.response?.data?.message || error.message));
-    }
+    } catch (error) { alert("🚨 No se pudo completar la anulación: " + (error.response?.data?.message || error.message)); }
 };
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
@@ -592,11 +623,18 @@ onMounted(cargarDatos);
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
 .badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
 
-/* Badges Dinámicos de Tipo de Documento */
+/* 🛡️ Switch Layout */
+.toggle-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0; }
+.toggle-switch label { cursor: pointer; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; color: #64748b; border-radius: 6px; transition: all 0.2s; margin: 0; display: flex; align-items: center; justify-content: center; }
+.toggle-switch label.active { background: white; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.d-none { display: none; }
+
+/* Badges Dinámicos de Tipo y Clase de Documento */
 .badge-type { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em; }
 .badge-type.blue { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
 .badge-type.orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
 .badge-type.purple { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+.badge-type.green { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 .badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
 
 .form-section { margin-bottom: 30px; }
