@@ -302,7 +302,19 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
     } else if (tipoDte === '01' || ((tipoDte === '05' || tipoDte === '06') && !esClienteConNRC)) {
       return {
         modulo: 'ventas_cf',
-        data: { ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero, ConsCodGeneracion: codGen, ConsVtaGravLocales: gravado, ConsTotalVta: total, ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', ConsClaseDoc: '4', ConsTipoDoc: tipoDte, ConsNumAnexo: '1' }
+        data: { 
+            ConsFecha: fecha, 
+            ConsNumDocDEL: numero, 
+            ConsNumDocAL: numero, 
+            ConsCodGeneracion: codGen, 
+            ConsVtaGravLocales: gravado, 
+            ConsTotalVta: total, 
+            ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', 
+            ConsNumDocIdentCliente: receptorNit || '', // 🛡️ CAPTURA EL NIT O DUI DEL JSON
+            ConsClaseDoc: '4', 
+            ConsTipoDoc: tipoDte, 
+            ConsNumAnexo: '1' 
+        }
       };
     } else if (tipoDte === '14') { 
       return {

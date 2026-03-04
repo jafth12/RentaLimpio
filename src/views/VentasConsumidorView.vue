@@ -190,7 +190,10 @@
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
-             <h3>📋 Historial de Ventas (Anexo 1)</h3>
+             <div style="display: flex; align-items: center; gap: 10px;">
+                 <h3>📋 Historial de Ventas (Anexo 1)</h3>
+                 <span class="badge-count">{{ ventasFiltradas.length }} documentos</span>
+             </div>3>
              
              <div class="history-filters">
                 <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
@@ -308,7 +311,6 @@ const formulario = ref({
     cliente: 'Cliente General', documentoCliente: '', 
     tipo_operacion: '1', tipo_ingreso: '1', 
     gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
-    total: '0.00',
     origenTabla: 'consumidorfinal'
 });
 
@@ -359,7 +361,7 @@ const aplicarCambioMasivo = async () => {
                 tipo_operacion: ventaOri.ConsTipoOpera,
                 tipo_ingreso: ventaOri.ConsTipoIngreso
             };
-            return axios.put(`${API_URL}/${id}`, payload);
+            return axios.put(`${API_URL}/${id}?origen=${ventaOri.OrigenTabla}`, payload);
         });
         await Promise.all(promesas);
         alert(`✅ ${seleccionados.value.length} documentos actualizados.`);
@@ -386,12 +388,20 @@ watch(() => formulario.value.tipoDocumento, (val) => {
     }
 });
 
+// 🛡️ NUEVO: Función para calcular y asignar el total directamente al formulario
+const calcularTotalGeneral = () => {
+    const g = parseFloat(formulario.value.gravadas) || 0; 
+    const e = parseFloat(formulario.value.exentas) || 0;
+    const n = parseFloat(formulario.value.noSujetas) || 0; 
+    formulario.value.total = (g + e + n).toFixed(2);
+};
+
 const totalCalculado = computed(() => {
     const g = parseFloat(formulario.value.gravadas) || 0; 
     const e = parseFloat(formulario.value.exentas) || 0;
     const n = parseFloat(formulario.value.noSujetas) || 0; 
     const total = g + e + n;
-    formulario.value.total = total.toFixed(2);
+    // Opcional: Podrías actualizar formulario.value.total aquí también, pero es mejor usar calcularTotalGeneral al enviar
     return total.toFixed(2);
 });
 
@@ -455,7 +465,11 @@ const esAnulado = (doc) => {
 
 const guardarVenta = async () => { 
     if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
-    actualizarNumeroCompleto(); cargando.value = true; calcularTotalGeneral(); 
+    
+    actualizarNumeroCompleto(); 
+    calcularTotalGeneral(); // 🛡️ AHORA SÍ EXISTE Y SE LLAMA CORRECTAMENTE
+    
+    cargando.value = true; 
     
     try {
         if(modoEdicion.value) {
@@ -466,10 +480,14 @@ const guardarVenta = async () => {
             await axios.post(API_URL, formulario.value);
             tipoMensaje.value = 'success'; mensaje.value = '¡Guardado en BD!';
         }
-        await cargarDatos(); setTimeout(() => { resetForm(); mostrandoLista.value = true; }, 1500);
+        await cargarDatos(); 
+        setTimeout(() => { resetForm(); mostrandoLista.value = true; }, 1500);
     } catch (error) { 
-        tipoMensaje.value = 'error'; mensaje.value = error.response?.data?.message || 'Error del servidor.'; 
-    } finally { cargando.value = false; }
+        tipoMensaje.value = 'error'; 
+        mensaje.value = error.response?.data?.message || 'Error del servidor.'; 
+    } finally { 
+        cargando.value = false; 
+    }
 };
 
 // 🛡️ IMPORTANTE: Ahora recibe el objeto VENTA completo, no solo el ID
@@ -510,18 +528,17 @@ const prepararEdicion = (venta) => {
         exentas: parseFloat(venta.ConsVtaExentas || 0).toFixed(2),
         noSujetas: parseFloat(venta.ConsVtaNoSujetas || 0).toFixed(2),
         total: parseFloat(venta.ConsTotalVta || 0).toFixed(2),
+        origenTabla: venta.OrigenTabla // 🛡️ IMPORTANTE
     }; 
     idEdicion.value = venta.idconsfinal; modoEdicion.value = true; mostrandoLista.value = false;
-    formulario.value.origenTabla = venta.OrigenTabla;
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00' };
+    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'consumidorfinal' };
     dteParts.value = { part1: '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
-    formulario.value.origenTabla = 'consumidorfinal';
 };
 
 const anularDocumento = async (ventaOriginal) => {
@@ -566,6 +583,7 @@ onMounted(cargarDatos);
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
+.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
 
 /* Badges Dinámicos de Tipo de Documento */
 .badge-type { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em; }

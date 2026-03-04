@@ -5,7 +5,10 @@ import {
     descargarAnexo1CSV,
     descargarAnexo2CSV,
     descargarAnexo3CSV,
-    descargarAnexo5CSV
+    descargarAnexo5CSV,
+    exportarRetencionesCSV,
+    exportarAnuladosCSV,
+    exportarAnuladosJSON
 } from '../controllers/reportes.controller.js';
 
 const router = Router();
@@ -24,5 +27,9 @@ router.get('/anexo1-csv', descargarAnexo1CSV); // Consumidor Final
 router.get('/anexo2-csv', descargarAnexo2CSV); // Crédito Fiscal
 router.get('/anexo3-csv', descargarAnexo3CSV); // Compras
 router.get('/anexo5-csv', descargarAnexo5CSV); // Sujetos Excluidos
+router.get('/retenciones-csv', exportarRetencionesCSV);
+router.get('/anexo7-csv', exportarAnuladosCSV);
+router.get('/anulados-json', exportarAnuladosJSON);
+
 
 export default router;

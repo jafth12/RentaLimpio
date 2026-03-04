@@ -127,7 +127,10 @@
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
-             <h3>📋 Historial de Operaciones</h3>
+             <div style="display: flex; align-items: center; gap: 10px;">
+                 <h3>📋 Historial de Operaciones</h3>
+                 <span class="badge-count">{{ ventasFiltradas.length }} documentos</span>
+             </div>
              
              <div class="history-filters">
                 <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
@@ -425,6 +428,7 @@ onMounted(cargarDatos);
 .card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
 .card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
 .badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
+.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
 .badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
 .form-section { margin-bottom: 30px; }
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }

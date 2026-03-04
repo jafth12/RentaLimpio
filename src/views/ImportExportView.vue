@@ -232,14 +232,15 @@ const nitSeleccionado = ref('');
 
 const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
-// 🛡️ AÑADIMOS EL MÓDULO DE RETENCIONES AL MENÚ
+// 🛡️ AÑADIMOS EL MÓDULO DE ANULADOS AL MENÚ
 const modulos = [
   { id: 'todo', nombre: 'Reporte General', icono: '📦' },
   { id: 'compras', nombre: 'Compras', icono: '🛒' },
   { id: 'ventas_cf', nombre: 'Cons. Final', icono: '🧾' }, 
   { id: 'ventas_ccf', nombre: 'C. Fiscal', icono: '💼' }, 
   { id: 'sujetos', nombre: 'S. Excluidos', icono: '🚫' },
-  { id: 'retenciones', nombre: '1% Retención', icono: '🛡️' }, // <-- NUEVO MÓDULO AQUÍ
+  { id: 'retenciones', nombre: '1% Retención', icono: '🛡️' },
+  { id: 'anulados', nombre: 'Anulados', icono: '🗑️' } // <-- NUEVO MÓDULO AQUÍ
 ];
 
 onMounted(async () => {
@@ -251,7 +252,7 @@ onMounted(async () => {
     }
 });
 
-// 🛡️ AÑADIMOS EL NOMBRE DEL BOTÓN CSV PARA RETENCIONES
+// 🛡️ AÑADIMOS EL NOMBRE DEL BOTÓN CSV PARA ANULADOS
 const textoBotonCSV = computed(() => {
     switch (moduloSeleccionado.value) {
         case 'todo': return '📋 CSV (No disponible)';
@@ -259,7 +260,8 @@ const textoBotonCSV = computed(() => {
         case 'ventas_cf': return '📋 CSV (Cons. Final)';
         case 'ventas_ccf': return '📋 CSV (Crédito Fiscal)';
         case 'sujetos': return '📋 CSV (Sujetos)';
-        case 'retenciones': return '📋 CSV (Retenciones)'; // <-- NUEVO
+        case 'retenciones': return '📋 CSV (Retenciones)'; 
+        case 'anulados': return '📋 CSV (Anulados)'; // <-- NUEVO
         default: return '📋 CSV';
     }
 });
@@ -346,6 +348,10 @@ const generarLibroContableExcel = async () => {
             return isNaN(parsed) ? 0 : Number(parsed.toFixed(2));
         };
 
+        const getStr = (val) => {
+            return (val === null || val === undefined) ? "" : String(val);
+        };
+
         let tituloLibro = "";
         let headTabla = [];
         let bodyTabla = [];
@@ -373,21 +379,21 @@ const generarLibroContableExcel = async () => {
                 totales.iva = getNum((totales.iva || 0) + iva); totales.percibido = getNum((totales.percibido || 0) + percibido);
                 totales.sujetos = getNum((totales.sujetos || 0) + sujetos); totales.total = getNum((totales.total || 0) + total);
 
-                return [idx + 1, formatearFecha(c.fecha), c.numero, c.nit_proveedor, c.nombre_proveedor, exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
+                return [idx + 1, formatearFecha(c.fecha), getStr(c.numero), getStr(c.nit_proveedor), getStr(c.nombre_proveedor), exen, impExen, grav, impGrav, iva, percibido, sujetos, total];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.impExen, totales.grav, totales.impGrav, totales.iva, totales.percibido, totales.sujetos, totales.total]);
 
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
-            headTabla = ['N°', 'Fecha', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas'];
+            headTabla = ['N°', 'Fecha', 'Documento\nDEL', 'Documento\nAL', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas'];
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
 
             bodyTabla = registros.map((v, idx) => {
                 const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const total = getNum(v.total);
                 totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.total = getNum((totales.total || 0) + total);
-                return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, exen, grav, total ];
+                return [ idx + 1, formatearFecha(v.fecha), getStr(v.del), getStr(v.al), exen, grav, total ];
             });
-            bodyTabla.push(['', '', 'TOTALES:', totales.exen, totales.grav, totales.total]);
+            bodyTabla.push(['', '', '', 'TOTALES:', totales.exen, totales.grav, totales.total]);
 
         } else if (moduloSeleccionado.value === 'ventas_ccf') {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
@@ -397,7 +403,7 @@ const generarLibroContableExcel = async () => {
             bodyTabla = registros.map((v, idx) => {
                 const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const iva = getNum(v.debito_fiscal); const total = getNum(v.total);
                 totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.iva = getNum((totales.iva || 0) + iva); totales.total = getNum((totales.total || 0) + total);
-                return [idx + 1, formatearFecha(v.fecha), v.numero, v.nit_cliente, v.nombre, exen, grav, iva, total];
+                return [idx + 1, formatearFecha(v.fecha), getStr(v.numero), getStr(v.nit_cliente), getStr(v.nombre), exen, grav, iva, total];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.exen, totales.grav, totales.iva, totales.total]);
 
@@ -409,11 +415,10 @@ const generarLibroContableExcel = async () => {
             bodyTabla = registros.map((s, idx) => {
                 const monto = getNum(s.monto); const retencion = getNum(s.retencion);
                 totales.monto = getNum((totales.monto || 0) + monto); totales.retencion = getNum((totales.retencion || 0) + retencion);
-                return [ idx + 1, formatearFecha(s.fecha), s.documento, s.nit, s.nombre, monto, retencion ];
+                return [ idx + 1, formatearFecha(s.fecha), getStr(s.documento), getStr(s.nit), getStr(s.nombre), monto, retencion ];
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', totales.monto, totales.retencion]);
             
-        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES (EXCEL)
         } else if (moduloSeleccionado.value === 'retenciones') {
             tituloLibro = "REGISTRO DE RETENCIONES EFECTUADAS AL CONTRIBUYENTE (1%)";
             headTabla = ['N°', 'Fecha', 'NIT Agente', 'N° Documento', 'Monto Sujeto', 'Monto Retenido'];
@@ -422,9 +427,22 @@ const generarLibroContableExcel = async () => {
             bodyTabla = registros.map((r, idx) => {
                 const sujeto = getNum(r.monto_sujeto); const retenido = getNum(r.monto_retenido);
                 totales.sujeto = getNum((totales.sujeto || 0) + sujeto); totales.retenido = getNum((totales.retenido || 0) + retenido);
-                return [ idx + 1, formatearFecha(r.fecha), r.nit_agente, r.documento, sujeto, retenido ];
+                return [ idx + 1, formatearFecha(r.fecha), getStr(r.nit_agente), getStr(r.documento), sujeto, retenido ];
             });
             bodyTabla.push(['', '', '', 'TOTALES:', totales.sujeto, totales.retenido]);
+            
+        // 🛡️ AÑADIMOS EL BLOQUE DE ANULADOS (EXCEL)
+        } else if (moduloSeleccionado.value === 'anulados') {
+            tituloLibro = "REGISTRO DE DOCUMENTOS ANULADOS Y EXTRAVIADOS";
+            headTabla = ['N°', 'Fecha', 'Tipo\nDocumento', 'Tipo\nDetalle', 'Código Generación / Resolución', 'Documento\nDEL', 'Documento\nAL'];
+            const registros = data.anexo7_anulados ? data.anexo7_anulados.slice() : [];
+
+            bodyTabla = registros.map((a, idx) => {
+                const tipoDeta = a.tipo_deta === '1' ? 'Anulado' : 'Extraviado';
+                const identificador = a.codigo_generacion || a.resolucion || 'N/A';
+                return [ idx + 1, formatearFecha(a.fecha), a.tipo_doc, tipoDeta, getStr(identificador), getStr(a.desde), getStr(a.hasta) ];
+            });
+            if(bodyTabla.length === 0) { bodyTabla.push(["No hay documentos anulados en este periodo", "", "", "", "", "", ""]); }
         }
 
         const wsData = [
@@ -438,8 +456,9 @@ const generarLibroContableExcel = async () => {
         ];
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        ws['!cols'] = headTabla.map((_, i) => ({ wch: i === 4 ? 35 : (i === 2 || i === 3 ? 20 : 12) }));
-        ws['!rows'] = [{hpt: 20}, {hpt: 15}, {hpt: 15}, {hpt: 15}, {hpt: 10}, {hpt: 30}]; 
+        ws['!cols'] = headTabla.map((colHeader) => ({ 
+            wch: (colHeader.includes('Nombre') || colHeader.includes('Razón') || colHeader.includes('Código')) ? 40 : 18 
+        }));
         
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "LibroContable");
@@ -469,6 +488,7 @@ const generarLibroContablePDF = async () => {
         let tituloLibro = ""; let bodyTabla = []; let headTabla = []; let totales = {}; let configColumnas = {};
         const getNum = (val) => { const parsed = parseFloat(val); return isNaN(parsed) ? 0 : Number(parsed.toFixed(2)); };
         const truncarTexto = (texto, max = 45) => { if (!texto) return ''; return texto.length > max ? texto.substring(0, max) + '...' : texto; };
+        const getStr = (val) => { return (val === null || val === undefined) ? "" : String(val); };
 
         if (moduloSeleccionado.value === 'compras') {
             tituloLibro = "LIBRO DE COMPRAS";
@@ -486,16 +506,16 @@ const generarLibroContablePDF = async () => {
 
         } else if (moduloSeleccionado.value === 'ventas_cf') {
             tituloLibro = "LIBRO DE VENTAS A CONSUMIDOR FINAL";
-            headTabla = [['N°', 'Fecha\nEmisión', 'Documentos\n(Del - Al)', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas']];
+            headTabla = [['N°', 'Fecha\nEmisión', 'Documento\nDEL', 'Documento\nAL', 'Ventas\nExentas', 'Ventas\nGravadas Locales', 'Total\nVentas']];
             const registros = data.anexo1_consumidor_final ? data.anexo1_consumidor_final.slice() : [];
-            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 60 } };
+            configColumnas = { 0: { halign: 'center', cellWidth: 15 }, 1: { halign: 'center', cellWidth: 25 }, 2: { halign: 'center', cellWidth: 40 }, 3: { halign: 'center', cellWidth: 40 } };
 
             bodyTabla = registros.map((v, idx) => {
                 const exen = getNum(v.exentas); const grav = getNum(v.gravadas); const total = getNum(v.total);
                 totales.exen = getNum((totales.exen || 0) + exen); totales.grav = getNum((totales.grav || 0) + grav); totales.total = getNum((totales.total || 0) + total);
-                return [ idx + 1, formatearFecha(v.fecha), `${v.del} - ${v.al}`, `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${total.toFixed(2)}` ];
+                return [ idx + 1, formatearFecha(v.fecha), getStr(v.del), getStr(v.al), `$${exen.toFixed(2)}`, `$${grav.toFixed(2)}`, `$${total.toFixed(2)}` ];
             });
-            bodyTabla.push(['', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
+            bodyTabla.push(['', '', '', 'TOTALES:', `$${(totales.exen||0).toFixed(2)}`, `$${(totales.grav||0).toFixed(2)}`, `$${(totales.total||0).toFixed(2)}`]);
 
         } else if (moduloSeleccionado.value === 'ventas_ccf') {
             tituloLibro = "LIBRO DE VENTAS A CONTRIBUYENTES (CRÉDITO FISCAL)";
@@ -523,7 +543,6 @@ const generarLibroContablePDF = async () => {
             });
             bodyTabla.push(['', '', '', '', 'TOTALES:', `$${(totales.monto||0).toFixed(2)}`, `$${(totales.retencion||0).toFixed(2)}`]);
             
-        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES (PDF)
         } else if (moduloSeleccionado.value === 'retenciones') {
             tituloLibro = "REGISTRO DE RETENCIONES EFECTUADAS AL CONTRIBUYENTE (1%)";
             headTabla = [['N°', 'Fecha\nEmisión', 'NIT Agente\nRetenedor', 'N° Documento', 'Monto\nSujeto', 'Monto\nRetenido']];
@@ -536,6 +555,20 @@ const generarLibroContablePDF = async () => {
                 return [ idx + 1, formatearFecha(r.fecha), r.nit_agente, r.documento, `$${sujeto.toFixed(2)}`, `$${retenido.toFixed(2)}` ];
             });
             bodyTabla.push(['', '', '', 'TOTALES:', `$${(totales.sujeto||0).toFixed(2)}`, `$${(totales.retenido||0).toFixed(2)}`]);
+            
+        // 🛡️ AÑADIMOS EL BLOQUE DE ANULADOS (PDF)
+        } else if (moduloSeleccionado.value === 'anulados') {
+            tituloLibro = "REGISTRO DE DOCUMENTOS ANULADOS Y EXTRAVIADOS";
+            headTabla = [['N°', 'Fecha\nEmisión', 'Tipo\nDoc', 'Tipo\nDetalle', 'Código Generación / Resolución', 'DTE Del', 'DTE Al']];
+            const registros = data.anexo7_anulados ? data.anexo7_anulados.slice() : [];
+            configColumnas = { 0: { halign: 'center', cellWidth: 10 }, 1: { halign: 'center', cellWidth: 25 }, 4: { halign: 'center', cellWidth: 65 } };
+
+            bodyTabla = registros.map((a, idx) => {
+                const tipoDeta = a.tipo_deta === '1' ? 'Anulado' : 'Extraviado';
+                const identificador = a.codigo_generacion || a.resolucion || 'N/A';
+                return [ idx + 1, formatearFecha(a.fecha), a.tipo_doc, tipoDeta, getStr(identificador), getStr(a.desde), getStr(a.hasta) ];
+            });
+            if(bodyTabla.length === 0) { bodyTabla.push(["No hay documentos anulados en este periodo", "", "", "", "", "", ""]); }
         }
 
         doc.setFont("helvetica", "bold"); doc.setFontSize(14); doc.setTextColor(30, 58, 138); doc.text(tituloLibro, margenLat, posEncabezado + 4);
@@ -550,7 +583,7 @@ const generarLibroContablePDF = async () => {
             alternateRowStyles: { fillColor: [248, 250, 252] }, columnStyles: configColumnas,
             didParseCell: function(data) {
                 if (data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
-                if (data.row.index === bodyTabla.length - 1) {
+                if (data.row.index === bodyTabla.length - 1 && data.cell.text[0] !== "No hay documentos anulados en este periodo") {
                     data.cell.styles.fontStyle = 'bold'; data.cell.styles.fillColor = [226, 232, 240]; data.cell.styles.textColor = [15, 23, 42];
                     if (data.cell.text[0] && data.cell.text[0].includes('$')) data.cell.styles.halign = 'right';
                 }
@@ -576,6 +609,7 @@ const generarPDFMensual = async () => {
         const doc = new jsPDF('l', 'mm', 'legal'); 
         const margenSup = 19.1; const margenInf = 19.1; const margenLat = 2.0; const posEncabezado = 7.6; const pageWidth = doc.internal.pageSize.getWidth();
         const truncarTexto = (texto, max = 40) => { if (!texto) return ''; return texto.length > max ? texto.substring(0, max) + '...' : texto; };
+        const getStr = (val) => { return (val === null || val === undefined) ? "" : String(val); };
 
         doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.setTextColor(15, 118, 110); doc.text("RentaLimpio - Resumen Tributario", margenLat, posEncabezado + 4);
         doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(51, 65, 85);
@@ -629,7 +663,6 @@ const generarPDFMensual = async () => {
             startY = doc.lastAutoTable.finalY + 12;
         }
         
-        // 🛡️ AÑADIMOS EL BLOQUE DE RETENCIONES AL RESUMEN PDF GENERAL
         if (data.anexo4_retenciones && data.anexo4_retenciones.length > 0) {
             if (startY > doc.internal.pageSize.getHeight() - margenInf - 20) { doc.addPage(); startY = margenSup; }
             doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("4. Retenciones Efectuadas al Contribuyente (1%)", margenLat, startY);
@@ -639,6 +672,21 @@ const generarPDFMensual = async () => {
                 body: data.anexo4_retenciones.map(r => [formatearFecha(r.fecha), r.nit_agente, r.documento, `$${parseFloat(r.monto_sujeto||0).toFixed(2)}`, `$${parseFloat(r.monto_retenido||0).toFixed(2)}`]),
                 theme: 'striped', headStyles: { fillColor: [139, 92, 246], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
                 columnStyles: { 0: { halign: 'center', cellWidth: 20 }, 2: { halign: 'center', cellWidth: 45 } },
+                didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
+            });
+            startY = doc.lastAutoTable.finalY + 12;
+        }
+
+        // 🛡️ AÑADIMOS EL BLOQUE DE ANULADOS AL RESUMEN PDF GENERAL
+        if (data.anexo7_anulados && data.anexo7_anulados.length > 0) {
+            if (startY > doc.internal.pageSize.getHeight() - margenInf - 20) { doc.addPage(); startY = margenSup; }
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.text("5. Documentos Anulados y Extraviados", margenLat, startY);
+            autoTable(doc, {
+                startY: startY + 4, margin: { left: margenLat, right: margenLat, top: margenSup, bottom: margenInf },
+                head: [['Fecha', 'Tipo Doc', 'Tipo Deta', 'Identificador (UUID / Resol)', 'DTE Del', 'DTE Al']],
+                body: data.anexo7_anulados.map(a => [formatearFecha(a.fecha), a.tipo_doc, a.tipo_deta === '1' ? 'Anulado' : 'Extraviado', getStr(a.codigo_generacion || a.resolucion || 'N/A'), getStr(a.desde), getStr(a.hasta)]),
+                theme: 'striped', headStyles: { fillColor: [220, 38, 38], cellPadding: 1 }, styles: { fontSize: 9.5, cellPadding: 1.5 },
+                columnStyles: { 0: { halign: 'center', cellWidth: 25 }, 3: { halign: 'center', cellWidth: 60 } },
                 didDrawPage: function (data) { doc.setFontSize(8); doc.text("Página " + doc.internal.getNumberOfPages(), pageWidth - margenLat, doc.internal.pageSize.getHeight() - 7.6, { align: 'right' }); }
             });
             startY = doc.lastAutoTable.finalY + 12;
@@ -673,7 +721,8 @@ const descargarAnexoCSV = async () => {
         case 'ventas_cf': endpoint = '/api/reportes/anexo1-csv'; filename = `Anexo1_ConsumidorFinal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'ventas_ccf': endpoint = '/api/reportes/anexo2-csv'; filename = `Anexo2_CreditoFiscal_${nitEmpresa}_${m}_${a}.csv`; break;
         case 'sujetos': endpoint = '/api/reportes/anexo5-csv'; filename = `Anexo5_SujetosExcluidos_${nitEmpresa}_${m}_${a}.csv`; break;
-        case 'retenciones': endpoint = '/api/reportes/retenciones-csv'; filename = `Retenciones_${nitEmpresa}_${m}_${a}.csv`; break; // 🛡️ AÑADIDO PARA CSV
+        case 'retenciones': endpoint = '/api/reportes/retenciones-csv'; filename = `Retenciones_${nitEmpresa}_${m}_${a}.csv`; break;
+        case 'anulados': endpoint = '/api/reportes/anexo7-csv'; filename = `Anexo7_Anulados_${nitEmpresa}_${m}_${a}.csv`; break; // 🛡️ NUEVO
     }
 
     try {
@@ -698,7 +747,8 @@ const procesarAccion = async () => {
           case 'ventas_cf': endpoint = `${BASE_URL}/api/ventas-cf/exportar`; break; 
           case 'ventas_ccf': endpoint = `${BASE_URL}/api/ventas-CCF/exportar`; break; 
           case 'sujetos': endpoint = `${BASE_URL}/api/sujetos/exportar`; break; 
-          case 'retenciones': endpoint = `${BASE_URL}/api/retenciones/exportar`; break; // 🛡️ AÑADIDO PARA JSON INTERNO
+          case 'retenciones': endpoint = `${BASE_URL}/api/retenciones/exportar`; break;
+          case 'anulados': endpoint = `${BASE_URL}/api/reportes/anulados-json`; break; // 🛡️ NUEVO
           default: endpoint = `${BASE_URL}/api/exportar-todo`;
         }
         
@@ -713,12 +763,13 @@ const procesarAccion = async () => {
         let totalPreview = '0.00';
         if (data.totales_periodo) totalPreview = data.totales_periodo.gran_total_gravado || data.totales_periodo.total_gravado || '0.00';
         else if (Array.isArray(data) && data.length > 0 && data[0].total) totalPreview = data.reduce((sum, item) => sum + (parseFloat(item.total)||0), 0).toFixed(2);
+        else if (moduloSeleccionado.value === 'anulados') totalPreview = 'N/A'; // Anulados no tiene total
         
         resultado.value = { 
             tipo: 'success', 
             titulo: 'Backup Interno Generado', 
             archivo: `Backup_${moduloSeleccionado.value}_${nitSeleccionado.value}_${mes.value}_${anio.value}.json`, 
-            cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : 'N/A'), 
+            cantidad: Array.isArray(data) ? data.length : (data.lista_compras ? data.lista_compras.length : (data.data?.anulados ? data.data.anulados.length : 'N/A')), 
             total: totalPreview, 
             snippet: jsonString.substring(0, 500) + (jsonString.length > 500 ? '...' : '') 
         };
@@ -735,7 +786,7 @@ const descargarArchivoReal = () => {
 </script>
 
 <style scoped>
-/* LOS MISMOS ESTILOS QUE YA TENÍAS */
+/* ESTILOS INTACTOS */
 .btn-purple { background: #8b5cf6; color: white; border: none; }
 .btn-purple:hover:not(:disabled) { background: #7c3aed; }
 .flex-buttons { display: flex; align-items: center; width: 100%; flex-wrap: wrap; }

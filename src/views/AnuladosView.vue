@@ -152,7 +152,10 @@
 
         <div v-else class="card fade-in">
           <div class="card-header flex-between flex-wrap gap-3">
-             <h3>📋 Historial de Documentos Invalidados</h3>
+             <div style="display: flex; align-items: center; gap: 10px;">
+                 <h3>📋 Historial de Documentos Invalidados</h3>
+                 <span class="badge-count">{{ anuladosFiltrados.length }} documentos</span>
+             </div>
              <div class="history-filters">
                 <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
                 <select v-model="mesFiltro" class="form-control filter-month">
@@ -380,6 +383,7 @@ onMounted(cargarDatos);
 
 .badge-danger { font-size: 0.75rem; background: #fee2e2; color: #b91c1c; padding: 4px 10px; border-radius: 20px; font-weight: 600; border: 1px solid #fecaca; }
 .badge-warning { font-size: 0.75rem; background: #fef3c7; color: #b45309; padding: 4px 10px; border-radius: 20px; font-weight: 600; border: 1px solid #fde68a; }
+.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
 .badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
 
 /* Switch Layout */
