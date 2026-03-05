@@ -271,11 +271,12 @@ export const importarTodoJSON = async (req, res) => {
                         const nuevoCF = {
                             iddeclaNIT: nitDeclarante, ConsFecha: formatearFecha(v.ConsFecha), ConsClaseDoc: v.ConsClaseDoc || '4', ConsTipoDoc: tipoDte,
                             ConsNumDocDEL: v.ConsNumDocDEL, ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL, ConsCodGeneracion: codGen,
+                            ConsSelloRecepcion: v.ConsSelloRecepcion || null, // 🛡️ NUEVO: Lo pasamos a la DB
                             ConsVtaExentas: v.ConsVtaExentas || 0, ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0, ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
                             ConsTotalVta: v.ConsTotalVta || 0, ConsTipoOpera: limpiarCat(v.ConsTipoOpera, '1'), ConsTipoIngreso: limpiarCat(v.ConsTipoIngreso, '1'),
                             ConsMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), ConsAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), ConsNumAnexo: '1',
-                            ConsNomRazonCliente: v.ConsNomRazonCliente || 'Cliente General', // 🛡️ GUARDA EL NOMBRE
-                            ConsNumDocIdentCliente: v.ConsNumDocIdentCliente || '' // 🛡️ GUARDA EL DOCUMENTO
+                            ConsNomRazonCliente: v.ConsNomRazonCliente || 'Cliente General',
+                            ConsNumDocIdentCliente: v.ConsNumDocIdentCliente || ''
                         };
                         await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
                         reporte.ventas_cf++;

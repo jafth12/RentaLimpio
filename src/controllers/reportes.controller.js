@@ -301,7 +301,7 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL)
+// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL) - CLON APROBADO HACIENDA (ANEXO 2 FIJO)
 // ========================================================================
 export const descargarAnexo1CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -314,6 +314,7 @@ export const descargarAnexo1CSV = async (req, res) => {
             let resolucion, serie, del, al, maquina, uuidCol;
 
             if (esFisico) {
+                // 🖨️ FACTURAS FÍSICAS (Mantiene formato de rangos original)
                 resolucion = sinGuiones(v.ConsNumResolu) || '0';
                 serie = sinGuiones(v.ConsSerieDoc) || '';
                 del = sinGuiones(v.ConsNumDocDEL) || '0';
@@ -321,15 +322,18 @@ export const descargarAnexo1CSV = async (req, res) => {
                 maquina = sinGuiones(v.ConsNumMaqRegistro) || '';
                 uuidCol = '';
             } else {
-                const uuidLimpio = sinGuiones(v.ConsCodGeneracion) || sinGuiones(v.ConsNumDocAL);
-                const numControlLimpio = sinGuiones(v.ConsNumDocAL);
+                // 🌐 DTEs (CLASE 4) - LA FÓRMULA MÁGICA DEL CSV
+                const numControlLimpio = sinGuiones(v.ConsNumDocAL) || sinGuiones(v.ConsNumDocDEL);
                 
-                resolucion = numControlLimpio; 
-                serie = uuidLimpio;            
-                del = uuidLimpio;              
-                al = uuidLimpio;               
-                maquina = uuidLimpio;          
-                uuidCol = uuidLimpio;          
+                // Extraemos el sello.
+                const selloLimpio = sinGuiones(v.ConsSelloRecepcion) || sinGuiones(v.ConsCodGeneracion) || numControlLimpio;
+                
+                resolucion = numControlLimpio;    // Columna 4: DTE sin guiones
+                serie = selloLimpio;              // Columna 5: SELLO
+                del = selloLimpio;                // Columna 6: SELLO
+                al = selloLimpio;                 // Columna 7: SELLO
+                maquina = selloLimpio;            // Columna 8: SELLO
+                uuidCol = selloLimpio;            // Columna 9: SELLO
             }
 
             const dui = sinGuiones(v.ConsNumDocIdentCliente) || '';
@@ -337,34 +341,33 @@ export const descargarAnexo1CSV = async (req, res) => {
             const tipoIngreso = v.ConsTipoIngreso ? String(v.ConsTipoIngreso).padStart(2, '0') : '01';
 
             const columnas = [
-                formatoFechaCSV(v.ConsFecha),               
-                v.ConsClaseDoc || '4',                      
-                (v.ConsTipoDoc || "01").padStart(2, '0'),   
-                resolucion,                                 
-                serie,                                      
-                del,                                        
-                al,                                         
-                maquina,                                    
-                uuidCol,                                    
-                dui,                                        
-                Math.abs(v.ConsVtaExentas).toFixed(2),      
-                '0.00',                                     
-                '0.00',                                     
-                Math.abs(v.ConsVtaGravLocales).toFixed(2),  
-                '0.00',                                     
-                '0.00',                                     
-                '0.00',                                     
-                '0.00',                                     
-                Math.abs(v.ConsVtaNoSujetas).toFixed(2),    
-                Math.abs(v.ConsTotalVta).toFixed(2),        
-                tipoOpera,                                  
-                tipoIngreso,                                
-                '1'                                         
+                formatoFechaCSV(v.ConsFecha),               // 1
+                v.ConsClaseDoc || '4',                      // 2
+                (v.ConsTipoDoc || "01").padStart(2, '0'),   // 3
+                resolucion,                                 // 4 (DTE)
+                serie,                                      // 5 (Sello)
+                del,                                        // 6 (Sello)
+                al,                                         // 7 (Sello)
+                maquina,                                    // 8 (Sello)
+                uuidCol,                                    // 9 (Sello)
+                dui,                                        // 10
+                Math.abs(v.ConsVtaExentas).toFixed(2),      // 11
+                '0.00',                                     // 12
+                '0.00',                                     // 13
+                Math.abs(v.ConsVtaGravLocales).toFixed(2),  // 14
+                '0.00',                                     // 15
+                '0.00',                                     // 16
+                '0.00',                                     // 17
+                '0.00',                                     // 18
+                Math.abs(v.ConsVtaNoSujetas).toFixed(2),    // 19
+                Math.abs(v.ConsTotalVta).toFixed(2),        // 20
+                tipoOpera,                                  // 21
+                tipoIngreso,                                // 22
+                '2'                                         // 23 🛡️ AQUÍ ESTÁ EL CAMBIO: Siempre será 2.
             ];
             return columnas.join(';');
         });
         
-        // 🚨 CAMBIO APLICADO: latin1 y \r\n
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo1_ConsumidorFinal_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
@@ -372,7 +375,6 @@ export const descargarAnexo1CSV = async (req, res) => {
         res.status(500).json({ error: error.message }); 
     }
 };
-
 // ========================================================================
 // 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL)
 // ========================================================================

@@ -12,6 +12,7 @@ export const getVentasCF = async (req, res) => {
                 ConsNumDocIdentCliente, ConsNomRazonCliente, 
                 ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, 
                 ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsMesDeclarado, ConsAnioDeclarado, 
+                ConsSelloRecepcion, /* 🛡️ NUEVO */
                 'consumidorfinal' AS OrigenTabla 
             FROM consumidorfinal 
             
@@ -26,7 +27,9 @@ export const getVentasCF = async (req, res) => {
                 NCNombreContraparte as ConsNomRazonCliente, NCMontoExento as ConsVtaExentas, 0.00 as ConsVtaNoSujetas, 
                 NCMontoGravado as ConsVtaGravLocales, NCTotal as ConsTotalVta, '1' as ConsTipoOpera, 
                 '1' as ConsTipoIngreso, NCAnexo as ConsNumAnexo, NCMesDeclarado as ConsMesDeclarado, 
-                NCAnioDeclarado as ConsAnioDeclarado, 'notas_credito' AS OrigenTabla 
+                NCAnioDeclarado as ConsAnioDeclarado, 
+                NULL as ConsSelloRecepcion, /* 🛡️ RELLENO PARA NOTAS DE CRÉDITO */
+                'notas_credito' AS OrigenTabla 
             FROM notas_credito 
             WHERE NCTipo = 'VENTA' AND NCAnexo = '1'
             
@@ -77,18 +80,17 @@ export const createVentasCF = async (req, res) => {
         const docCliente = d.documentoCliente || '';
         const nomCliente = d.cliente || 'Cliente General';
         
-        // 🛡️ LÓGICA DE VALIDACIÓN CRUZADA: DTE vs FÍSICO
         const esFisico = d.modoIngreso === 'fisico';
         const claseDoc = esFisico ? (d.maquina ? '2' : '1') : '4'; 
         
         const numDel = esFisico ? d.desde : d.numero_control;
         const numAl = esFisico ? d.hasta : d.numero_control;
         const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const selloRec = esFisico ? null : (d.sello_recepcion || null); // 🛡️ NUEVO: Capturamos el Sello
         const serie = d.serie || null;
         const resolucion = esFisico ? d.resolucion : null;
         const maquina = esFisico ? d.maquina : null;
 
-        // 🚨 NUEVAS VALIDACIONES ESTRICTAS E INTELIGENTES (AQUÍ ESTABA EL DETALLE)
         if (esFisico) {
             if (!numDel || !numAl) return res.status(400).json({ message: '⚠️ Los correlativos DEL y AL son obligatorios para los documentos Físicos.' });
             if (!resolucion) return res.status(400).json({ message: '⚠️ El número de Resolución es obligatorio para los documentos Físicos.' });
@@ -131,12 +133,14 @@ export const createVentasCF = async (req, res) => {
 
             if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Este Documento Físico o Rango ya se encuentra registrado en el sistema.' });
 
+            // 🛡️ NUEVO: Añadido ConsSelloRecepcion al query
             const query = `
                 INSERT INTO consumidorfinal 
-                (iddeclaNIT, ConsFecha, ConsMesDeclarado, ConsAnioDeclarado, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, ConsNumResolu, ConsNumMaqRegistro, ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsNomRazonCliente, ConsNumDocIdentCliente) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', ?, ?)
+                (iddeclaNIT, ConsFecha, ConsMesDeclarado, ConsAnioDeclarado, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, ConsNumResolu, ConsNumMaqRegistro, ConsNumDocDEL, ConsNumDocAL, ConsCodGeneracion, ConsSelloRecepcion, ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsNomRazonCliente, ConsNumDocIdentCliente) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '1', ?, ?)
             `;
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente];
+            // 🛡️ NUEVO: Añadido selloRec a los values
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, selloRec, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente];
 
             const [result] = await pool.query(query, values);
             registrarAccion(usuario, 'CREACION', 'ANEXO 1', `Doc/Rango: ${numDel} - Total: $${total}`);
@@ -166,18 +170,17 @@ export const updateVentasCF = async (req, res) => {
         const docCliente = d.documentoCliente || '';
         const nomCliente = d.cliente || 'Cliente General';
         
-        // 🛡️ LÓGICA DE VALIDACIÓN CRUZADA: DTE vs FÍSICO
         const esFisico = d.modoIngreso === 'fisico';
         const claseDoc = esFisico ? (d.maquina ? '2' : '1') : '4';
         
         const numDel = esFisico ? d.desde : d.numero_control;
         const numAl = esFisico ? d.hasta : d.numero_control;
         const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const selloRec = esFisico ? null : (d.sello_recepcion || null); // 🛡️ NUEVO: Capturamos el sello en la edición
         const serie = d.serie || null;
         const resolucion = esFisico ? d.resolucion : null;
         const maquina = esFisico ? d.maquina : null;
 
-        // 🚨 VALIDACIONES AL ACTUALIZAR
         if (esFisico) {
             if (!numDel || !numAl) return res.status(400).json({ message: '⚠️ Los correlativos DEL y AL son obligatorios.' });
             if (!resolucion) return res.status(400).json({ message: '⚠️ El número de Resolución es obligatorio.' });
@@ -221,12 +224,14 @@ export const updateVentasCF = async (req, res) => {
 
             if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO documento o rango registrado igual.' });
 
+            // 🛡️ NUEVO: Añadido ConsSelloRecepcion=? al query
             const query = `
                 UPDATE consumidorfinal SET 
-                    iddeclaNIT=?, ConsFecha=?, ConsMesDeclarado=?, ConsAnioDeclarado=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsSerieDoc=?, ConsNumResolu=?, ConsNumMaqRegistro=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsCodGeneracion=?, ConsVtaExentas=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, ConsTotalVta=?, ConsTipoOpera=?, ConsTipoIngreso=?, ConsNomRazonCliente=?, ConsNumDocIdentCliente=?
+                    iddeclaNIT=?, ConsFecha=?, ConsMesDeclarado=?, ConsAnioDeclarado=?, ConsClaseDoc=?, ConsTipoDoc=?, ConsSerieDoc=?, ConsNumResolu=?, ConsNumMaqRegistro=?, ConsNumDocDEL=?, ConsNumDocAL=?, ConsCodGeneracion=?, ConsSelloRecepcion=?, ConsVtaExentas=?, ConsVtaNoSujetas=?, ConsVtaGravLocales=?, ConsTotalVta=?, ConsTipoOpera=?, ConsTipoIngreso=?, ConsNomRazonCliente=?, ConsNumDocIdentCliente=?
                 WHERE idconsfinal = ?
             `;
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente, id];
+            // 🛡️ NUEVO: Añadido selloRec a los values
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, serie, resolucion, maquina, numDel, numAl, uuidDte, selloRec, exentas, noSujetas, gravadas, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', nomCliente, docCliente, id];
 
             const [result] = await pool.query(query, values);
             if (result.affectedRows === 0) return res.status(404).json({ message: 'Documento no encontrado' });

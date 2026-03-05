@@ -246,11 +246,16 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const emisor = dte.emisor || {};
   const receptor = dte.receptor || {};
   const resumen = dte.resumen || {};
+  const recepcion = dte.recepcion || {}; 
 
   const tipoDte = ident.tipoDte || '00';
   const numero = ident.numeroControl || 'S/N';
   const fecha = ident.fecEmi || new Date().toISOString().split('T')[0];
   const codGen = ident.codigoGeneracion || null; 
+  
+  // 🛡️ EL CAZADOR DE SELLOS TODOTERRENO:
+  // Busca 'selloRecibido' (el de tu archivo) o 'selloRecepcion' (otras versiones)
+  const selloRec = dte.selloRecibido || recepcion.selloRecepcion || null; 
   
   const total = parseFloat(resumen.totalPagar) || 0;
   let iva = parseFloat(resumen.totalIva) || 0;
@@ -291,7 +296,6 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
       };
     }
   } else if (soyEmisor) {
-    // 🛡️ LÓGICA INTELIGENTE REPARADA PARA SEPARAR NOTAS CF Y CCF
     const esClienteConNRC = receptorNrc && receptorNrc.length > 2;
 
     if (tipoDte === '03' || ((tipoDte === '05' || tipoDte === '06') && esClienteConNRC)) { 
@@ -307,10 +311,11 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
             ConsNumDocDEL: numero, 
             ConsNumDocAL: numero, 
             ConsCodGeneracion: codGen, 
+            ConsSelloRecepcion: selloRec, // 🛡️ NUEVO: Lo inyectamos en el objeto a enviar
             ConsVtaGravLocales: gravado, 
             ConsTotalVta: total, 
             ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', 
-            ConsNumDocIdentCliente: receptorNit || '', // 🛡️ CAPTURA EL NIT O DUI DEL JSON
+            ConsNumDocIdentCliente: receptorNit || '', 
             ConsClaseDoc: '4', 
             ConsTipoDoc: tipoDte, 
             ConsNumAnexo: '1' 

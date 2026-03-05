@@ -101,6 +101,11 @@
                    </div>
                 </div>
 
+                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
+                  <label class="form-label">Sello de Recepción (Opcional)</label>
+                   <input type="text" v-model="formulario.sello_recepcion" class="form-control uuid-input text-success" placeholder="Ej: 2025095CA9E1B...">
+                </div>
+
                 <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
                   <label class="form-label">Número de Resolución <span class="text-danger">*</span></label>
                   <input type="text" v-model="formulario.resolucion" class="form-control" placeholder="15042-RES-CR-..." required>
@@ -282,9 +287,10 @@
                   <td><div class="fw-bold text-dark">{{ truncarTexto(venta.ConsNomRazonCliente) || 'Cliente General' }}</div></td>
                   
                   <td>
-                     <span class="doc-number text-xs" :title="venta.ConsCodGeneracion || venta.ConsNumResolu">
+                     <span class="doc-number text-xs" :title="'UUID: ' + (venta.ConsCodGeneracion || 'N/A') + (venta.ConsSelloRecepcion ? '\nSello MH: ' + venta.ConsSelloRecepcion : '')">
                          {{ venta.ConsClaseDoc === '4' ? venta.ConsNumDocAL : `Del: ${venta.ConsNumDocDEL} Al: ${venta.ConsNumDocAL}` }}
                      </span>
+                     <div v-if="venta.ConsSelloRecepcion" class="badge-success mt-1 d-inline-block" style="font-size: 0.65rem; padding: 2px 6px;">✔️ Sello MH</div>
                   </td>
                   
                   <td class="text-right text-muted">
@@ -339,14 +345,15 @@ const actualizarNumeroCompleto = () => {
 
 // --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
-    modoIngreso: 'dte', // 🛡️ NUEVO MODO
+    modoIngreso: 'dte', 
     iddeclaNIT: '', 
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
     tipoDocumento: '01', 
     numero_control: '', uuid_dte: '', serie: '', 
-    resolucion: '', maquina: '', desde: '', hasta: '', // 🛡️ CAMPOS FÍSICOS
+    sello_recepcion: '', // 🛡️ NUEVO CAMPO AÑADIDO
+    resolucion: '', maquina: '', desde: '', hasta: '', 
     cliente: 'Cliente General', documentoCliente: '', 
     tipo_operacion: '1', tipo_ingreso: '1', 
     gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
@@ -398,6 +405,7 @@ const aplicarCambioMasivo = async () => {
                 hasta: ventaOri.ConsNumDocAL,
                 numero_control: ventaOri.ConsNumDocAL,
                 uuid_dte: ventaOri.ConsCodGeneracion,
+                sello_recepcion: ventaOri.ConsSelloRecepcion, // 🛡️ VIAJA CON EL CAMBIO
                 cliente: ventaOri.ConsNomRazonCliente,
                 documentoCliente: ventaOri.ConsNumDocIdentCliente,
                 exentas: ventaOri.ConsVtaExentas,
@@ -566,6 +574,7 @@ const prepararEdicion = (venta) => {
         uuid_dte: venta.ConsCodGeneracion || '',
         serie: venta.ConsSerieDoc || '',
         resolucion: venta.ConsNumResolu || '',
+        sello_recepcion: venta.ConsSelloRecepcion || '', // 🛡️ CARGAMOS EL SELLO AL EDITAR
         maquina: venta.ConsNumMaqRegistro || '',
         desde: venta.ConsNumDocDEL || '',
         hasta: venta.ConsNumDocAL || '',
@@ -585,7 +594,7 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = { modoIngreso: 'dte', iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', resolucion: '', maquina: '', desde: '', hasta: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'consumidorfinal' };
+    formulario.value = { modoIngreso: 'dte', iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '01', numero_control: '', uuid_dte: '', serie: '', sello_recepcion: '', resolucion: '', maquina: '', desde: '', hasta: '', cliente: 'Cliente General', documentoCliente: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'consumidorfinal' };
     dteParts.value = { part1: '01', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -684,7 +693,7 @@ onMounted(cargarDatos);
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
 .alert-warning { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; text-align: left; }
 .alert-info { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-align: left; }
-.text-danger { color: #ef4444; } .text-primary { color: #55C2B7; } .text-dark { color: #1f2937; }
+.text-danger { color: #ef4444; } .text-primary { color: #55C2B7; } .text-dark { color: #1f2937; } .text-success { color: #10b981; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
 .history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
@@ -697,6 +706,7 @@ onMounted(cargarDatos);
 .bulk-info { display: flex; align-items: center; gap: 10px; }
 .bulk-text { font-weight: 600; color: #0f766e; font-size: 0.95rem; }
 .badge-success { background: #10b981; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; }
+.d-inline-block { display: inline-block; }
 .bulk-controls { display: flex; align-items: center; gap: 10px; }
 .form-control-sm { padding: 0.4rem 0.6rem; font-size: 0.9rem; height: auto; }
 .btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
