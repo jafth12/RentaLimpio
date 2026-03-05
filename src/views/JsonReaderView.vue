@@ -254,7 +254,6 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const codGen = ident.codigoGeneracion || null; 
   
   // 🛡️ EL CAZADOR DE SELLOS TODOTERRENO:
-  // Busca 'selloRecibido' (el de tu archivo) o 'selloRecepcion' (otras versiones)
   const selloRec = dte.selloRecibido || recepcion.selloRecepcion || null; 
   
   const total = parseFloat(resumen.totalPagar) || 0;
@@ -301,7 +300,20 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
     if (tipoDte === '03' || ((tipoDte === '05' || tipoDte === '06') && esClienteConNRC)) { 
       return {
         modulo: 'ventas_ccf',
-        data: { FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscNit: receptorNit, FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', FisTipoDoc: tipoDte, FiscNumAnexo: '2' }
+        data: { 
+            FiscFecha: fecha, 
+            FiscNumDoc: numero, 
+            FiscCodGeneracion: codGen, 
+            FiscSelloRecepcion: selloRec, // 🛡️ INYECCIÓN DEL SELLO PARA CCF
+            FiscNit: receptorNit, 
+            FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), 
+            FiscVtaGravLocal: gravado, 
+            FiscDebitoFiscal: iva, 
+            FiscTotalVtas: total, 
+            FisClasDoc: '4', 
+            FisTipoDoc: tipoDte, 
+            FiscNumAnexo: '2' 
+        }
       };
     } else if (tipoDte === '01' || ((tipoDte === '05' || tipoDte === '06') && !esClienteConNRC)) {
       return {
@@ -311,7 +323,7 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
             ConsNumDocDEL: numero, 
             ConsNumDocAL: numero, 
             ConsCodGeneracion: codGen, 
-            ConsSelloRecepcion: selloRec, // 🛡️ NUEVO: Lo inyectamos en el objeto a enviar
+            ConsSelloRecepcion: selloRec, // 🛡️ SELLO PARA CF
             ConsVtaGravLocales: gravado, 
             ConsTotalVta: total, 
             ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', 
@@ -343,7 +355,7 @@ const cargarArchivo = (event) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
 
-        // 🛡️ REPARADO: Busca inteligentemente el NIT analizando si eres emisor o receptor (soporta arrays)
+        // 🛡️ Busca inteligentemente el NIT analizando si eres emisor o receptor
         let docPrueba = Array.isArray(jsonRaw) ? jsonRaw[0] : jsonRaw;
         docPrueba = docPrueba.dteJson || docPrueba.dte || docPrueba;
 

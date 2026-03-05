@@ -20,7 +20,9 @@ export const createAnulacion = async (req, res) => {
     try {
         // 🛡️ LIMPIEZA DE DATOS MAESTRA
         const uuidLimpio = d.uuid_dte ? d.uuid_dte.replace(/-/g, '') : null;
-        const fechaLimpia = d.fecha ? d.fecha.split('T')[0] : null; // CORTAMOS LA FECHA AQUÍ
+        // 🛡️ NUEVO: Atrapamos el Sello de Recepción
+        const selloLimpio = d.sello_recepcion ? d.sello_recepcion.replace(/-/g, '') : null; 
+        const fechaLimpia = d.fecha ? d.fecha.split('T')[0] : null; 
 
         // 🛡️ REGLA ANTIDUPLICADOS
         const [duplicado] = await pool.query(
@@ -38,16 +40,17 @@ export const createAnulacion = async (req, res) => {
             return res.status(400).json({ message: '⚠️ Este documento o rango ya se encuentra registrado como Anulado/Extraviado.' });
         }
 
+        // 🛡️ NUEVO: Añadido DetaDocSelloRecepcion al INSERT
         const [result] = await pool.query(
             `INSERT INTO anuladosextraviados 
             (iddeclaNIT, DetaDocFecha, AnulMesDeclarado, AnulAnioDeclarado, DetaDocTipoDoc, 
              DetaDocSerie, DetaDocResolu, DetaDocDesde, DetaDocHasta, 
-             DetaDocCodGeneracion, DetaDocTipoDeta, DetaDocAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             DetaDocCodGeneracion, DetaDocSelloRecepcion, DetaDocTipoDeta, DetaDocAnexo, DetaDocClase) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                d.iddeclaNIT, fechaLimpia, d.mesDeclarado, d.anioDeclarado, d.tipoDoc, // USAMOS fechaLimpia
+                d.iddeclaNIT, fechaLimpia, d.mesDeclarado, d.anioDeclarado, d.tipoDoc, 
                 d.serie || null, d.resolucion || null, d.desde, d.hasta || d.desde,
-                uuidLimpio, d.tipoDeta, d.anexo || '7'
+                uuidLimpio, selloLimpio, d.tipoDeta, d.anexo || '1', d.clase || '4'
             ]
         );
 
@@ -67,17 +70,20 @@ export const updateAnulacion = async (req, res) => {
 
     try {
         const uuidLimpio = d.uuid_dte ? d.uuid_dte.replace(/-/g, '') : null;
+        // 🛡️ NUEVO: Atrapamos el Sello de Recepción
+        const selloLimpio = d.sello_recepcion ? d.sello_recepcion.replace(/-/g, '') : null;
 
+        // 🛡️ NUEVO: Añadido DetaDocSelloRecepcion al UPDATE
         const [result] = await pool.query(
             `UPDATE anuladosextraviados SET 
             iddeclaNIT=?, DetaDocFecha=?, AnulMesDeclarado=?, AnulAnioDeclarado=?, DetaDocTipoDoc=?, 
             DetaDocSerie=?, DetaDocResolu=?, DetaDocDesde=?, DetaDocHasta=?, 
-            DetaDocCodGeneracion=?, DetaDocTipoDeta=?, DetaDocAnexo=?
+            DetaDocCodGeneracion=?, DetaDocSelloRecepcion=?, DetaDocTipoDeta=?, DetaDocAnexo=?, DetaDocClase=?
             WHERE idAnuladosExtraviados = ?`,
             [
                 d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, d.tipoDoc,
                 d.serie || null, d.resolucion || null, d.desde, d.hasta || d.desde,
-                uuidLimpio, d.tipoDeta, d.anexo || '7', id
+                uuidLimpio, selloLimpio, d.tipoDeta, d.anexo || '1', d.clase || '4', id
             ]
         );
 

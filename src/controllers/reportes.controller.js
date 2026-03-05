@@ -110,6 +110,7 @@ const qVentasCCF = `
     SELECT 
       f.idCredFiscal, f.iddeclaNIT, f.FiscFecha, f.FisClasDoc, f.FisTipoDoc, 
       f.FiscNumResol, f.FiscSerieDoc, f.FiscNumDoc, f.FiscCodGeneracion, 
+      f.FiscSelloRecepcion, /* 🛡️ AÑADIDO: EXTRAMOS EL SELLO */
       f.FiscNumContInter, f.FiscNit, f.FiscNomRazonDenomi, f.ClienNom, 
       f.FiscVtaExen, f.FiscVtaNoSujetas, f.FiscVtaGravLocal, f.FiscDebitoFiscal, 
       f.FiscVtaCtaTercNoDomici, f.FiscDebFiscVtaCtaTerceros, f.FiscTotalVtas, 
@@ -125,6 +126,7 @@ const qVentasCCF = `
     SELECT 
       nc.idNotaCredito AS idCredFiscal, nc.iddeclaNIT, nc.NCFecha AS FiscFecha, nc.NCClaseDoc AS FisClasDoc, nc.NCTipoDoc AS FisTipoDoc, 
       NULL AS FiscNumResol, NULL AS FiscSerieDoc, nc.NCNumero AS FiscNumDoc, nc.NCCodGeneracion AS FiscCodGeneracion, 
+      NULL AS FiscSelloRecepcion, /* 🛡️ AÑADIDO: COMPATIBILIDAD CON NOTAS */
       NULL AS FiscNumContInter, nc.NCNitContraparte AS FiscNit, nc.NCNombreContraparte AS FiscNomRazonDenomi, NULL AS ClienNom, 
       nc.NCMontoExento AS FiscVtaExen, 0.00 AS FiscVtaNoSujetas, nc.NCMontoGravado AS FiscVtaGravLocal, nc.NCIva AS FiscDebitoFiscal, 
       0.00 AS FiscVtaCtaTercNoDomici, 0.00 AS FiscDebFiscVtaCtaTerceros, nc.NCTotal AS FiscTotalVtas, 
@@ -301,7 +303,7 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL) - CLON APROBADO HACIENDA (ANEXO 2 FIJO)
+// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL) - CLON APROBADO HACIENDA
 // ========================================================================
 export const descargarAnexo1CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -314,7 +316,7 @@ export const descargarAnexo1CSV = async (req, res) => {
             let resolucion, serie, del, al, maquina, uuidCol;
 
             if (esFisico) {
-                // 🖨️ FACTURAS FÍSICAS (Mantiene formato de rangos original)
+                // 🖨️ FACTURAS FÍSICAS
                 resolucion = sinGuiones(v.ConsNumResolu) || '0';
                 serie = sinGuiones(v.ConsSerieDoc) || '';
                 del = sinGuiones(v.ConsNumDocDEL) || '0';
@@ -322,48 +324,47 @@ export const descargarAnexo1CSV = async (req, res) => {
                 maquina = sinGuiones(v.ConsNumMaqRegistro) || '';
                 uuidCol = '';
             } else {
-                // 🌐 DTEs (CLASE 4) - LA FÓRMULA MÁGICA DEL CSV
+                // 🌐 DTEs (CLASE 4)
                 const numControlLimpio = sinGuiones(v.ConsNumDocAL) || sinGuiones(v.ConsNumDocDEL);
-                
-                // Extraemos el sello.
                 const selloLimpio = sinGuiones(v.ConsSelloRecepcion) || sinGuiones(v.ConsCodGeneracion) || numControlLimpio;
                 
-                resolucion = numControlLimpio;    // Columna 4: DTE sin guiones
-                serie = selloLimpio;              // Columna 5: SELLO
-                del = selloLimpio;                // Columna 6: SELLO
-                al = selloLimpio;                 // Columna 7: SELLO
-                maquina = selloLimpio;            // Columna 8: SELLO
-                uuidCol = selloLimpio;            // Columna 9: SELLO
+                resolucion = numControlLimpio;    
+                serie = selloLimpio;              
+                del = selloLimpio;                
+                al = selloLimpio;                 
+                maquina = selloLimpio;            
+                uuidCol = selloLimpio;            
             }
 
-            const dui = sinGuiones(v.ConsNumDocIdentCliente) || '';
+            const dui = ''; 
+            
             const tipoOpera = v.ConsTipoOpera ? String(v.ConsTipoOpera).padStart(2, '0') : '01';
             const tipoIngreso = v.ConsTipoIngreso ? String(v.ConsTipoIngreso).padStart(2, '0') : '01';
 
             const columnas = [
-                formatoFechaCSV(v.ConsFecha),               // 1
-                v.ConsClaseDoc || '4',                      // 2
-                (v.ConsTipoDoc || "01").padStart(2, '0'),   // 3
-                resolucion,                                 // 4 (DTE)
-                serie,                                      // 5 (Sello)
-                del,                                        // 6 (Sello)
-                al,                                         // 7 (Sello)
-                maquina,                                    // 8 (Sello)
-                uuidCol,                                    // 9 (Sello)
-                dui,                                        // 10
-                Math.abs(v.ConsVtaExentas).toFixed(2),      // 11
-                '0.00',                                     // 12
-                '0.00',                                     // 13
-                Math.abs(v.ConsVtaGravLocales).toFixed(2),  // 14
-                '0.00',                                     // 15
-                '0.00',                                     // 16
-                '0.00',                                     // 17
-                '0.00',                                     // 18
-                Math.abs(v.ConsVtaNoSujetas).toFixed(2),    // 19
-                Math.abs(v.ConsTotalVta).toFixed(2),        // 20
-                tipoOpera,                                  // 21
-                tipoIngreso,                                // 22
-                '2'                                         // 23 🛡️ AQUÍ ESTÁ EL CAMBIO: Siempre será 2.
+                formatoFechaCSV(v.ConsFecha),               
+                v.ConsClaseDoc || '4',                      
+                (v.ConsTipoDoc || "01").padStart(2, '0'),   
+                resolucion,                                 
+                serie,                                      
+                del,                                        
+                al,                                         
+                maquina,                                    
+                uuidCol,                                    
+                dui,                                        
+                Math.abs(v.ConsVtaExentas).toFixed(2),      
+                '0.00',                                     
+                '0.00',                                     
+                Math.abs(v.ConsVtaGravLocales).toFixed(2),  
+                '0.00',                                     
+                '0.00',                                     
+                '0.00',                                     
+                '0.00',                                     
+                Math.abs(v.ConsVtaNoSujetas).toFixed(2),    
+                Math.abs(v.ConsTotalVta).toFixed(2),        
+                tipoOpera,                                  
+                tipoIngreso,                                
+                '2'                                         
             ];
             return columnas.join(';');
         });
@@ -375,8 +376,9 @@ export const descargarAnexo1CSV = async (req, res) => {
         res.status(500).json({ error: error.message }); 
     }
 };
+
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL)
+// 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL) - CLON APROBADO
 // ========================================================================
 export const descargarAnexo2CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -386,39 +388,60 @@ export const descargarAnexo2CSV = async (req, res) => {
         
         const csvRows = rows.map(v => {
             const esFisico = v.FisClasDoc !== '4';
+            let resolucion, serie, numDoc, uuidVal;
             
-            const resolucion = esFisico ? (sinGuiones(v.FiscNumResol) || '0') : '0';
-            const serie = esFisico ? (sinGuiones(v.FiscSerieDoc) || '0') : '0';
-            const numDoc = sinGuiones(v.FiscNumDoc) || '0';
-            const uuidVal = esFisico ? '' : (sinGuiones(v.FiscCodGeneracion) || numDoc);
-            const duiClien = sinGuiones(v.FiscNumDuiClien) || '';
+            const numControlLimpio = sinGuiones(v.FiscNumDoc) || '0';
+
+            if (esFisico) {
+                // 🖨️ FÍSICOS: Mantiene formato original
+                resolucion = sinGuiones(v.FiscNumResol) || '0';
+                serie = sinGuiones(v.FiscSerieDoc) || '0';
+                numDoc = numControlLimpio;
+                uuidVal = '';
+            } else {
+                // 🌐 DTEs (CLASE 4) - REGLAS SEGÚN EL CSV APROBADO 
+                const selloLimpio = sinGuiones(v.FiscSelloRecepcion) || sinGuiones(v.FiscCodGeneracion) || numControlLimpio;
+                
+                resolucion = numControlLimpio;    // Col 4: DTE repetido
+                serie = selloLimpio;              // Col 5: SELLO
+                numDoc = numControlLimpio;        // Col 6: DTE repetido
+                uuidVal = numControlLimpio;       // Col 7: DTE repetido
+            }
+
+            // 🚨 ELIMINACIÓN DE DUI: Forçado a vazio conforme o modelo aprovado da Fazenda
+            const duiClien = '';
+            
+            // 🚨 HACIENDA ODIA LAS COMILLAS Y SALTOS (Limpeza total)
+            const nombreCliente = (v.FiscNomRazonDenomi || "").toUpperCase().replace(/"/g, '').replace(/[\r\n]+/g, ' ').trim();
+
+            const tipoOpera = v.BusFiscTipoOperaRenta ? String(v.BusFiscTipoOperaRenta).padStart(2, '0') : '01';
+            const tipoIngreso = v.BusFiscTipoIngresoRenta ? String(v.BusFiscTipoIngresoRenta).padStart(2, '0') : '03';
 
             const columnas = [
-                formatoFechaCSV(v.FiscFecha),                 
-                v.FisClasDoc || '4',                          
-                (v.FisTipoDoc || "03").padStart(2, '0'),      
-                resolucion,                                   
-                serie,                                        
-                numDoc,                                       
-                uuidVal,                                      
-                sinGuiones(v.FiscNit),                        
-                `"${(v.FiscNomRazonDenomi || "").toUpperCase()}"`, 
-                Math.abs(v.FiscVtaExen).toFixed(2),           
-                Math.abs(v.FiscVtaNoSujetas).toFixed(2),      
-                Math.abs(v.FiscVtaGravLocal).toFixed(2),      
-                Math.abs(v.FiscDebitoFiscal).toFixed(2),      
-                '0.00',                                       
-                '0.00',                                       
-                Math.abs(v.FiscTotalVtas).toFixed(2),         
-                duiClien,                                     
-                v.BusFiscTipoOperaRenta || '1',               
-                v.BusFiscTipoIngresoRenta || '1',             
-                '2'                                           
+                formatoFechaCSV(v.FiscFecha),                 // 1
+                v.FisClasDoc || '4',                          // 2
+                (v.FisTipoDoc || "03").padStart(2, '0'),      // 3
+                resolucion,                                   // 4
+                serie,                                        // 5
+                numDoc,                                       // 6
+                uuidVal,                                      // 7
+                sinGuiones(v.FiscNit),                        // 8
+                nombreCliente,                                // 9
+                Math.abs(v.FiscVtaExen).toFixed(2),           // 10
+                Math.abs(v.FiscVtaNoSujetas).toFixed(2),      // 11
+                Math.abs(v.FiscVtaGravLocal).toFixed(2),      // 12
+                Math.abs(v.FiscDebitoFiscal).toFixed(2),      // 13
+                '0.00',                                       // 14
+                '0.00',                                       // 15
+                Math.abs(v.FiscTotalVtas).toFixed(2),         // 16
+                duiClien,                                     // 17
+                tipoOpera,                                    // 18
+                tipoIngreso,                                  // 19
+                '1'                                           // 20 🛡️ MUDANÇA: Fixo como '1' igual ao modelo aceito
             ];
             return columnas.join(';');
         });
         
-        // 🚨 CAMBIO APLICADO: latin1 y \r\n
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo2_CreditoFiscal_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
@@ -520,7 +543,7 @@ export const descargarAnexo5CSV = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 4 (RETENCIONES 1%) - SIN GUIONES Y SIN SALTOS
+// 🛡️ EXPORTACIÓN CSV RETENCIONES 1% (CASILLA 162 / F-14) - CLON APROBADO
 // ========================================================================
 export const exportarRetencionesCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
@@ -534,43 +557,44 @@ export const exportarRetencionesCSV = async (req, res) => {
         }
 
         const csvRows = rows.map(r => {
-            // 🛡️ UUID SIN GUIONES (Aplicando la función sinGuiones como pediste)
-            const uuidLimpio = sinGuiones(r.RetenCodGeneracion);
+            // 🛡️ ESTRUCTURA EXACTA DE 9 COLUMNAS SEGÚN CASILLA 162
+            const nitLimpio = sinGuiones(r.RetenNitAgente);
+            const fecha = formatoFechaCSV(r.RetenFecha);
+            const tipoDoc = '07';
+            
+            // Columna 4: UUID o Serie (Pasa tal cual está en la base, con o sin guiones)
+            const serieOuuid = r.RetenCodGeneracion || ''; 
+            
+            // Columna 5: Número de documento (DTE sin guiones)
             const numDocLimpio = sinGuiones(r.RetenNumDoc);
             
-            // 🚨 LIMPIEZA EXTREMA: Quitamos comillas (") y SALTOS DE LÍNEA (\r\n) del nombre
-            const nombreAgente = (r.RetenNomAgente || "")
-                .toUpperCase()
-                .replace(/"/g, '')            // Elimina comillas
-                .replace(/[\r\n]+/g, ' ')     // 🛡️ ELIMINA LOS "ENTERS" OCULTOS
-                .trim();
+            const montoSujeto = Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2);
+            const montoRetenido = Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2);
 
             const columnas = [
-                formatoFechaCSV(r.RetenFecha),                 // 1. Fecha de Emisión (DD/MM/YYYY)
-                '4',                                           // 2. Clase de Documento (4 = Electrónico)
-                '07',                                          // 3. Tipo de Documento (07 = Comprobante de Retención)
-                '0',                                           // 4. Resolución (0 obligatorio para DTE)
-                '0',                                           // 5. Serie (0 obligatorio para DTE)
-                numDocLimpio,                                  // 6. Número de Comprobante (DTE sin guiones)
-                uuidLimpio || numDocLimpio,                    // 7. Número de Control Interno (UUID *SIN GUIONES*)
-                sinGuiones(r.RetenNitAgente),                  // 8. NIT del Agente de Retención
-                nombreAgente,                                  // 9. Nombre del Agente (Blindado contra saltos de línea)
-                Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2),  // 10. Monto Sujeto a Retención
-                Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2), // 11. Monto Retenido (1%)
-                '4'                                            // 12. Número de Anexo Fijo
+                nitLimpio,        // 1. NIT Agente (Sin guiones)
+                fecha,            // 2. Fecha (DD/MM/YYYY)
+                tipoDoc,          // 3. Tipo (07)
+                serieOuuid,       // 4. Serie o UUID 
+                numDocLimpio,     // 5. Número de Comprobante (DTE)
+                montoSujeto,      // 6. Monto Sujeto
+                montoRetenido,    // 7. Monto Retenido (1%)
+                '',               // 8. Vacío
+                '7'               // 9. Número Fijo (7 para Casilla 162)
             ];
             return columnas.join(';');
         });
 
         // 🚨 CODIFICACIÓN LATIN1 Y SALTO DE LÍNEA WINDOWS (\r\n)
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
-        res.setHeader('Content-Disposition', `attachment; filename="Anexo4_Retenciones_${mes}_${anio}.csv"`);
+        res.setHeader('Content-Disposition', `attachment; filename="Retenciones_Casilla162_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
 
     } catch (error) {
         return res.status(500).json({ message: error.message });
     }
 };
+
 // ========================================================================
 // 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) - FORMATO EXACTO 8 COLUMNAS
 // ========================================================================

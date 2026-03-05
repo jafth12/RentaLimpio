@@ -565,11 +565,26 @@ const resetForm = () => {
   formulario.value.fecha = new Date().toISOString().split('T')[0];
   formulario.value.mesDeclarado = mesesOptions[new Date().getMonth()];
   formulario.value.anioDeclarado = new Date().getFullYear().toString();
-  formulario.value.numero_control = ''; formulario.value.uuid_dte = '';
-  formulario.value.internasGravadas = '0.00'; formulario.value.total = '0.00'; 
-  formulario.value.iva = '0.00'; formulario.value.internasExentas = '0.00'; formulario.value.otroAtributo = '0.00';
+  formulario.value.numero_control = ''; 
+  formulario.value.uuid_dte = '';
+  
+  // 🛡️ AQUÍ ESTÁ LA MAGIA: Forzamos los valores predeterminados de los selectores siempre
+  formulario.value.claseDocumento = '4. DOCUMENTO TRIBUTARIO DTE';
+  formulario.value.tipoDocumento = '03 COMPROBANTE DE CREDITO FISCAL';
+  formulario.value.tipoOperacion = '1. GRAVADA';
+  formulario.value.clasificacion = '2. GASTO';
+  formulario.value.sector = '2. COMERCIO'; // 👈 Queda fijo como predeterminado
+  formulario.value.tipoCostoGasto = '2. GASTO DE ADMINISTRACION SIN DONACION';
+
+  formulario.value.internasGravadas = '0.00'; 
+  formulario.value.total = '0.00'; 
+  formulario.value.iva = '0.00'; 
+  formulario.value.internasExentas = '0.00'; 
+  formulario.value.otroAtributo = '0.00';
+  
   ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
-  proveedorSeleccionado.value = null; declaranteSeleccionado.value = null;
+  proveedorSeleccionado.value = null; 
+  declaranteSeleccionado.value = null;
   errores.value = { proveedor: false, declarante: false, fecha: false, numero: false, internas: false };
 };
 

@@ -7,7 +7,7 @@ export const getVentasCCF = async (req, res) => {
         const query = `
             SELECT 
                 idCredFiscal, iddeclaNIT, FiscFecha, FisClasDoc, FisTipoDoc, FiscSerieDoc, 
-                FiscNumDoc, FiscCodGeneracion, FiscNumResol, /* <-- 🛡️ AÑADIDO: Resolución Física */
+                FiscNumDoc, FiscCodGeneracion, FiscNumResol, FiscSelloRecepcion, /* <-- 🛡️ AÑADIDO: Sello de Recepción */
                 FiscNumContInter, FiscNit, FiscNomRazonDenomi, 
                 FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, FiscTotalVtas, 
                 BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscMesDeclarado, FiscAnioDeclarado, 
@@ -19,7 +19,7 @@ export const getVentasCCF = async (req, res) => {
             SELECT 
                 idNotaCredito as idCredFiscal, iddeclaNIT, NCFecha as FiscFecha, NCClaseDoc as FisClasDoc, 
                 NCTipoDoc as FisTipoDoc, NULL as FiscSerieDoc, NCNumero as FiscNumDoc, 
-                NCCodGeneracion as FiscCodGeneracion, NULL as FiscNumResol, /* <-- Relleno para notas */
+                NCCodGeneracion as FiscCodGeneracion, NULL as FiscNumResol, NULL as FiscSelloRecepcion, /* <-- Relleno para notas */
                 NULL as FiscNumContInter, 
                 NCNitContraparte as FiscNit, NCNombreContraparte as FiscNomRazonDenomi, 
                 NCMontoExento as FiscVtaExen, 0.00 as FiscVtaNoSujetas, NCMontoGravado as FiscVtaGravLocal, 
@@ -78,6 +78,7 @@ export const createVentasCCF = async (req, res) => {
         
         const numDoc = esFisico ? d.numero_fisico : d.numero_control;
         const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const selloRec = esFisico ? null : (d.sello_recepcion || null); // 🛡️ AÑADIDO: Captura del Sello
         const serie = d.serie || null;
         const resolucion = esFisico ? d.resolucion : null;
 
@@ -124,13 +125,14 @@ export const createVentasCCF = async (req, res) => {
 
             if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Este Comprobante de Crédito Fiscal ya se encuentra registrado.' });
 
+            // 🛡️ AÑADIDO: FiscSelloRecepcion
             const query = `
                 INSERT INTO credfiscal 
-                (iddeclaNIT, FiscFecha, FiscMesDeclarado, FiscAnioDeclarado, FisClasDoc, FisTipoDoc, FiscNumResol, FiscSerieDoc, FiscNumDoc, FiscCodGeneracion, FiscNumContInter, FiscNit, FiscNomRazonDenomi, FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, FiscTotalVtas, BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2')
+                (iddeclaNIT, FiscFecha, FiscMesDeclarado, FiscAnioDeclarado, FisClasDoc, FisTipoDoc, FiscNumResol, FiscSerieDoc, FiscNumDoc, FiscCodGeneracion, FiscSelloRecepcion, FiscNumContInter, FiscNit, FiscNomRazonDenomi, FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, FiscTotalVtas, BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscNumAnexo) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2')
             `;
-            // Se asume que el NRC es también el FiscNumContInter, esto es normal en la F-07
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, resolucion, serie, numDoc, uuidDte, d.nrc, d.nrc, d.cliente, exentas, noSujetas, gravada, debito, total, d.tipo_operacion || '1', d.tipo_ingreso || '1'];
+            // 🛡️ AÑADIDO: selloRec en los values
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, resolucion, serie, numDoc, uuidDte, selloRec, d.nrc, d.nrc, d.cliente, exentas, noSujetas, gravada, debito, total, d.tipo_operacion || '1', d.tipo_ingreso || '1'];
 
             const [result] = await pool.query(query, values);
             registrarAccion(usuario, 'CREACION', 'ANEXO 2', `Doc: ${numDoc} - Total: $${total}`);
@@ -163,6 +165,7 @@ export const updateVentasCCF = async (req, res) => {
         const claseDoc = esFisico ? '1' : '4'; 
         const numDoc = esFisico ? d.numero_fisico : d.numero_control;
         const uuidDte = esFisico ? null : (d.uuid_dte || '');
+        const selloRec = esFisico ? null : (d.sello_recepcion || null); // 🛡️ AÑADIDO: Captura del Sello
         const serie = d.serie || null;
         const resolucion = esFisico ? d.resolucion : null;
 
@@ -210,12 +213,14 @@ export const updateVentasCCF = async (req, res) => {
 
             if (duplicado.length > 0) return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO CCF con ese mismo Número o UUID.' });
 
+            // 🛡️ AÑADIDO: FiscSelloRecepcion=?
             const query = `
                 UPDATE credfiscal SET 
-                    iddeclaNIT=?, FiscFecha=?, FiscMesDeclarado=?, FiscAnioDeclarado=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, FiscNumDoc=?, FiscCodGeneracion=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, FiscTotalVtas=?, BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?
+                    iddeclaNIT=?, FiscFecha=?, FiscMesDeclarado=?, FiscAnioDeclarado=?, FisClasDoc=?, FisTipoDoc=?, FiscNumResol=?, FiscSerieDoc=?, FiscNumDoc=?, FiscCodGeneracion=?, FiscSelloRecepcion=?, FiscNumContInter=?, FiscNit=?, FiscNomRazonDenomi=?, FiscVtaExen=?, FiscVtaNoSujetas=?, FiscVtaGravLocal=?, FiscDebitoFiscal=?, FiscTotalVtas=?, BusFiscTipoOperaRenta=?, BusFiscTipoIngresoRenta=?
                 WHERE idCredFiscal = ?
             `;
-            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, resolucion, serie, numDoc, uuidDte, d.nrc, d.nrc, d.cliente, exentas, noSujetas, gravada, debito, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', id];
+            // 🛡️ AÑADIDO: selloRec en los values
+            const values = [d.iddeclaNIT, d.fecha, d.mesDeclarado, d.anioDeclarado, claseDoc, tipoDoc, resolucion, serie, numDoc, uuidDte, selloRec, d.nrc, d.nrc, d.cliente, exentas, noSujetas, gravada, debito, total, d.tipo_operacion || '1', d.tipo_ingreso || '1', id];
 
             const [result] = await pool.query(query, values);
             if (result.affectedRows === 0) return res.status(404).json({ message: 'CCF no encontrado' });

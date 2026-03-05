@@ -103,6 +103,11 @@
                    </div>
                 </div>
 
+                <div class="form-group fade-in" style="grid-column: span 4;" v-if="formulario.modoIngreso === 'dte'">
+                   <label class="form-label text-success">✔️ Sello de Recepción MH (Opcional)</label>
+                   <input type="text" v-model="formulario.sello_recepcion" class="form-control input-sello" placeholder="Pegue aquí los 40 caracteres del Sello de Recepción (Si aplica)">
+                </div>
+
                 <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
                   <label class="form-label">Número de Resolución <span class="text-danger">*</span></label>
                   <input type="text" v-model="formulario.resolucion" class="form-control" placeholder="15042-RES-CR-..." required>
@@ -282,12 +287,15 @@
                      </span>
                   </td>
                   <td><div class="fw-bold text-dark">{{ venta.FiscNomRazonDenomi || 'Desconocido' }}</div><small class="text-muted">{{ venta.FiscNit || 'N/A' }}</small></td>
-                  <td><span class="doc-number text-xs" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span></td>
+                  <td>
+                     <span class="doc-number text-xs" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span>
+                     <div v-if="venta.FiscSelloRecepcion" class="badge-sello-mh mt-1" :title="venta.FiscSelloRecepcion">✔️ Sello MH</div>
+                  </td>
                   <td class="text-right text-muted">
                     <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2) }}
                   </td>
                   <td class="text-right fw-bold" :class="venta.FisTipoDoc === '05' ? 'text-danger' : 'text-success'">
-                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${{ parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2) }}
+                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2) }}
                   </td>
                   <td class="text-right fw-bold text-dark">${{ parseFloat(venta.FiscTotalVtas || 0).toFixed(2) }}</td>
                   <td class="text-center">
@@ -336,15 +344,22 @@ const actualizarNumeroCompleto = () => {
 
 // --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
-    modoIngreso: 'dte', // 🛡️ NUEVO
+    modoIngreso: 'dte', 
     iddeclaNIT: '',
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
     tipoDocumento: '03',
-    numero_control: '', uuid_dte: '', serie: '', resolucion: '', numero_fisico: '', // 🛡️ CAMPOS FISICOS
-    cliente: '', nrc: '',
-    tipo_operacion: '1', tipo_ingreso: '1',
+    numero_control: '', 
+    uuid_dte: '', 
+    sello_recepcion: '', // 🛡️ NUEVO: Atrapa el sello MH
+    serie: '', 
+    resolucion: '', 
+    numero_fisico: '', 
+    cliente: '', 
+    nrc: '',
+    tipo_operacion: '1', 
+    tipo_ingreso: '1',
     gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
     origenTabla: 'credfiscal'
 });
@@ -392,6 +407,7 @@ const aplicarCambioMasivo = async () => {
                 numero_fisico: ventaOri.FiscNumDoc,
                 numero_control: ventaOri.FiscNumDoc,
                 uuid_dte: ventaOri.FiscCodGeneracion,
+                sello_recepcion: ventaOri.FiscSelloRecepcion, // 🛡️ Evitamos que se borre en envíos masivos
                 nrc: ventaOri.FiscNit,
                 cliente: ventaOri.FiscNomRazonDenomi,
                 exentas: ventaOri.FiscVtaExen,
@@ -555,12 +571,13 @@ const prepararEdicion = (venta) => {
         numero_control: esDTE ? rawNum : '',
         numero_fisico: esDTE ? '' : rawNum,
         uuid_dte: venta.FiscCodGeneracion || '',
+        sello_recepcion: venta.FiscSelloRecepcion || '', // 🛡️ Atrapa el sello al editar
         serie: venta.FiscSerieDoc || '',
         resolucion: venta.FiscNumResol || '',
         cliente: venta.FiscNomRazonDenomi || '',
         nrc: venta.FiscNit || '',
-        tipo_operacion: limpiarCodigoCat(venta.BusFiscTipoOperaRenta),
-        tipo_ingreso: limpiarCodigoCat(venta.BusFiscTipoIngresoRenta),
+        tipo_operacion: limpiarCodigoCat(venta.BusFiscTipoOperaRenta) || '1',
+        tipo_ingreso: limpiarCodigoCat(venta.BusFiscTipoIngresoRenta) || '1',
         gravadas: parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2),
         debitoFiscal: parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2),
         exentas: parseFloat(venta.FiscVtaExen || 0).toFixed(2),
@@ -574,7 +591,27 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
-    formulario.value = { modoIngreso: 'dte', iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDocumento: '03', numero_control: '', uuid_dte: '', serie: '', resolucion: '', numero_fisico: '', cliente: '', nrc: '', tipo_operacion: '1', tipo_ingreso: '1', gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', origenTabla: 'credfiscal' };
+    // 🛡️ REINICIO SEGURO Y FORZADO DE SELECTORES
+    formulario.value = { 
+        modoIngreso: 'dte', 
+        iddeclaNIT: '', 
+        fecha: new Date().toISOString().split('T')[0], 
+        mesDeclarado: mesesOptions[new Date().getMonth()], 
+        anioDeclarado: new Date().getFullYear().toString(), 
+        tipoDocumento: '03', 
+        numero_control: '', 
+        uuid_dte: '', 
+        sello_recepcion: '', // Limpiamos el sello
+        serie: '', 
+        resolucion: '', 
+        numero_fisico: '', 
+        cliente: '', 
+        nrc: '', 
+        tipo_operacion: '1', 
+        tipo_ingreso: '1', 
+        gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00', 
+        origenTabla: 'credfiscal' 
+    };
     ccfParts.value = { part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -635,7 +672,6 @@ onMounted(cargarDatos);
 .badge-type.orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
 .badge-type.purple { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
 .badge-type.green { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-.badge-anexo { font-size: 0.75rem; background-color: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #e2e8f0; white-space: nowrap; }
 
 .form-section { margin-bottom: 30px; }
 .section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
@@ -645,6 +681,11 @@ onMounted(cargarDatos);
 .form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
 .form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
 .border-primary { border-color: #55C2B7; border-width: 2px; }
+
+/* 🛡️ ESTILOS DEL SELLO */
+.input-sello { background-color: #f0fdf4; border-color: #34d399; color: #065f46; font-family: monospace; font-weight: bold; }
+.input-sello:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); background-color: #ffffff; }
+.badge-sello-mh { font-size: 0.65rem; background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 12px; display: inline-block; border: 1px solid #6ee7b7; font-weight: bold; cursor: help; }
 
 .uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
 .select-catalogo { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 600; }
@@ -667,7 +708,7 @@ onMounted(cargarDatos);
 .table { width: 100%; border-collapse: collapse; background: white; }
 .table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
 .table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
-.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
+.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; display: inline-block;}
 .alert { padding: 12px; border-radius: 6px; font-weight: 500; text-align: center; }
 .alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; margin-top: 20px; }
 .alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; margin-top: 20px; }
