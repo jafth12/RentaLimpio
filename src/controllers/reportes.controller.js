@@ -520,7 +520,7 @@ export const descargarAnexo5CSV = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 4 (RETENCIONES 1%) 
+// 🛡️ EXPORTACIÓN CSV ANEXO 4 (RETENCIONES 1%) - SIN GUIONES Y SIN SALTOS
 // ========================================================================
 export const exportarRetencionesCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
@@ -534,27 +534,35 @@ export const exportarRetencionesCSV = async (req, res) => {
         }
 
         const csvRows = rows.map(r => {
+            // 🛡️ UUID SIN GUIONES (Aplicando la función sinGuiones como pediste)
             const uuidLimpio = sinGuiones(r.RetenCodGeneracion);
             const numDocLimpio = sinGuiones(r.RetenNumDoc);
+            
+            // 🚨 LIMPIEZA EXTREMA: Quitamos comillas (") y SALTOS DE LÍNEA (\r\n) del nombre
+            const nombreAgente = (r.RetenNomAgente || "")
+                .toUpperCase()
+                .replace(/"/g, '')            // Elimina comillas
+                .replace(/[\r\n]+/g, ' ')     // 🛡️ ELIMINA LOS "ENTERS" OCULTOS
+                .trim();
 
             const columnas = [
-                formatoFechaCSV(r.RetenFecha),                 
-                '4',                                           
-                '07',                                          
-                '0',                                           
-                '0',                                           
-                numDocLimpio,                                  
-                uuidLimpio || numDocLimpio,                    
-                sinGuiones(r.RetenNitAgente),                  
-                r.RetenNomAgente ? `"${r.RetenNomAgente.toUpperCase()}"` : '""', 
-                Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2),  
-                Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2), 
-                '4'                                            
+                formatoFechaCSV(r.RetenFecha),                 // 1. Fecha de Emisión (DD/MM/YYYY)
+                '4',                                           // 2. Clase de Documento (4 = Electrónico)
+                '07',                                          // 3. Tipo de Documento (07 = Comprobante de Retención)
+                '0',                                           // 4. Resolución (0 obligatorio para DTE)
+                '0',                                           // 5. Serie (0 obligatorio para DTE)
+                numDocLimpio,                                  // 6. Número de Comprobante (DTE sin guiones)
+                uuidLimpio || numDocLimpio,                    // 7. Número de Control Interno (UUID *SIN GUIONES*)
+                sinGuiones(r.RetenNitAgente),                  // 8. NIT del Agente de Retención
+                nombreAgente,                                  // 9. Nombre del Agente (Blindado contra saltos de línea)
+                Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2),  // 10. Monto Sujeto a Retención
+                Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2), // 11. Monto Retenido (1%)
+                '4'                                            // 12. Número de Anexo Fijo
             ];
             return columnas.join(';');
         });
 
-        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        // 🚨 CODIFICACIÓN LATIN1 Y SALTO DE LÍNEA WINDOWS (\r\n)
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo4_Retenciones_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
@@ -563,9 +571,8 @@ export const exportarRetencionesCSV = async (req, res) => {
         return res.status(500).json({ message: error.message });
     }
 };
-
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) 
+// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) - FORMATO EXACTO 8 COLUMNAS
 // ========================================================================
 export const exportarAnuladosCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
@@ -577,25 +584,44 @@ export const exportarAnuladosCSV = async (req, res) => {
         if (rows.length === 0) return res.status(404).json({ message: "No hay documentos anulados operantes para este periodo." });
 
         const csvRows = rows.map(a => {
-            const uuidLimpio = sinGuiones(a.DetaDocCodGeneracion);
-            const numControlLimpio = sinGuiones(a.DetaDocDesde) || sinGuiones(a.DetaDocHasta);
+            // Determinamos si es DTE (4) o Físico (1, 2, etc)
+            const claseDoc = a.DetaDocClase || '4';
+            const esFisico = claseDoc !== '4';
+            
+            let resolucion, serie, identificador1, identificador2;
 
+            if (esFisico) {
+                // 🖨️ FÍSICOS: Llevan Resolución, Serie y Rangos (Desde / Hasta)
+                resolucion = sinGuiones(a.DetaDocNumResolu || a.DetaDocResolu) || '0';
+                serie = sinGuiones(a.DetaDocSerie) || '';
+                identificador1 = sinGuiones(a.DetaDocDesde) || '0';
+                identificador2 = sinGuiones(a.DetaDocHasta) || '0';
+            } else {
+                // 🌐 DTEs: Resolución y Serie vacíos. Usa Sello y UUID.
+                resolucion = ''; 
+                serie = '';      
+                identificador1 = a.DetaDocSelloRecepcion || ''; // Sello de Recepción
+                identificador2 = a.DetaDocCodGeneracion || '';  // UUID (Mantiene los guiones)
+            }
+
+            const tipoDoc = (a.DetaDocTipo || a.DetaDocTipoDoc || "01").padStart(2, '0');
+            const anexoRelacionado = a.DetaDocAnexo || '1';
+
+            // 🛡️ ESTRUCTURA EXACTA DE 8 COLUMNAS
             const columnas = [
-                formatoFechaCSV(a.DetaDocFecha),               
-                '4',                                           
-                (a.DetaDocTipoDoc || "01").padStart(2, '0'),   
-                '0',                                           
-                '0',                                           
-                numControlLimpio,                              
-                numControlLimpio,                              
-                uuidLimpio,                                    
-                a.DetaDocTipoDeta || '1',                      
-                '7'                                            
+                formatoFechaCSV(a.DetaDocFecha), // 1 (A). Fecha
+                claseDoc,                        // 2 (B). Clase (1 o 4)
+                tipoDoc,                         // 3 (C). Tipo de Documento (01, 03, etc.)
+                resolucion,                      // 4 (D). Resolución (Vacío en DTE)
+                serie,                           // 5 (E). Serie (Vacío en DTE)
+                identificador1,                  // 6 (F). Sello Recepción (DTE) / Número Desde (Físico)
+                identificador2,                  // 7 (G). UUID (DTE) / Número Hasta (Físico)
+                anexoRelacionado                 // 8 (H). Anexo Original (1, 2 o 3)
             ];
             return columnas.join(';');
         });
 
-        // 🚨 CAMBIO APLICADO: latin1 y \r\n
+        // 🚨 CODIFICACIÓN LATIN1 Y SALTO DE LÍNEA WINDOWS (\r\n)
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo7_Anulados_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
