@@ -95,6 +95,10 @@
                     <label class="form-label">Fecha de Emisión <span class="text-danger">*</span></label>
                     <input type="date" v-model="formulario.fecha" class="form-control" required>
                   </div>
+                  <div class="form-group" style="grid-column: 1 / -1;">
+                     <label class="form-label text-success">✔️ Sello de Recepción MH (Opcional)</label>
+                     <input type="text" v-model="formulario.sello_recepcion" class="form-control input-sello" placeholder="Pegue aquí los 40 caracteres del Sello de Recepción (Si aplica)">
+                  </div>
               </div>
 
               <div v-if="modoIngreso === 'fisico'" class="form-grid fade-in">
@@ -192,7 +196,10 @@
                           {{ item.DetaDocCodGeneracion ? item.DetaDocDesde : `Del: ${item.DetaDocDesde} Al: ${item.DetaDocHasta}` }}
                       </div>
                   </td>
-                  <td><span class="doc-number text-xs">{{ item.DetaDocCodGeneracion || item.DetaDocResolu || 'N/A' }}</span></td>
+                  <td>
+                      <span class="doc-number text-xs">{{ item.DetaDocCodGeneracion || item.DetaDocResolu || 'N/A' }}</span>
+                      <div v-if="item.DetaDocSelloRecepcion" class="badge-sello-mh mt-1" :title="item.DetaDocSelloRecepcion">✔️ Sello MH</div>
+                  </td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(item)" title="Editar">✏️</button>
                     <button class="btn-icon text-danger" @click="eliminarAnulado(item.idAnuladosExtraviados)" title="Eliminar">🗑️</button>
@@ -224,7 +231,7 @@ const modoIngreso = ref('dte');
 const formulario = ref({
     iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(),
-    tipoDeta: '1', tipoDoc: '03', uuid_dte: '', desde: '', hasta: '', resolucion: '', serie: '', anexo: '7'
+    tipoDeta: '1', tipoDoc: '03', uuid_dte: '', sello_recepcion: '', desde: '', hasta: '', resolucion: '', serie: '', anexo: '7'
 });
 
 const listaAnulados = ref([]);
@@ -291,13 +298,23 @@ watch(terminoBusqueda, (val) => {
                 }
 
                 let fechaDoc = '';
-                if (tipoParaBackend === 'CF') fechaDoc = doc.original.ConsFecha;
-                else if (tipoParaBackend === 'CCF') fechaDoc = doc.original.FiscFecha;
-                else if (tipoParaBackend === 'COMPRA') fechaDoc = doc.original.ComFecha;
+                let selloDoc = '';
+                if (tipoParaBackend === 'CF') {
+                    fechaDoc = doc.original.ConsFecha;
+                    selloDoc = doc.original.ConsSelloRecepcion || '';
+                } else if (tipoParaBackend === 'CCF') {
+                    fechaDoc = doc.original.FiscFecha;
+                    selloDoc = doc.original.FiscSelloRecepcion || '';
+                } else if (tipoParaBackend === 'COMPRA') {
+                    fechaDoc = doc.original.ComFecha;
+                    // Compras no usa el sello MH en la misma estructura, lo dejamos vacío
+                }
 
                 // Autocompletamos Paso 2
                 formulario.value.uuid_dte = doc.uuid || formulario.value.uuid_dte;
                 formulario.value.desde = doc.dte || formulario.value.desde;
+                formulario.value.sello_recepcion = selloDoc || formulario.value.sello_recepcion; // 🛡️ Atrapa el sello automáticamente
+                
                 if(fechaDoc) formulario.value.fecha = fechaDoc.split('T')[0];
                 
                 // Autocompletamos Tipo Doc Oculto
@@ -347,6 +364,7 @@ const prepararEdicion = (item) => {
         tipoDeta: item.DetaDocTipoDeta,
         tipoDoc: item.DetaDocTipoDoc,
         uuid_dte: item.DetaDocCodGeneracion || '',
+        sello_recepcion: item.DetaDocSelloRecepcion || '', // 🛡️ Carga el sello en edición
         desde: item.DetaDocDesde,
         hasta: item.DetaDocHasta,
         resolucion: item.DetaDocResolu || '',
@@ -359,7 +377,7 @@ const prepararEdicion = (item) => {
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 const resetForm = () => {
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDeta: '1', tipoDoc: '03', uuid_dte: '', desde: '', hasta: '', resolucion: '', serie: '', anexo: '7' };
+    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDeta: '1', tipoDoc: '03', uuid_dte: '', sello_recepcion: '', desde: '', hasta: '', resolucion: '', serie: '', anexo: '7' };
     terminoBusqueda.value = ''; mensajeBusqueda.value = '';
     modoIngreso.value = 'dte'; modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -415,6 +433,11 @@ onMounted(cargarDatos);
 .input-search:focus { box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.3); }
 .border-primary { border-color: #55C2B7; }
 .border-danger { border-color: #fca5a5; }
+
+/* 🛡️ ESTILOS DEL SELLO */
+.input-sello { background-color: #f0fdf4; border-color: #34d399; color: #065f46; font-family: monospace; font-weight: bold; }
+.input-sello:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); background-color: #ffffff; }
+.badge-sello-mh { font-size: 0.65rem; background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 12px; display: inline-block; border: 1px solid #6ee7b7; font-weight: bold; cursor: help; }
 
 .uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
 .dte-input { font-family: 'Consolas', monospace; font-size: 0.95rem; color: #0f766e; }

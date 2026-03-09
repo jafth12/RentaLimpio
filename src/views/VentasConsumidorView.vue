@@ -612,6 +612,7 @@ const anularDocumento = async (ventaOriginal) => {
             tipoDeta: '1', 
             tipoDoc: ventaOriginal.ConsTipoDoc || '01', 
             uuid_dte: ventaOriginal.ConsCodGeneracion || '',
+            sello_recepcion: ventaOriginal.ConsSelloRecepcion || '', // 🛡️ ¡AQUÍ ESTÁ! Ahora el sello viaja
             desde: ventaOriginal.ConsNumDocDEL || ventaOriginal.ConsNumDocAL || '', 
             hasta: ventaOriginal.ConsNumDocAL || '', 
             serie: ventaOriginal.ConsSerieDoc || '',

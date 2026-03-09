@@ -629,6 +629,7 @@ const anularDocumento = async (ventaOriginal) => {
             tipoDeta: '1', 
             tipoDoc: ventaOriginal.FisTipoDoc || '03', 
             uuid_dte: ventaOriginal.FiscCodGeneracion,
+            sello_recepcion: ventaOriginal.FiscSelloRecepcion || '', // 🛡️ ¡AQUÍ ESTÁ! Sello de CCF asegurado
             desde: ventaOriginal.FiscNumDoc, 
             hasta: ventaOriginal.FiscNumDoc, 
             serie: ventaOriginal.FiscSerieDoc || '',

@@ -110,7 +110,7 @@ const qVentasCCF = `
     SELECT 
       f.idCredFiscal, f.iddeclaNIT, f.FiscFecha, f.FisClasDoc, f.FisTipoDoc, 
       f.FiscNumResol, f.FiscSerieDoc, f.FiscNumDoc, f.FiscCodGeneracion, 
-      f.FiscSelloRecepcion, /* 🛡️ AÑADIDO: EXTRAMOS EL SELLO */
+      f.FiscSelloRecepcion, /* 🛡️ AÑADIDO: EXTRAEMOS EL SELLO */
       f.FiscNumContInter, f.FiscNit, f.FiscNomRazonDenomi, f.ClienNom, 
       f.FiscVtaExen, f.FiscVtaNoSujetas, f.FiscVtaGravLocal, f.FiscDebitoFiscal, 
       f.FiscVtaCtaTercNoDomici, f.FiscDebFiscVtaCtaTerceros, f.FiscTotalVtas, 
@@ -303,7 +303,7 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL) - CLON APROBADO HACIENDA
+// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL)
 // ========================================================================
 export const descargarAnexo1CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -316,7 +316,6 @@ export const descargarAnexo1CSV = async (req, res) => {
             let resolucion, serie, del, al, maquina, uuidCol;
 
             if (esFisico) {
-                // 🖨️ FACTURAS FÍSICAS
                 resolucion = sinGuiones(v.ConsNumResolu) || '0';
                 serie = sinGuiones(v.ConsSerieDoc) || '';
                 del = sinGuiones(v.ConsNumDocDEL) || '0';
@@ -324,7 +323,6 @@ export const descargarAnexo1CSV = async (req, res) => {
                 maquina = sinGuiones(v.ConsNumMaqRegistro) || '';
                 uuidCol = '';
             } else {
-                // 🌐 DTEs (CLASE 4)
                 const numControlLimpio = sinGuiones(v.ConsNumDocAL) || sinGuiones(v.ConsNumDocDEL);
                 const selloLimpio = sinGuiones(v.ConsSelloRecepcion) || sinGuiones(v.ConsCodGeneracion) || numControlLimpio;
                 
@@ -337,7 +335,6 @@ export const descargarAnexo1CSV = async (req, res) => {
             }
 
             const dui = ''; 
-            
             const tipoOpera = v.ConsTipoOpera ? String(v.ConsTipoOpera).padStart(2, '0') : '01';
             const tipoIngreso = v.ConsTipoIngreso ? String(v.ConsTipoIngreso).padStart(2, '0') : '01';
 
@@ -353,13 +350,9 @@ export const descargarAnexo1CSV = async (req, res) => {
                 uuidCol,                                    
                 dui,                                        
                 Math.abs(v.ConsVtaExentas).toFixed(2),      
-                '0.00',                                     
-                '0.00',                                     
+                '0.00', '0.00',                                     
                 Math.abs(v.ConsVtaGravLocales).toFixed(2),  
-                '0.00',                                     
-                '0.00',                                     
-                '0.00',                                     
-                '0.00',                                     
+                '0.00', '0.00', '0.00', '0.00',                                     
                 Math.abs(v.ConsVtaNoSujetas).toFixed(2),    
                 Math.abs(v.ConsTotalVta).toFixed(2),        
                 tipoOpera,                                  
@@ -372,13 +365,11 @@ export const descargarAnexo1CSV = async (req, res) => {
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo1_ConsumidorFinal_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
-    } catch (error) { 
-        res.status(500).json({ error: error.message }); 
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL) - CLON APROBADO
+// 🛡️ EXPORTACIÓN CSV ANEXO 2 (CRÉDITO FISCAL)
 // ========================================================================
 export const descargarAnexo2CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -389,55 +380,46 @@ export const descargarAnexo2CSV = async (req, res) => {
         const csvRows = rows.map(v => {
             const esFisico = v.FisClasDoc !== '4';
             let resolucion, serie, numDoc, uuidVal;
-            
             const numControlLimpio = sinGuiones(v.FiscNumDoc) || '0';
 
             if (esFisico) {
-                // 🖨️ FÍSICOS: Mantiene formato original
                 resolucion = sinGuiones(v.FiscNumResol) || '0';
                 serie = sinGuiones(v.FiscSerieDoc) || '0';
                 numDoc = numControlLimpio;
                 uuidVal = '';
             } else {
-                // 🌐 DTEs (CLASE 4) - REGLAS SEGÚN EL CSV APROBADO 
                 const selloLimpio = sinGuiones(v.FiscSelloRecepcion) || sinGuiones(v.FiscCodGeneracion) || numControlLimpio;
-                
-                resolucion = numControlLimpio;    // Col 4: DTE repetido
-                serie = selloLimpio;              // Col 5: SELLO
-                numDoc = numControlLimpio;        // Col 6: DTE repetido
-                uuidVal = numControlLimpio;       // Col 7: DTE repetido
+                resolucion = numControlLimpio;    
+                serie = selloLimpio;              
+                numDoc = numControlLimpio;        
+                uuidVal = numControlLimpio;       
             }
 
-            // 🚨 ELIMINACIÓN DE DUI: Forçado a vazio conforme o modelo aprovado da Fazenda
             const duiClien = '';
-            
-            // 🚨 HACIENDA ODIA LAS COMILLAS Y SALTOS (Limpeza total)
             const nombreCliente = (v.FiscNomRazonDenomi || "").toUpperCase().replace(/"/g, '').replace(/[\r\n]+/g, ' ').trim();
-
             const tipoOpera = v.BusFiscTipoOperaRenta ? String(v.BusFiscTipoOperaRenta).padStart(2, '0') : '01';
             const tipoIngreso = v.BusFiscTipoIngresoRenta ? String(v.BusFiscTipoIngresoRenta).padStart(2, '0') : '03';
 
             const columnas = [
-                formatoFechaCSV(v.FiscFecha),                 // 1
-                v.FisClasDoc || '4',                          // 2
-                (v.FisTipoDoc || "03").padStart(2, '0'),      // 3
-                resolucion,                                   // 4
-                serie,                                        // 5
-                numDoc,                                       // 6
-                uuidVal,                                      // 7
-                sinGuiones(v.FiscNit),                        // 8
-                nombreCliente,                                // 9
-                Math.abs(v.FiscVtaExen).toFixed(2),           // 10
-                Math.abs(v.FiscVtaNoSujetas).toFixed(2),      // 11
-                Math.abs(v.FiscVtaGravLocal).toFixed(2),      // 12
-                Math.abs(v.FiscDebitoFiscal).toFixed(2),      // 13
-                '0.00',                                       // 14
-                '0.00',                                       // 15
-                Math.abs(v.FiscTotalVtas).toFixed(2),         // 16
-                duiClien,                                     // 17
-                tipoOpera,                                    // 18
-                tipoIngreso,                                  // 19
-                '1'                                           // 20 🛡️ MUDANÇA: Fixo como '1' igual ao modelo aceito
+                formatoFechaCSV(v.FiscFecha),                 
+                v.FisClasDoc || '4',                          
+                (v.FisTipoDoc || "03").padStart(2, '0'),      
+                resolucion,                                   
+                serie,                                        
+                numDoc,                                       
+                uuidVal,                                      
+                sinGuiones(v.FiscNit),                        
+                nombreCliente,                                
+                Math.abs(v.FiscVtaExen).toFixed(2),           
+                Math.abs(v.FiscVtaNoSujetas).toFixed(2),      
+                Math.abs(v.FiscVtaGravLocal).toFixed(2),      
+                Math.abs(v.FiscDebitoFiscal).toFixed(2),      
+                '0.00', '0.00',                                       
+                Math.abs(v.FiscTotalVtas).toFixed(2),         
+                duiClien,                                     
+                tipoOpera,                                    
+                tipoIngreso,                                  
+                '1'                                           
             ];
             return columnas.join(';');
         });
@@ -470,32 +452,20 @@ export const descargarAnexo3CSV = async (req, res) => {
             const intGravadas = Math.abs(parseFloat(c.ComInternacGravBienes) || 0);
             const impGravadasB = Math.abs(parseFloat(c.ComImportGravBienes) || 0);
             const impGravadasS = Math.abs(parseFloat(c.ComImportGravServicios) || 0);
-            
             const cf = Math.abs(parseFloat(c.ComCredFiscal) || 0).toFixed(2);
-            
             const totalHacienda = (exentas + intExentas + impExentas + gravadas + intGravadas + impGravadasB + impGravadasS).toFixed(2);
 
             const columnas = [
                 formatoFechaCSV(c.ComFecha),            
                 c.ComClase || '4',                      
                 (c.ComTipo || "03").padStart(2, '0'),   
-                numDoc,                                 
-                nitProv,                                
-                nombreProv,                             
-                exentas.toFixed(2),                     
-                intExentas.toFixed(2),                  
-                impExentas.toFixed(2),                  
-                gravadas.toFixed(2),                    
-                intGravadas.toFixed(2),                 
-                impGravadasB.toFixed(2),                
-                impGravadasS.toFixed(2),                
-                cf,                                     
-                totalHacienda,                          
-                duiProv,                                
-                c.ComTipoOpeRenta || '1',               
-                c.ComClasiRenta || '2',                 
-                c.ComSecNum || '2',                     
-                c.ComTipoCostoGasto || '1',             
+                numDoc, nitProv, nombreProv,                             
+                exentas.toFixed(2), intExentas.toFixed(2), impExentas.toFixed(2),                  
+                gravadas.toFixed(2), intGravadas.toFixed(2),                 
+                impGravadasB.toFixed(2), impGravadasS.toFixed(2),                
+                cf, totalHacienda, duiProv,                                
+                c.ComTipoOpeRenta || '1', c.ComClasiRenta || '2',                 
+                c.ComSecNum || '2', c.ComTipoCostoGasto || '1',             
                 '3'                                     
             ];
             return columnas.join(';');
@@ -504,10 +474,7 @@ export const descargarAnexo3CSV = async (req, res) => {
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo3_Compras_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n')); 
-
-    } catch (error) { 
-        res.status(500).json({ error: error.message }); 
-    }
+    } catch (error) { res.status(500).json({ error: error.message }); }
 };
 
 // ========================================================================
@@ -523,7 +490,6 @@ export const descargarAnexo5CSV = async (req, res) => {
 
         const csvRows = rows.map(s => {
             const uuidVal = sinGuiones(s.ComprasSujExcluCodGeneracion) || sinGuiones(s.ComprasSujExcluNumDoc);
-            
             const columnas = [
                 formatoFechaCSV(s.ComprasSujExcluFecha), s.ComprasSujExcluTipoDoc || '14', sinGuiones(s.ComprasSujExcluNIT),
                 s.ComprasSujExcluNom ? `"${s.ComprasSujExcluNom.toUpperCase()}"` : '""',
@@ -535,7 +501,6 @@ export const descargarAnexo5CSV = async (req, res) => {
             return columnas.join(';');
         });
 
-        // 🚨 CAMBIO APLICADO: latin1 y \r\n
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo5_SujetosExcluidos_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
@@ -543,7 +508,7 @@ export const descargarAnexo5CSV = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV RETENCIONES 1% (CASILLA 162 / F-14) - CLON APROBADO
+// 🛡️ EXPORTACIÓN CSV RETENCIONES 1% (CASILLA 162 / F-14)
 // ========================================================================
 export const exportarRetencionesCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
@@ -551,52 +516,29 @@ export const exportarRetencionesCSV = async (req, res) => {
 
     try {
         const [rows] = await pool.query(qRetenciones, [nit, mes, anio]);
-
-        if (rows.length === 0) {
-            return res.status(404).json({ message: "No hay retenciones operantes para este periodo." });
-        }
+        if (rows.length === 0) return res.status(404).json({ message: "No hay retenciones operantes para este periodo." });
 
         const csvRows = rows.map(r => {
-            // 🛡️ ESTRUCTURA EXACTA DE 9 COLUMNAS SEGÚN CASILLA 162
             const nitLimpio = sinGuiones(r.RetenNitAgente);
             const fecha = formatoFechaCSV(r.RetenFecha);
             const tipoDoc = '07';
-            
-            // Columna 4: UUID o Serie (Pasa tal cual está en la base, con o sin guiones)
             const serieOuuid = r.RetenCodGeneracion || ''; 
-            
-            // Columna 5: Número de documento (DTE sin guiones)
             const numDocLimpio = sinGuiones(r.RetenNumDoc);
-            
             const montoSujeto = Math.abs(Number(r.RetenMontoSujeto || 0)).toFixed(2);
             const montoRetenido = Math.abs(Number(r.RetenMontoDeReten || 0)).toFixed(2);
 
-            const columnas = [
-                nitLimpio,        // 1. NIT Agente (Sin guiones)
-                fecha,            // 2. Fecha (DD/MM/YYYY)
-                tipoDoc,          // 3. Tipo (07)
-                serieOuuid,       // 4. Serie o UUID 
-                numDocLimpio,     // 5. Número de Comprobante (DTE)
-                montoSujeto,      // 6. Monto Sujeto
-                montoRetenido,    // 7. Monto Retenido (1%)
-                '',               // 8. Vacío
-                '7'               // 9. Número Fijo (7 para Casilla 162)
-            ];
+            const columnas = [ nitLimpio, fecha, tipoDoc, serieOuuid, numDocLimpio, montoSujeto, montoRetenido, '', '7' ];
             return columnas.join(';');
         });
 
-        // 🚨 CODIFICACIÓN LATIN1 Y SALTO DE LÍNEA WINDOWS (\r\n)
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Retenciones_Casilla162_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
-
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
+    } catch (error) { return res.status(500).json({ message: error.message }); }
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS) - FORMATO EXACTO 8 COLUMNAS
+// 🛡️ EXPORTACIÓN CSV ANEXO 7 (ANULADOS Y EXTRAVIADOS)
 // ========================================================================
 export const exportarAnuladosCSV = async (req, res) => {
     const { mes, anio, nit } = req.query;
@@ -604,55 +546,35 @@ export const exportarAnuladosCSV = async (req, res) => {
 
     try {
         const [rows] = await pool.query(`SELECT * FROM anuladosextraviados WHERE iddeclaNIT = ? AND AnulMesDeclarado = ? AND AnulAnioDeclarado = ? ORDER BY DetaDocFecha ASC`, [nit, mes, anio]);
-
         if (rows.length === 0) return res.status(404).json({ message: "No hay documentos anulados operantes para este periodo." });
 
         const csvRows = rows.map(a => {
-            // Determinamos si es DTE (4) o Físico (1, 2, etc)
             const claseDoc = a.DetaDocClase || '4';
             const esFisico = claseDoc !== '4';
+            const tipoDoc = (a.DetaDocTipo || a.DetaDocTipoDoc || "01").padStart(2, '0');
             
-            let resolucion, serie, identificador1, identificador2;
+            let resolucion, serie, uuid_gen, tipoDetalle;
 
             if (esFisico) {
-                // 🖨️ FÍSICOS: Llevan Resolución, Serie y Rangos (Desde / Hasta)
                 resolucion = sinGuiones(a.DetaDocNumResolu || a.DetaDocResolu) || '0';
                 serie = sinGuiones(a.DetaDocSerie) || '';
-                identificador1 = sinGuiones(a.DetaDocDesde) || '0';
-                identificador2 = sinGuiones(a.DetaDocHasta) || '0';
+                uuid_gen = ''; 
+                tipoDetalle = a.DetaDocTipoDeta || '1'; 
             } else {
-                // 🌐 DTEs: Resolución y Serie vacíos. Usa Sello y UUID.
-                resolucion = ''; 
-                serie = '';      
-                identificador1 = a.DetaDocSelloRecepcion || ''; // Sello de Recepción
-                identificador2 = a.DetaDocCodGeneracion || '';  // UUID (Mantiene los guiones)
+                resolucion = sinGuiones(a.DetaDocDesde);       
+                serie = sinGuiones(a.DetaDocSelloRecepcion);   
+                uuid_gen = sinGuiones(a.DetaDocCodGeneracion); 
+                tipoDetalle = '4';                             
             }
 
-            const tipoDoc = (a.DetaDocTipo || a.DetaDocTipoDoc || "01").padStart(2, '0');
-            const anexoRelacionado = a.DetaDocAnexo || '1';
-
-            // 🛡️ ESTRUCTURA EXACTA DE 8 COLUMNAS
-            const columnas = [
-                formatoFechaCSV(a.DetaDocFecha), // 1 (A). Fecha
-                claseDoc,                        // 2 (B). Clase (1 o 4)
-                tipoDoc,                         // 3 (C). Tipo de Documento (01, 03, etc.)
-                resolucion,                      // 4 (D). Resolución (Vacío en DTE)
-                serie,                           // 5 (E). Serie (Vacío en DTE)
-                identificador1,                  // 6 (F). Sello Recepción (DTE) / Número Desde (Físico)
-                identificador2,                  // 7 (G). UUID (DTE) / Número Hasta (Físico)
-                anexoRelacionado                 // 8 (H). Anexo Original (1, 2 o 3)
-            ];
+            const columnas = [ resolucion, claseDoc, tipoDoc, tipoDetalle, serie, uuid_gen ];
             return columnas.join(';');
         });
 
-        // 🚨 CODIFICACIÓN LATIN1 Y SALTO DE LÍNEA WINDOWS (\r\n)
         res.setHeader('Content-Type', 'text/csv; charset=latin1');
         res.setHeader('Content-Disposition', `attachment; filename="Anexo7_Anulados_${mes}_${anio}.csv"`);
         res.status(200).send(csvRows.join('\r\n'));
-
-    } catch (error) {
-        return res.status(500).json({ message: error.message });
-    }
+    } catch (error) { return res.status(500).json({ message: error.message }); }
 };
 
 export const exportarAnuladosJSON = async (req, res) => {
@@ -662,4 +584,271 @@ export const exportarAnuladosJSON = async (req, res) => {
         const [rows] = await pool.query(`SELECT * FROM anuladosextraviados WHERE iddeclaNIT = ? AND AnulMesDeclarado = ? AND AnulAnioDeclarado = ? ORDER BY DetaDocFecha ASC`, [nit, mes, anio]);
         res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() }, data: { anulados: rows } });
     } catch (error) { res.status(500).json({ message: error.message }); }
+};
+
+// ==========================================
+// 2. IMPORTACIÓN MASIVA INTELIGENTE (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+// ==========================================
+export const importarTodoJSON = async (req, res) => {
+    const info = req.body.backup_info || req.body.encabezado;
+    const dataToImport = req.body.data || req.body.modulos;
+    const nitFront = info?.nit || info?.nit_declarante;
+
+    if (!nitFront || !dataToImport) {
+        return res.status(400).json({ message: "Error: Estructura JSON no reconocida." });
+    }
+
+    const connection = await pool.getConnection();
+    const reporte = { compras: 0, ventas_ccf: 0, ventas_cf: 0, sujetos: 0, retenciones: 0, notas: 0, duplicados: 0, documentos_omitidos: [] };
+    const limpiarCat = (val, def) => val ? (val.toString().match(/\d+/) || [def])[0] : def;
+
+    const mesesArray = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+    
+    const extraerMes = (fechaIso, mesOriginal) => {
+        if (mesOriginal && mesOriginal !== 'Importado') return mesOriginal;
+        if (!fechaIso) return 'Enero';
+        const partes = fechaIso.split('T')[0].split('-');
+        if (partes.length < 2) return 'Enero';
+        const m = parseInt(partes[1], 10);
+        return mesesArray[m - 1] || 'Enero';
+    };
+
+    const extraerAnio = (fechaIso, anioOriginal) => {
+        if (anioOriginal && anioOriginal !== 'Importado') return anioOriginal.toString();
+        if (!fechaIso) return new Date().getFullYear().toString();
+        return fechaIso.split('T')[0].split('-')[0];
+    };
+
+    try {
+        await connection.beginTransaction();
+
+        const [existeD] = await connection.query('SELECT iddeclaNIT FROM declarante WHERE REPLACE(iddeclaNIT, "-", "") = REPLACE(?, "-", "")', [nitFront]);
+        if (existeD.length === 0) throw new Error(`El declarante ${nitFront} no existe en su base de datos.`);
+        const nitDeclarante = existeD[0].iddeclaNIT;
+
+        // 1. COMPRAS
+        if (dataToImport.compras?.length) {
+            for (const c of dataToImport.compras) {
+                await connection.query('INSERT IGNORE INTO proveedor (ProvNIT, ProvNombre) VALUES (?, ?)', [c.proveedor_ProvNIT || '0000', c.ComNomProve || 'Proveedor Importado']);
+                const codGen = c.ComCodGeneracion || null;
+                const tipoDte = limpiarCat(c.ComTipo, '03');
+
+                let fovial = parseFloat(c.comFovial) || 0; let cotrans = parseFloat(c.comCotran) || 0; let otro = parseFloat(c.ComOtroAtributo) || 0;
+                const listaTributos = (c.resumen && c.resumen.tributos) ? c.resumen.tributos : (c.tributos || []);
+                if (listaTributos.length > 0) {
+                    const tribFovial = listaTributos.find(t => t.codigo === 'D1'); const tribCotrans = listaTributos.find(t => t.codigo === 'C8');
+                    if (tribFovial) fovial = parseFloat(tribFovial.valor); if (tribCotrans) cotrans = parseFloat(tribCotrans.valor);
+                    if (fovial > 0 || cotrans > 0) otro = parseFloat((fovial + cotrans).toFixed(2));
+                }
+
+                if (tipoDte === '05' || tipoDte === '06') {
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
+                    if (dup.length === 0) {
+                        const nuevaNota = {
+                            iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(c.ComFecha), NCClaseDoc: c.ComClase || '4', NCTipoDoc: tipoDte,
+                            NCNumero: c.ComNumero, NCCodGeneracion: codGen, NCNitContraparte: c.proveedor_ProvNIT, NCNombreContraparte: c.ComNomProve,
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: c.ComIntGrav || 0, NCMontoExento: c.ComIntExe || 0, NCIva: c.ComCredFiscal || 0,
+                            NCCotran: cotrans, NCFovial: fovial, NCTotal: c.ComTotal || 0, NCTipo: 'COMPRA',
+                            NCMesDeclarado: extraerMes(c.ComFecha, c.ComMesDeclarado), NCAnioDeclarado: extraerAnio(c.ComFecha, c.ComAnioDeclarado), NCAnexo: '3'
+                        };
+                        await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
+                        reporte.compras++; 
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota: ${c.ComNumero}`); }
+                } else {
+                    const [dup] = await connection.query(`
+                        SELECT idcompras FROM compras WHERE iddeclaNIT = ? 
+                        AND (
+                            (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
+                            OR 
+                            ((ComCodGeneracion IS NULL OR ComCodGeneracion = '') AND REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, c.ComNumero, c.proveedor_ProvNIT]);
+                    if (dup.length === 0) {
+                        const nuevaCompra = {
+                            iddeclaNIT: nitDeclarante, proveedor_ProvNIT: c.proveedor_ProvNIT, ComNomProve: c.ComNomProve,
+                            ComFecha: formatearFecha(c.ComFecha), ComClase: c.ComClase || '4', ComTipo: tipoDte,
+                            ComNumero: c.ComNumero, ComCodGeneracion: codGen, ComIntExe: c.ComIntExe || 0, ComIntGrav: c.ComIntGrav || 0,
+                            ComCredFiscal: c.ComCredFiscal || 0, comFovial: fovial, comCotran: cotrans, ComOtroAtributo: otro, ComTotal: c.ComTotal || 0,
+                            ComMesDeclarado: extraerMes(c.ComFecha, c.ComMesDeclarado), ComAnioDeclarado: extraerAnio(c.ComFecha, c.ComAnioDeclarado), 
+                            ComClasiRenta: limpiarCat(c.ComClasiRenta, '1'), ComTipoCostoGasto: limpiarCat(c.ComTipoCostoGasto || c.ComTipoCostoGastoRenta, '2'), 
+                            ComTipoOpeRenta: limpiarCat(c.ComTipoOpeRenta, '1'), ComAnexo: '3'
+                        };
+                        await connection.query('INSERT INTO compras SET ?', nuevaCompra);
+                        reporte.compras++;
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Compra: ${c.ComNumero}`); }
+                }
+            }
+        }
+
+        // 2. CRÉDITO FISCAL (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+        const listaCCF = dataToImport.ventas_ccf || dataToImport.ventas_credito_fiscal || [];
+        if (listaCCF.length) {
+            for (const v of listaCCF) {
+                const codGen = v.FiscCodGeneracion || null;
+                const tipoDte = limpiarCat(v.FisTipoDoc, '03');
+
+                if (tipoDte === '05' || tipoDte === '06') {
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(NCNitContraparte, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
+                    if (dup.length === 0) {
+                        const nuevaNota = {
+                            iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.FiscFecha), NCClaseDoc: v.FisClasDoc || '4', NCTipoDoc: tipoDte,
+                            NCNumero: v.FiscNumDoc, NCCodGeneracion: codGen, NCNitContraparte: v.FiscNit, NCNombreContraparte: v.FiscNomRazonDenomi,
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: v.FiscVtaGravLocal || 0, NCMontoExento: v.FiscVtaExen || 0, NCIva: v.FiscDebitoFiscal || 0,
+                            NCTotal: v.FiscTotalVtas || 0, NCTipo: 'VENTA',
+                            NCMesDeclarado: extraerMes(v.FiscFecha, v.FiscMesDeclarado), NCAnioDeclarado: extraerAnio(v.FiscFecha, v.FiscAnioDeclarado), NCAnexo: '2'
+                        };
+                        await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
+                        reporte.ventas_ccf++;
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota CCF: ${v.FiscNumDoc}`); }
+                } else {
+                    const [dup] = await connection.query(`
+                        SELECT idCredFiscal FROM credfiscal WHERE iddeclaNIT = ? 
+                        AND (
+                            (FiscCodGeneracion = ? AND FiscCodGeneracion IS NOT NULL AND FiscCodGeneracion != '') 
+                            OR 
+                            ((FiscCodGeneracion IS NULL OR FiscCodGeneracion = '') AND REPLACE(FiscNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(FiscNit, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.FiscNumDoc, v.FiscNit]);
+                    if (dup.length === 0) {
+                        const nuevoCCF = {
+                            iddeclaNIT: nitDeclarante, FiscFecha: formatearFecha(v.FiscFecha), FisClasDoc: v.FisClasDoc || '4', FisTipoDoc: tipoDte,
+                            FiscNumDoc: v.FiscNumDoc, FiscCodGeneracion: codGen, 
+                            FiscSelloRecepcion: v.FiscSelloRecepcion || null, // 🛡️ EXTRACCIÓN DEL SELLO AQUÍ
+                            FiscNumContInter: codGen || v.FiscNumContInter || null, FiscNit: v.FiscNit, 
+                            FiscNomRazonDenomi: v.FiscNomRazonDenomi, FiscVtaExen: v.FiscVtaExen || 0, FiscVtaNoSujetas: v.FiscVtaNoSujetas || 0, 
+                            FiscVtaGravLocal: v.FiscVtaGravLocal || 0, FiscDebitoFiscal: v.FiscDebitoFiscal || 0, FiscTotalVtas: v.FiscTotalVtas || 0, 
+                            BusFiscTipoOperaRenta: limpiarCat(v.BusFiscTipoOperaRenta, '1'), BusFiscTipoIngresoRenta: limpiarCat(v.BusFiscTipoIngresoRenta, '1'),
+                            FiscMesDeclarado: extraerMes(v.FiscFecha, v.FiscMesDeclarado), FiscAnioDeclarado: extraerAnio(v.FiscFecha, v.FiscAnioDeclarado), FiscNumAnexo: '2'
+                        };
+                        await connection.query('INSERT INTO credfiscal SET ?', nuevoCCF);
+                        reporte.ventas_ccf++;
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`CCF: ${v.FiscNumDoc}`); }
+                }
+            }
+        }
+
+        // 3. CONSUMIDOR FINAL (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+        const listaCF = dataToImport.ventas_cf || dataToImport.ventas_consumidor || [];
+        if (listaCF.length) {
+            for (const v of listaCF) {
+                const codGen = v.ConsCodGeneracion || null;
+                const tipoDte = limpiarCat(v.ConsTipoDoc, '01');
+
+                if (tipoDte === '05' || tipoDte === '06') {
+                    const [dup] = await connection.query(`
+                        SELECT idNotaCredito FROM notas_credito WHERE iddeclaNIT = ? 
+                        AND (
+                            (NCCodGeneracion = ? AND NCCodGeneracion IS NOT NULL AND NCCodGeneracion != '') 
+                            OR 
+                            ((NCCodGeneracion IS NULL OR NCCodGeneracion = '') AND REPLACE(NCNumero, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
+                    if (dup.length === 0) {
+                        const nuevaNota = {
+                            iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.ConsFecha), NCClaseDoc: v.ConsClaseDoc || '4', NCTipoDoc: tipoDte,
+                            NCNumero: v.ConsNumDocAL || v.ConsNumDocDEL, NCCodGeneracion: codGen, NCNitContraparte: v.ConsNumDocIdentCliente || '', NCNombreContraparte: v.ConsNomRazonCliente || 'Cliente General',
+                            NCNumDocOrigen: 'N/A', NCMontoGravado: v.ConsVtaGravLocales || 0, NCMontoExento: v.ConsVtaExentas || 0, NCIva: 0,
+                            NCTotal: v.ConsTotalVta || 0, NCTipo: 'VENTA',
+                            NCMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), NCAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), NCAnexo: '1'
+                        };
+                        await connection.query('INSERT INTO notas_credito SET ?', nuevaNota);
+                        reporte.ventas_cf++;
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Nota CF: ${v.ConsNumDocAL || v.ConsNumDocDEL}`); }
+                } else {
+                    const [dup] = await connection.query(`
+                        SELECT idconsfinal FROM consumidorfinal WHERE iddeclaNIT = ? 
+                        AND (
+                            (ConsCodGeneracion = ? AND ConsCodGeneracion IS NOT NULL AND ConsCodGeneracion != '') 
+                            OR 
+                            ((ConsCodGeneracion IS NULL OR ConsCodGeneracion = '') AND REPLACE(ConsNumDocAL, '-', '') = REPLACE(?, '-', ''))
+                        )`, [nitDeclarante, codGen, v.ConsNumDocAL || v.ConsNumDocDEL]);
+                    if (dup.length === 0) {
+                        const nuevoCF = {
+                            iddeclaNIT: nitDeclarante, ConsFecha: formatearFecha(v.ConsFecha), ConsClaseDoc: v.ConsClaseDoc || '4', ConsTipoDoc: tipoDte,
+                            ConsNumDocDEL: v.ConsNumDocDEL, ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL, ConsCodGeneracion: codGen,
+                            ConsSelloRecepcion: v.ConsSelloRecepcion || null, // 🛡️ EXTRACCIÓN DEL SELLO AQUÍ
+                            ConsVtaExentas: v.ConsVtaExentas || 0, ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0, ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
+                            ConsTotalVta: v.ConsTotalVta || 0, ConsTipoOpera: limpiarCat(v.ConsTipoOpera, '1'), ConsTipoIngreso: limpiarCat(v.ConsTipoIngreso, '1'),
+                            ConsMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), ConsAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), ConsNumAnexo: '1',
+                            ConsNomRazonCliente: v.ConsNomRazonCliente || 'Cliente General',
+                            ConsNumDocIdentCliente: v.ConsNumDocIdentCliente || ''
+                        };
+                        await connection.query('INSERT INTO consumidorfinal SET ?', nuevoCF);
+                        reporte.ventas_cf++;
+                    } else { reporte.duplicados++; reporte.documentos_omitidos.push(`Consumidor Final: ${v.ConsNumDocAL || v.ConsNumDocDEL}`); }
+                }
+            }
+        }
+
+        // 4. SUJETOS EXCLUIDOS
+        const listaSujetos = dataToImport.sujetos_excluidos || [];
+        if (listaSujetos.length) {
+            for (const s of listaSujetos) {
+                const codGen = s.ComprasSujExcluCodGeneracion || null;
+                const [dup] = await connection.query(`
+                    SELECT idComSujExclui FROM comprassujexcluidos WHERE iddeclaNIT = ? 
+                    AND (
+                        (ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') 
+                        OR 
+                        ((ComprasSujExcluCodGeneracion IS NULL OR ComprasSujExcluCodGeneracion = '') AND REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', ''))
+                    )`, [nitDeclarante, codGen, s.ComprasSujExcluNIT, s.ComprasSujExcluNumDoc]);
+                if (dup.length === 0) {
+                    const nuevoSujeto = {
+                        iddeclaNIT: nitDeclarante, ComprasSujExcluNIT: s.ComprasSujExcluNIT, ComprasSujExcluNom: s.ComprasSujExcluNom,
+                        ComprasSujExcluFecha: formatearFecha(s.ComprasSujExcluFecha), ComprasSujExcluTipoDoc: limpiarCat(s.ComprasSujExcluTipoDoc, '14'),
+                        ComprasSujExcluNumDoc: s.ComprasSujExcluNumDoc, ComprasSujExcluCodGeneracion: codGen, 
+                        ComprasSujExcluMontoOpera: s.ComprasSujExcluMontoOpera || 0, ComprasSujExcluMontoReten: s.ComprasSujExcluMontoReten || 0,
+                        ComprasSujExcluTipoOpera: limpiarCat(s.ComprasSujExcluTipoOpera, '1'), ComprasSujExcluClasificacion: limpiarCat(s.ComprasSujExcluClasificacion, '2'),
+                        ComprasSujExclusector: limpiarCat(s.ComprasSujExclusector, '4'), ComprasSujExcluTipoCostoGast: limpiarCat(s.ComprasSujExcluTipoCostoGast, '2'),
+                        ComprasSujExcluMesDeclarado: extraerMes(s.ComprasSujExcluFecha, s.ComprasSujExcluMesDeclarado), ComprasSujExcluAnioDeclarado: extraerAnio(s.ComprasSujExcluFecha, s.ComprasSujExcluAnioDeclarado), ComprasSujExcluAnexo: '5'
+                    };
+                    await connection.query('INSERT INTO comprassujexcluidos SET ?', nuevoSujeto);
+                    reporte.sujetos++;
+                } else { reporte.duplicados++; }
+            }
+        }
+
+        // 5. RETENCIONES 
+        const listaRetenciones = dataToImport.retenciones || [];
+        if (listaRetenciones.length) {
+            for (const r of listaRetenciones) {
+                const codGen = r.RetenCodGeneracion || null;
+                const [dup] = await connection.query(`
+                    SELECT idRetenciones FROM retenciones WHERE iddeclaNIT = ? 
+                    AND (
+                        (RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') 
+                        OR 
+                        ((RetenCodGeneracion IS NULL OR RetenCodGeneracion = '') AND REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', ''))
+                    )`, [nitDeclarante, codGen, r.RetenNitAgente, r.RetenNumDoc]);
+                if (dup.length === 0) {
+                    const nuevaRetencion = {
+                        iddeclaNIT: nitDeclarante, RetenNitAgente: r.RetenNitAgente, RetenNomAgente: r.RetenNomAgente || '', 
+                        RetenFecha: formatearFecha(r.RetenFecha), RetenListTipoDoc: limpiarCat(r.RetenListTipoDoc, '07'),
+                        RetenSerieDoc: r.RetenSerieDoc || '', RetenNumDoc: r.RetenNumDoc, RetenCodGeneracion: codGen, 
+                        RetenMontoSujeto: r.RetenMontoSujeto || 0, RetenMontoDeReten: r.RetenMontoDeReten || 0,
+                        RetenDuiDelAgente: r.RetenDuiDelAgente || '', RetenMesDeclarado: extraerMes(r.RetenFecha, r.RetenMesDeclarado), 
+                        RetenAnioDeclarado: extraerAnio(r.RetenFecha, r.RetenAnioDeclarado), RetenNumAnexo: '4' 
+                    };
+                    await connection.query('INSERT INTO retenciones SET ?', nuevaRetencion);
+                    reporte.retenciones++;
+                } else { reporte.duplicados++; }
+            }
+        }
+
+        await connection.commit();
+        res.json({ message: "Importación finalizada con éxito.", detalle: reporte });
+
+    } catch (e) {
+        await connection.rollback();
+        res.status(400).json({ message: e.message });
+    } finally { connection.release(); }
 };
