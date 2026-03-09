@@ -42,13 +42,14 @@ export const createRetencion = async (req, res) => {
     const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
 
     try {
+        // 🛡️ SE INYECTA RetenSelloRecepcion EN EL INSERT
         const [result] = await pool.query(
             `INSERT INTO retenciones 
-            (RetenNitAgente, RetenNomAgente, RetenFecha, RetenListTipoDoc, RetenSerieDoc, RetenNumDoc, RetenCodGeneracion, RetenMontoSujeto, RetenMontoDeReten, RetenDuiDelAgente, RetenNumAnexo, iddeclaNIT, RetenMesDeclarado, RetenAnioDeclarado) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (RetenNitAgente, RetenNomAgente, RetenFecha, RetenListTipoDoc, RetenSerieDoc, RetenNumDoc, RetenCodGeneracion, RetenSelloRecepcion, RetenMontoSujeto, RetenMontoDeReten, RetenDuiDelAgente, RetenNumAnexo, iddeclaNIT, RetenMesDeclarado, RetenAnioDeclarado) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 d.nitAgente || '', d.nomAgente || '', d.fecha, d.tipoDoc || '07', d.serie || '', 
-                d.numDoc, d.codGeneracion || '', montoSujeto, montoRetenido, d.duiAgente || '', 
+                d.numDoc, d.codGeneracion || '', d.sello_recepcion || null, montoSujeto, montoRetenido, d.duiAgente || '', 
                 d.anexo || '4', d.iddeclaNIT, d.mesDeclarado, d.anioDeclarado
             ]
         );
@@ -73,13 +74,14 @@ export const updateRetencion = async (req, res) => {
     const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
 
     try {
+        // 🛡️ SE INYECTA RetenSelloRecepcion EN EL UPDATE
         const [result] = await pool.query(
             `UPDATE retenciones SET 
-            RetenNitAgente=?, RetenNomAgente=?, RetenFecha=?, RetenListTipoDoc=?, RetenSerieDoc=?, RetenNumDoc=?, RetenCodGeneracion=?, RetenMontoSujeto=?, RetenMontoDeReten=?, RetenDuiDelAgente=?, RetenNumAnexo=?, iddeclaNIT=?, RetenMesDeclarado=?, RetenAnioDeclarado=? 
+            RetenNitAgente=?, RetenNomAgente=?, RetenFecha=?, RetenListTipoDoc=?, RetenSerieDoc=?, RetenNumDoc=?, RetenCodGeneracion=?, RetenSelloRecepcion=?, RetenMontoSujeto=?, RetenMontoDeReten=?, RetenDuiDelAgente=?, RetenNumAnexo=?, iddeclaNIT=?, RetenMesDeclarado=?, RetenAnioDeclarado=? 
             WHERE idRetenciones=?`,
             [
                 d.nitAgente || '', d.nomAgente || '', d.fecha, d.tipoDoc || '07', d.serie || '', 
-                d.numDoc, d.codGeneracion || '', montoSujeto, montoRetenido, d.duiAgente || '', 
+                d.numDoc, d.codGeneracion || '', d.sello_recepcion || null, montoSujeto, montoRetenido, d.duiAgente || '', 
                 d.anexo || '4', d.iddeclaNIT, d.mesDeclarado, d.anioDeclarado, id
             ]
         );

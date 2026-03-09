@@ -86,7 +86,7 @@
             <div class="form-section">
               <h3 class="section-title">📄 Detalles del Documento Recibido</h3>
               
-              <div class="form-grid four-cols">
+              <div class="form-grid three-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
                   <input type="date" v-model="formulario.fecha" class="form-control" required>
@@ -103,15 +103,21 @@
                   <label class="form-label">Año a Declarar <span class="text-danger">*</span></label>
                   <input type="number" v-model="formulario.anioDeclarado" class="form-control" min="2000" required>
                 </div>
+              </div>
 
+              <div class="form-grid mt-3" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));">
                 <div class="form-group">
-                  <label class="form-label">Código (UUID) / Colocar guiones<span class="text-danger">*</span></label>
-                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX..." required>
+                  <label class="form-label">Código (UUID) / Colocar guiones</label>
+                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX...">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Sello de Recepción (Solo DTE)</label>
+                   <input type="text" v-model="formulario.sello_recepcion" class="form-control uuid-input" placeholder="Ej: 202542266B0EFC5743...">
                 </div>
               </div>
 
               <div class="form-group mt-3">
-                 <label class="form-label">Número CCF (DTE) <span class="text-danger">*</span></label>
+                 <label class="form-label">Número CCF (DTE / Físico) <span class="text-danger">*</span></label>
                  <div class="dte-mask-container" :class="{ 'input-error': errores.numero }">
                     <span class="dte-prefix">DTE</span>
                     <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e, 'part1', 2)" class="dte-part w-2ch" placeholder="00">
@@ -316,6 +322,7 @@ const formulario = ref({
     anioDeclarado: new Date().getFullYear().toString(),
     numero_control: '', 
     uuid_dte: '',
+    sello_recepcion: '', // 🛡️ CAMBIO: Campo de Sello Integrado
     claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
@@ -327,7 +334,7 @@ const errores = ref({ proveedor: false, declarante: false, fecha: false, numero:
 const todosLosProveedores = ref([]);
 const todosLosDeclarantes = ref([]);
 const listaCompras = ref([]);
-const listaAnuladosGlobal = ref([]); // 🛡️ NUEVO: Lista de anulados
+const listaAnuladosGlobal = ref([]); 
 const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
@@ -335,7 +342,6 @@ const mostrandoLista = ref(true);
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
 
-// 🛡️ SINCRONIZACIÓN AUTOMÁTICA DE MES AL CAMBIAR LA FECHA MANUALMENTE
 watch(() => formulario.value.fecha, (nuevaFecha) => {
     if (nuevaFecha && !modoEdicion.value) {
         const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
@@ -344,7 +350,6 @@ watch(() => formulario.value.fecha, (nuevaFecha) => {
     }
 });
 
-// Lógica de Asignación Masiva
 const seleccionados = ref([]);
 const bulkMes = ref(mesesOptions[new Date().getMonth()]);
 const bulkAnio = ref(new Date().getFullYear().toString());
@@ -376,6 +381,7 @@ const aplicarCambioMasivo = async () => {
                 ComTipo: compraOri.ComTipo,
                 ComNumero: compraOri.ComNumero,
                 ComCodGeneracion: compraOri.ComCodGeneracion,
+                ComSelloRecepcion: compraOri.ComSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
                 proveedor_ProvNIT: compraOri.proveedor_ProvNIT,
                 ComNomProve: compraOri.ComNomProve,
                 ComIntExe: compraOri.ComIntExe,
@@ -527,6 +533,7 @@ const prepararEdicion = (compra) => {
     anioDeclarado: compra.ComAnioDeclarado || fSegura.substring(0,4),
     numero_control: rawNum, 
     uuid_dte: compra.ComCodGeneracion || '',
+    sello_recepcion: compra.ComSelloRecepcion || '', // 🛡️ CAMBIO: Sello integrado al editar
     claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase), 
     tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
     tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion), 
@@ -567,13 +574,13 @@ const resetForm = () => {
   formulario.value.anioDeclarado = new Date().getFullYear().toString();
   formulario.value.numero_control = ''; 
   formulario.value.uuid_dte = '';
+  formulario.value.sello_recepcion = ''; // 🛡️ CAMBIO: Resetear Sello
   
-  // 🛡️ AQUÍ ESTÁ LA MAGIA: Forzamos los valores predeterminados de los selectores siempre
   formulario.value.claseDocumento = '4. DOCUMENTO TRIBUTARIO DTE';
   formulario.value.tipoDocumento = '03 COMPROBANTE DE CREDITO FISCAL';
   formulario.value.tipoOperacion = '1. GRAVADA';
   formulario.value.clasificacion = '2. GASTO';
-  formulario.value.sector = '2. COMERCIO'; // 👈 Queda fijo como predeterminado
+  formulario.value.sector = '2. COMERCIO';
   formulario.value.tipoCostoGasto = '2. GASTO DE ADMINISTRACION SIN DONACION';
 
   formulario.value.internasGravadas = '0.00'; 
@@ -594,7 +601,7 @@ const cargarDatos = async () => {
         axios.get(API_PROVEEDORES), 
         axios.get(API_DECLARANTES), 
         axios.get(API_COMPRAS),
-        axios.get(`${BASE_URL}/api/anulados`) // 🛡️ Carga de Anulados
+        axios.get(`${BASE_URL}/api/anulados`)
     ]);
     todosLosProveedores.value = resP.data; 
     todosLosDeclarantes.value = resD.data; 
@@ -603,7 +610,6 @@ const cargarDatos = async () => {
   } catch (error) { console.error("Error", error); }
 };
 
-// 🛡️ FUNCIÓN DE VERIFICACIÓN DE ANULADOS (Específica para Compras)
 const esAnulado = (doc) => {
     const dte = doc.ComNumero;
     const uuid = doc.ComCodGeneracion;
@@ -613,7 +619,6 @@ const esAnulado = (doc) => {
     );
 };
 
-// 🛡️ LÓGICA DE ANULACIÓN (MANTIENE LA COMPRA, SOLO LA MARCA)
 const anularDocumento = async (compraOriginal) => {
     if(esAnulado(compraOriginal)) {
         alert("Este documento ya se encuentra anulado en el sistema.");
@@ -625,13 +630,11 @@ const anularDocumento = async (compraOriginal) => {
     try {
         const payloadAnulado = {
             iddeclaNIT: compraOriginal.iddeclaNIT,
-            // 🛡️ AQUÍ ESTÁ EL CAMBIO CLAVE: Cortamos la fecha para que quede YYYY-MM-DD
             fecha: compraOriginal.ComFecha ? compraOriginal.ComFecha.split('T')[0] : new Date().toISOString().split('T')[0],
             mesDeclarado: compraOriginal.ComMesDeclarado,
             anioDeclarado: compraOriginal.ComAnioDeclarado,
             tipoDeta: '1', 
-            tipoDoc: '03', // Generalmente es CCF (03)
-            // 🛡️ Protegemos los datos por si vienen vacíos
+            tipoDoc: '03',
             uuid_dte: compraOriginal.ComCodGeneracion || '',
             desde: compraOriginal.ComNumero || '', 
             hasta: compraOriginal.ComNumero || '', 
@@ -667,6 +670,7 @@ const guardarCompra = async () => {
       ComAnioDeclarado: formulario.value.anioDeclarado,
       ComNumero: formulario.value.numero_control,
       ComCodGeneracion: formulario.value.uuid_dte,
+      ComSelloRecepcion: formulario.value.sello_recepcion, // 🛡️ CAMBIO: Enviar el Sello a la DB
       ComClase: extraerSoloCodigo(formulario.value.claseDocumento),
       ComTipo: extraerSoloCodigo(formulario.value.tipoDocumento),
       ComTipoOpeRenta: extraerSoloCodigo(formulario.value.tipoOperacion),

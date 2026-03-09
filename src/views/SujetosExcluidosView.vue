@@ -57,6 +57,11 @@
                 </div>
 
                 <div class="form-group" style="grid-column: span 2;">
+                  <label class="form-label">Sello de Recepción (Solo DTE)</label>
+                   <input type="text" v-model="formulario.sello_recepcion" class="form-control uuid-input" placeholder="Ej: 202542266B0EFC5743...">
+                </div>
+
+                <div class="form-group" style="grid-column: span 2;">
                    <label class="form-label">Número DTE (14) <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
@@ -204,7 +209,8 @@ const formulario = ref({
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
-    tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', uuid_dte: '',
+    tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', 
+    uuid_dte: '', sello_recepcion: '', // 🛡️ CAMBIO: Campo de Sello Integrado
     monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 
 });
 
@@ -247,6 +253,7 @@ const aplicarCambioMasivo = async () => {
                 serie: sujetoOri.ComprasSujExcluSerieDoc,
                 numero_control: sujetoOri.ComprasSujExcluNumDoc,
                 uuid_dte: sujetoOri.ComprasSujExcluCodGeneracion,
+                sello_recepcion: sujetoOri.ComprasSujExcluSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
                 monto: sujetoOri.ComprasSujExcluMontoOpera,
                 retencion: sujetoOri.ComprasSujExcluMontoReten,
                 tipoOp: sujetoOri.ComprasSujExcluTipoOpera,
@@ -376,6 +383,7 @@ const prepararEdicion = (item) => {
         serie: item.ComprasSujExcluSerieDoc, 
         numero_control: rawNum, 
         uuid_dte: item.ComprasSujExcluCodGeneracion || '',
+        sello_recepcion: item.ComprasSujExcluSelloRecepcion || '', // 🛡️ CAMBIO: Sello integrado al editar
         monto: parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2), 
         retencion: parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2), 
         tipoOp: limpiarCodigoCat(item.ComprasSujExcluTipoOpera), 
@@ -390,7 +398,12 @@ const prepararEdicion = (item) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', uuid_dte: '', monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 }; 
+    formulario.value = { 
+      iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], 
+      anioDeclarado: new Date().getFullYear().toString(), tipoDoc: '14', nit: '', nombre: '', serie: '', 
+      numero_control: '', uuid_dte: '', sello_recepcion: '', // 🛡️ CAMBIO: Resetear Sello
+      monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 
+    }; 
     ccfParts.value = { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; 
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -402,7 +415,7 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* LOS MISMOS ESTILOS QUE YA TIENES FUNCIONAN PERFECTO AQUÍ */
+/* ESTILOS EXACTOS SIN ALTERACIONES */
 .sujetos-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }

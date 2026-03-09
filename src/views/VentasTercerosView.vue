@@ -59,6 +59,11 @@
                 </div>
 
                 <div class="form-group" style="grid-column: span 2;">
+                  <label class="form-label">Sello de Recepción (Solo DTE)</label>
+                   <input type="text" v-model="formulario.sello_recepcion" class="form-control uuid-input" placeholder="Ej: 202542266B0EFC5743...">
+                </div>
+
+                <div class="form-group" style="grid-column: span 2;">
                    <label class="form-label">Número DTE <span class="text-danger">*</span></label>
                    <div class="dte-mask-container">
                       <span class="dte-prefix">DTE</span>
@@ -235,10 +240,13 @@ const formulario = ref({
     fecha: new Date().toISOString().split('T')[0],
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
-    numero: '', uuid_dte: '', serie: '', 
+    numero: '', 
+    uuid_dte: '', 
+    sello_recepcion: '', // 🛡️ NUEVO: Integración del Sello
+    serie: '', 
     nitMandante: '', nombreMandante: '', 
     LisVtaGraTerTipoDoc: '03', 
-    gravadas: '0.00', comision: '0.00' // 'comision' es en realidad el IVAOperacion en BD
+    gravadas: '0.00', comision: '0.00' 
 });
 
 const listaVentas = ref([]);
@@ -280,8 +288,9 @@ const aplicarCambioMasivo = async () => {
                 serie: vOri.VtaGraTerNumSerie,
                 numero: vOri.VtaGraTerNumDoc,
                 uuid_dte: vOri.VtaGraTerCodGeneracion,
+                sello_recepcion: vOri.VtaGraTerSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
                 gravadas: vOri.VtaGraTerMontoOper,
-                comision: vOri.VtaGraTerIVAOper // El IVA
+                comision: vOri.VtaGraTerIVAOper 
             };
             return axios.put(`${API_URL}/${id}`, payload);
         });
@@ -393,6 +402,7 @@ const prepararEdicion = (venta) => {
         anioDeclarado: venta.VtaGraTerAnioDeclarado || fSegura.substring(0,4),
         numero: rawNum,
         uuid_dte: venta.VtaGraTerCodGeneracion || '',
+        sello_recepcion: venta.VtaGraTerSelloRecepcion || '', // 🛡️ Sello al editar
         serie: venta.VtaGraTerNumSerie || '',
         nitMandante: venta.VtaGraTerNit || '',
         nombreMandante: venta.VtaGraTerNom || '',
@@ -406,7 +416,7 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), numero: '', uuid_dte: '', serie: '', nitMandante: '', nombreMandante: '', LisVtaGraTerTipoDoc: '03', gravadas: '0.00', comision: '0.00' };
+    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), numero: '', uuid_dte: '', sello_recepcion: '', serie: '', nitMandante: '', nombreMandante: '', LisVtaGraTerTipoDoc: '03', gravadas: '0.00', comision: '0.00' };
     ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
@@ -418,7 +428,6 @@ onMounted(cargarDatos);
 </script>
 
 <style scoped>
-/* LOS MISMOS ESTILOS QUE YA TIENES FUNCIONAN PERFECTO AQUÍ */
 .terceros-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
 .title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }

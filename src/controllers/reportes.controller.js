@@ -303,7 +303,7 @@ export const generarAnexosHaciendaJSON = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL)
+// 🛡️ EXPORTACIÓN CSV ANEXO 1 (CONSUMIDOR FINAL) - CORRIGIDO PARA DTE
 // ========================================================================
 export const descargarAnexo1CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -323,15 +323,14 @@ export const descargarAnexo1CSV = async (req, res) => {
                 maquina = sinGuiones(v.ConsNumMaqRegistro) || '';
                 uuidCol = '';
             } else {
+                // 🛡️ LÓGICA DTE BLINDADA PARA HACIENDA
                 const numControlLimpio = sinGuiones(v.ConsNumDocAL) || sinGuiones(v.ConsNumDocDEL);
-                const selloLimpio = sinGuiones(v.ConsSelloRecepcion) || sinGuiones(v.ConsCodGeneracion) || numControlLimpio;
-                
-                resolucion = numControlLimpio;    
-                serie = selloLimpio;              
-                del = selloLimpio;                
-                al = selloLimpio;                 
-                maquina = selloLimpio;            
-                uuidCol = selloLimpio;            
+                resolucion = ''; // Col 4 deve ir vazia
+                serie = '';      // Col 5 deve ir vazia
+                del = v.ConsSelloRecepcion || ''; // Col 6: Selo de Receção (40 chars)
+                al = v.ConsCodGeneracion || '';   // Col 7: UUID (com hífenes mantidos)
+                maquina = numControlLimpio;       // Col 8: Número de Controlo
+                uuidCol = '';                     // Col 9
             }
 
             const dui = ''; 
@@ -431,7 +430,7 @@ export const descargarAnexo2CSV = async (req, res) => {
 };
 
 // ========================================================================
-// 🛡️ EXPORTACIÓN CSV ANEXO 3 (COMPRAS)
+// 🛡️ EXPORTACIÓN CSV ANEXO 3 (COMPRAS) - MATEMÁTICA CORRIGIDA
 // ========================================================================
 export const descargarAnexo3CSV = async (req, res) => {
     const { nit, mes, anio } = req.query;
@@ -452,8 +451,11 @@ export const descargarAnexo3CSV = async (req, res) => {
             const intGravadas = Math.abs(parseFloat(c.ComInternacGravBienes) || 0);
             const impGravadasB = Math.abs(parseFloat(c.ComImportGravBienes) || 0);
             const impGravadasS = Math.abs(parseFloat(c.ComImportGravServicios) || 0);
-            const cf = Math.abs(parseFloat(c.ComCredFiscal) || 0).toFixed(2);
-            const totalHacienda = (exentas + intExentas + impExentas + gravadas + intGravadas + impGravadasB + impGravadasS).toFixed(2);
+            
+            // 🛡️ CORREÇÃO ARITMÉTICA: IVA INCLUÍDO NO TOTAL
+            const cfNum = Math.abs(parseFloat(c.ComCredFiscal) || 0);
+            const cf = cfNum.toFixed(2);
+            const totalHacienda = (exentas + intExentas + impExentas + gravadas + intGravadas + impGravadasB + impGravadasS + cfNum).toFixed(2);
 
             const columnas = [
                 formatoFechaCSV(c.ComFecha),            
@@ -587,7 +589,7 @@ export const exportarAnuladosJSON = async (req, res) => {
 };
 
 // ==========================================
-// 2. IMPORTACIÓN MASIVA INTELIGENTE (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+// 🚀 2. IMPORTACIÓN MASIVA INTELIGENTE (COM CAÇA-SELOS UNIVERSAL)
 // ==========================================
 export const importarTodoJSON = async (req, res) => {
     const info = req.body.backup_info || req.body.encabezado;
@@ -633,6 +635,9 @@ export const importarTodoJSON = async (req, res) => {
                 const codGen = c.ComCodGeneracion || null;
                 const tipoDte = limpiarCat(c.ComTipo, '03');
 
+                // 🛡️ DETETOR UNIVERSAL DE SELOS PARA COMPRAS
+                const selloRec = c.ComSelloRecepcion || c.sello_recepcion || c.responseMH?.selloRecibido || null;
+
                 let fovial = parseFloat(c.comFovial) || 0; let cotrans = parseFloat(c.comCotran) || 0; let otro = parseFloat(c.ComOtroAtributo) || 0;
                 const listaTributos = (c.resumen && c.resumen.tributos) ? c.resumen.tributos : (c.tributos || []);
                 if (listaTributos.length > 0) {
@@ -652,7 +657,8 @@ export const importarTodoJSON = async (req, res) => {
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(c.ComFecha), NCClaseDoc: c.ComClase || '4', NCTipoDoc: tipoDte,
-                            NCNumero: c.ComNumero, NCCodGeneracion: codGen, NCNitContraparte: c.proveedor_ProvNIT, NCNombreContraparte: c.ComNomProve,
+                            NCNumero: c.ComNumero, NCCodGeneracion: codGen, NCSelloRecepcion: selloRec,
+                            NCNitContraparte: c.proveedor_ProvNIT, NCNombreContraparte: c.ComNomProve,
                             NCNumDocOrigen: 'N/A', NCMontoGravado: c.ComIntGrav || 0, NCMontoExento: c.ComIntExe || 0, NCIva: c.ComCredFiscal || 0,
                             NCCotran: cotrans, NCFovial: fovial, NCTotal: c.ComTotal || 0, NCTipo: 'COMPRA',
                             NCMesDeclarado: extraerMes(c.ComFecha, c.ComMesDeclarado), NCAnioDeclarado: extraerAnio(c.ComFecha, c.ComAnioDeclarado), NCAnexo: '3'
@@ -672,7 +678,8 @@ export const importarTodoJSON = async (req, res) => {
                         const nuevaCompra = {
                             iddeclaNIT: nitDeclarante, proveedor_ProvNIT: c.proveedor_ProvNIT, ComNomProve: c.ComNomProve,
                             ComFecha: formatearFecha(c.ComFecha), ComClase: c.ComClase || '4', ComTipo: tipoDte,
-                            ComNumero: c.ComNumero, ComCodGeneracion: codGen, ComIntExe: c.ComIntExe || 0, ComIntGrav: c.ComIntGrav || 0,
+                            ComNumero: c.ComNumero, ComCodGeneracion: codGen, ComSelloRecepcion: selloRec,
+                            ComIntExe: c.ComIntExe || 0, ComIntGrav: c.ComIntGrav || 0,
                             ComCredFiscal: c.ComCredFiscal || 0, comFovial: fovial, comCotran: cotrans, ComOtroAtributo: otro, ComTotal: c.ComTotal || 0,
                             ComMesDeclarado: extraerMes(c.ComFecha, c.ComMesDeclarado), ComAnioDeclarado: extraerAnio(c.ComFecha, c.ComAnioDeclarado), 
                             ComClasiRenta: limpiarCat(c.ComClasiRenta, '1'), ComTipoCostoGasto: limpiarCat(c.ComTipoCostoGasto || c.ComTipoCostoGastoRenta, '2'), 
@@ -685,12 +692,15 @@ export const importarTodoJSON = async (req, res) => {
             }
         }
 
-        // 2. CRÉDITO FISCAL (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+        // 2. CRÉDITO FISCAL
         const listaCCF = dataToImport.ventas_ccf || dataToImport.ventas_credito_fiscal || [];
         if (listaCCF.length) {
             for (const v of listaCCF) {
                 const codGen = v.FiscCodGeneracion || null;
                 const tipoDte = limpiarCat(v.FisTipoDoc, '03');
+
+                // 🛡️ DETETOR UNIVERSAL DE SELOS PARA CCF
+                const selloRec = v.FiscSelloRecepcion || v.sello_recepcion || v.responseMH?.selloRecibido || null;
 
                 if (tipoDte === '05' || tipoDte === '06') {
                     const [dup] = await connection.query(`
@@ -703,7 +713,8 @@ export const importarTodoJSON = async (req, res) => {
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.FiscFecha), NCClaseDoc: v.FisClasDoc || '4', NCTipoDoc: tipoDte,
-                            NCNumero: v.FiscNumDoc, NCCodGeneracion: codGen, NCNitContraparte: v.FiscNit, NCNombreContraparte: v.FiscNomRazonDenomi,
+                            NCNumero: v.FiscNumDoc, NCCodGeneracion: codGen, NCSelloRecepcion: selloRec,
+                            NCNitContraparte: v.FiscNit, NCNombreContraparte: v.FiscNomRazonDenomi,
                             NCNumDocOrigen: 'N/A', NCMontoGravado: v.FiscVtaGravLocal || 0, NCMontoExento: v.FiscVtaExen || 0, NCIva: v.FiscDebitoFiscal || 0,
                             NCTotal: v.FiscTotalVtas || 0, NCTipo: 'VENTA',
                             NCMesDeclarado: extraerMes(v.FiscFecha, v.FiscMesDeclarado), NCAnioDeclarado: extraerAnio(v.FiscFecha, v.FiscAnioDeclarado), NCAnexo: '2'
@@ -723,7 +734,7 @@ export const importarTodoJSON = async (req, res) => {
                         const nuevoCCF = {
                             iddeclaNIT: nitDeclarante, FiscFecha: formatearFecha(v.FiscFecha), FisClasDoc: v.FisClasDoc || '4', FisTipoDoc: tipoDte,
                             FiscNumDoc: v.FiscNumDoc, FiscCodGeneracion: codGen, 
-                            FiscSelloRecepcion: v.FiscSelloRecepcion || null, // 🛡️ EXTRACCIÓN DEL SELLO AQUÍ
+                            FiscSelloRecepcion: selloRec, 
                             FiscNumContInter: codGen || v.FiscNumContInter || null, FiscNit: v.FiscNit, 
                             FiscNomRazonDenomi: v.FiscNomRazonDenomi, FiscVtaExen: v.FiscVtaExen || 0, FiscVtaNoSujetas: v.FiscVtaNoSujetas || 0, 
                             FiscVtaGravLocal: v.FiscVtaGravLocal || 0, FiscDebitoFiscal: v.FiscDebitoFiscal || 0, FiscTotalVtas: v.FiscTotalVtas || 0, 
@@ -737,12 +748,15 @@ export const importarTodoJSON = async (req, res) => {
             }
         }
 
-        // 3. CONSUMIDOR FINAL (CON EXTRACCIÓN DE SELLO DE RECEPCIÓN)
+        // 3. CONSUMIDOR FINAL
         const listaCF = dataToImport.ventas_cf || dataToImport.ventas_consumidor || [];
         if (listaCF.length) {
             for (const v of listaCF) {
                 const codGen = v.ConsCodGeneracion || null;
                 const tipoDte = limpiarCat(v.ConsTipoDoc, '01');
+
+                // 🛡️ DETETOR UNIVERSAL DE SELOS PARA CF
+                const selloRec = v.ConsSelloRecepcion || v.sello_recepcion || v.responseMH?.selloRecibido || null;
 
                 if (tipoDte === '05' || tipoDte === '06') {
                     const [dup] = await connection.query(`
@@ -755,7 +769,8 @@ export const importarTodoJSON = async (req, res) => {
                     if (dup.length === 0) {
                         const nuevaNota = {
                             iddeclaNIT: nitDeclarante, NCFecha: formatearFecha(v.ConsFecha), NCClaseDoc: v.ConsClaseDoc || '4', NCTipoDoc: tipoDte,
-                            NCNumero: v.ConsNumDocAL || v.ConsNumDocDEL, NCCodGeneracion: codGen, NCNitContraparte: v.ConsNumDocIdentCliente || '', NCNombreContraparte: v.ConsNomRazonCliente || 'Cliente General',
+                            NCNumero: v.ConsNumDocAL || v.ConsNumDocDEL, NCCodGeneracion: codGen, NCSelloRecepcion: selloRec,
+                            NCNitContraparte: v.ConsNumDocIdentCliente || '', NCNombreContraparte: v.ConsNomRazonCliente || 'Cliente General',
                             NCNumDocOrigen: 'N/A', NCMontoGravado: v.ConsVtaGravLocales || 0, NCMontoExento: v.ConsVtaExentas || 0, NCIva: 0,
                             NCTotal: v.ConsTotalVta || 0, NCTipo: 'VENTA',
                             NCMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), NCAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), NCAnexo: '1'
@@ -775,7 +790,7 @@ export const importarTodoJSON = async (req, res) => {
                         const nuevoCF = {
                             iddeclaNIT: nitDeclarante, ConsFecha: formatearFecha(v.ConsFecha), ConsClaseDoc: v.ConsClaseDoc || '4', ConsTipoDoc: tipoDte,
                             ConsNumDocDEL: v.ConsNumDocDEL, ConsNumDocAL: v.ConsNumDocAL || v.ConsNumDocDEL, ConsCodGeneracion: codGen,
-                            ConsSelloRecepcion: v.ConsSelloRecepcion || null, // 🛡️ EXTRACCIÓN DEL SELLO AQUÍ
+                            ConsSelloRecepcion: selloRec, 
                             ConsVtaExentas: v.ConsVtaExentas || 0, ConsVtaNoSujetas: v.ConsVtaNoSujetas || 0, ConsVtaGravLocales: v.ConsVtaGravLocales || 0,
                             ConsTotalVta: v.ConsTotalVta || 0, ConsTipoOpera: limpiarCat(v.ConsTipoOpera, '1'), ConsTipoIngreso: limpiarCat(v.ConsTipoIngreso, '1'),
                             ConsMesDeclarado: extraerMes(v.ConsFecha, v.ConsMesDeclarado), ConsAnioDeclarado: extraerAnio(v.ConsFecha, v.ConsAnioDeclarado), ConsNumAnexo: '1',

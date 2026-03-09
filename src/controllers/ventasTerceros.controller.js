@@ -39,14 +39,15 @@ export const createVenta = async (req, res) => {
         const monto = parseFloat(data.gravadas) || 0; 
         const iva = data.comision !== undefined ? parseFloat(data.comision) : (monto * 0.13); 
 
+        // 🛡️ SE INYECTA VtaGraTerSelloRecepcion EN EL INSERT
         const [result] = await pool.query(
             `INSERT INTO vtagravterdomici 
             (iddeclaNIT, VtaGraTerNit, VtaGraTerNom, VtaGraTerFecha, VtaGraTerMesDeclarado, VtaGraTerAnioDeclarado,
-             LisVtaGraTerTipoDoc, VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc, VtaGraTerCodGeneracion,
+             LisVtaGraTerTipoDoc, VtaGraTerNumSerie, VtaGraTerNumResolu, VtaGraTerNumDoc, VtaGraTerCodGeneracion, VtaGraTerSelloRecepcion,
              VtaGraTerMontoOper, VtaGraTerIVAOper, 
              VtaGraTerSerieCompLiq, VtaGraTerResolCompLiq, VtaGraTerNumCompLiq, 
              VtaGraTerFechaCompLiq, VtaGraTerDUI, VtaGraTerAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '4')`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '4')`,
             [
                 data.iddeclaNIT, 
                 data.nitMandante, 
@@ -59,6 +60,7 @@ export const createVenta = async (req, res) => {
                 data.VtaGraTerNumResolu || null, 
                 data.numero, 
                 data.uuid_dte,
+                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
                 monto, 
                 iva,
                 data.VtaGraTerSerieCompLiq || null, 
@@ -105,10 +107,11 @@ export const updateVenta = async (req, res) => {
         const monto = parseFloat(data.gravadas) || 0;
         const iva = parseFloat(data.comision) || 0;
 
+        // 🛡️ SE INYECTA VtaGraTerSelloRecepcion EN EL UPDATE
         const [result] = await pool.query(
             `UPDATE vtagravterdomici SET 
             iddeclaNIT=?, VtaGraTerNit=?, VtaGraTerNom=?, VtaGraTerFecha=?, VtaGraTerMesDeclarado=?, VtaGraTerAnioDeclarado=?,
-            LisVtaGraTerTipoDoc=?, VtaGraTerNumSerie=?, VtaGraTerNumResolu=?, VtaGraTerNumDoc=?, VtaGraTerCodGeneracion=?,
+            LisVtaGraTerTipoDoc=?, VtaGraTerNumSerie=?, VtaGraTerNumResolu=?, VtaGraTerNumDoc=?, VtaGraTerCodGeneracion=?, VtaGraTerSelloRecepcion=?,
             VtaGraTerMontoOper=?, VtaGraTerIVAOper=?, 
             VtaGraTerSerieCompLiq=?, VtaGraTerResolCompLiq=?, VtaGraTerNumCompLiq=?, VtaGraTerFechaCompLiq=?, VtaGraTerDUI=?, VtaGraTerAnexo='4'
             WHERE idVtaGravTerDomici = ?`,
@@ -124,6 +127,7 @@ export const updateVenta = async (req, res) => {
                 data.VtaGraTerNumResolu || null, 
                 data.numero, 
                 data.uuid_dte,
+                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
                 monto, 
                 iva,
                 data.VtaGraTerSerieCompLiq || null, 

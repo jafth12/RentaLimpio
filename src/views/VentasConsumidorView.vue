@@ -355,7 +355,7 @@ const formulario = ref({
     sello_recepcion: '', // 🛡️ NUEVO CAMPO AÑADIDO
     resolucion: '', maquina: '', desde: '', hasta: '', 
     cliente: 'Cliente General', documentoCliente: '', 
-    tipo_operacion: '1', tipo_ingreso: '1', 
+    tipo_operacion: '1', tipo_ingreso: '3', 
     gravadas: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
     origenTabla: 'consumidorfinal'
 });

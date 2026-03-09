@@ -69,7 +69,7 @@
 
             <div class="form-section bg-light">
               <h3 class="section-title">📄 Detalles del Comprobante (DTE 07)</h3>
-              <div class="form-grid three-cols">
+              <div class="form-grid four-cols">
                 <div class="form-group">
                   <label class="form-label">Fecha de Emisión <span class="text-danger">*</span></label>
                   <input type="date" v-model="formulario.fecha" class="form-control" required>
@@ -80,7 +80,11 @@
                 </div>
                 <div class="form-group">
                   <label class="form-label">Código de Generación</label>
-                  <input type="text" v-model="formulario.codGeneracion" class="form-control" placeholder="XXXXXXXX-XXXX-XXXX...">
+                  <input type="text" v-model="formulario.codGeneracion" class="form-control" placeholder="XXXXXXXX-XXXX...">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Sello de Recepción</label>
+                  <input type="text" v-model="formulario.sello_recepcion" class="form-control" placeholder="Ej: 202542266B...">
                 </div>
               </div>
             </div>
@@ -210,7 +214,9 @@ const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "
 const formulario = ref({
     iddeclaNIT: '', mesDeclarado: meses[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(),
     nitAgente: '', nomAgente: '', duiAgente: '', fecha: new Date().toISOString().split('T')[0],
-    tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', anexo: '4', montoSujeto: '', montoRetenido: ''
+    tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', 
+    sello_recepcion: '', // 🛡️ NUEVO CAMPO INTEGRADO
+    anexo: '4', montoSujeto: '', montoRetenido: ''
 });
 
 const listaRetenciones = ref([]); 
@@ -350,7 +356,9 @@ const prepararEdicion = (ret) => {
         nitAgente: ret.RetenNitAgente, nomAgente: ret.RetenNomAgente || '', duiAgente: ret.RetenDuiDelAgente,
         fecha: formatearFechaParaInput(ret.RetenFecha),
         tipoDoc: ret.RetenListTipoDoc || '07', serie: ret.RetenSerieDoc, 
-        numDoc: ret.RetenNumDoc, codGeneracion: ret.RetenCodGeneracion || '', anexo: ret.RetenNumAnexo || '4',
+        numDoc: ret.RetenNumDoc, codGeneracion: ret.RetenCodGeneracion || '', 
+        sello_recepcion: ret.RetenSelloRecepcion || '', // 🛡️ SELLO AL EDITAR
+        anexo: ret.RetenNumAnexo || '4',
         montoSujeto: ret.RetenMontoSujeto, montoRetenido: ret.RetenMontoDeReten
     };
     idEdicion.value = ret.idRetenciones;
@@ -364,7 +372,9 @@ const resetForm = () => {
     formulario.value = {
         iddeclaNIT: '', mesDeclarado: meses[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(),
         nitAgente: '', nomAgente: '', duiAgente: '', fecha: new Date().toISOString().split('T')[0],
-        tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', anexo: '4', montoSujeto: '', montoRetenido: ''
+        tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', 
+        sello_recepcion: '', // 🛡️ RESETEAR SELLO
+        anexo: '4', montoSujeto: '', montoRetenido: ''
     };
     modoEdicion.value = false;
     idEdicion.value = null;
@@ -412,6 +422,8 @@ onMounted(() => {
 
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
 .three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+/* 🛡️ NUEVA CLASE PARA 4 COLUMNAS */
+.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .form-group { margin-bottom: 5px; }
 .form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
 

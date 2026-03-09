@@ -78,13 +78,14 @@ export const createCompra = async (req, res) => {
             montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
         }
 
+        // 🛡️ SE INYECTA ComSelloRecepcion EN EL INSERT
         const [result] = await pool.query(
             `INSERT INTO compras 
-            (iddeclaNIT, ComFecha, ComMesDeclarado, ComAnioDeclarado, ComClase, ComTipo, ComNumero, ComCodGeneracion,
+            (iddeclaNIT, ComFecha, ComMesDeclarado, ComAnioDeclarado, ComClase, ComTipo, ComNumero, ComCodGeneracion, ComSelloRecepcion,
              proveedor_ProvNIT, ComNomProve, ComIntExe, ComInternacioExe, ComImpExeNoSujetas, 
              ComIntGrav, ComInternacGravBienes, ComImportGravBienes, ComImportGravServicios, 
              ComCredFiscal, comFovial, comCotran, ComOtroAtributo, ComTotal, ComClasiRenta, ComTipoCostoGasto, ComTipoOpeRenta, ComSecNum, ComAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
             [
                 d.iddeclaNIT, 
                 d.ComFecha,
@@ -93,7 +94,8 @@ export const createCompra = async (req, res) => {
                 d.ComClase || '4',
                 d.ComTipo || '03',
                 d.ComNumero,   
-                d.ComCodGeneracion,         
+                d.ComCodGeneracion,   
+                d.ComSelloRecepcion || null,  // 🛡️ NUEVO CAMPO CAPTURADO
                 d.proveedor_ProvNIT,    
                 d.ComNomProve, 
                 d.ComIntExe || 0,
@@ -156,9 +158,10 @@ export const updateCompra = async (req, res) => {
             montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
         }
 
+        // 🛡️ SE INYECTA ComSelloRecepcion EN EL UPDATE
         const [result] = await pool.query(
             `UPDATE compras SET 
-            iddeclaNIT=?, ComFecha=?, ComMesDeclarado=?, ComAnioDeclarado=?, ComClase=?, ComTipo=?, ComNumero=?, ComCodGeneracion=?, 
+            iddeclaNIT=?, ComFecha=?, ComMesDeclarado=?, ComAnioDeclarado=?, ComClase=?, ComTipo=?, ComNumero=?, ComCodGeneracion=?, ComSelloRecepcion=?, 
             proveedor_ProvNIT=?, ComNomProve=?, ComIntExe=?, ComInternacioExe=?, ComImpExeNoSujetas=?,
             ComIntGrav=?, ComInternacGravBienes=?, ComImportGravBienes=?, ComImportGravServicios=?,
             ComCredFiscal=?, comFovial=?, comCotran=?, ComOtroAtributo=?, ComTotal=?, ComClasiRenta=?, ComTipoCostoGasto=?, ComTipoOpeRenta=?, ComSecNum=?
@@ -171,7 +174,8 @@ export const updateCompra = async (req, res) => {
                 d.ComClase,
                 d.ComTipo,
                 d.ComNumero,   
-                d.ComCodGeneracion,         
+                d.ComCodGeneracion,   
+                d.ComSelloRecepcion || null,  // 🛡️ NUEVO CAMPO CAPTURADO
                 d.proveedor_ProvNIT,    
                 d.ComNomProve, 
                 d.ComIntExe || 0,

@@ -40,14 +40,15 @@ export const createSujeto = async (req, res) => {
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
+        // 🛡️ SE INYECTA ComprasSujExcluSelloRecepcion EN EL INSERT
         const [result] = await pool.query(
             `INSERT INTO comprassujexcluidos 
             (iddeclaNIT, ComprasSujExcluFecha, ComprasSujExcluMesDeclarado, ComprasSujExcluAnioDeclarado, ComprasSujExcluTipoDoc, 
              ComprasSujExcluNIT, ComprasSujExcluNom, ComprasSujExcluSerieDoc, ComprasSujExcluNumDoc, 
-             ComprasSujExcluCodGeneracion, ComprasSujExcluMontoOpera, ComprasSujExcluMontoReten, 
+             ComprasSujExcluCodGeneracion, ComprasSujExcluSelloRecepcion, ComprasSujExcluMontoOpera, ComprasSujExcluMontoReten, 
              ComprasSujExcluTipoOpera, ComprasSujExcluClasificacion, ComprasSujExclusector, 
              ComprasSujExcluTipoCostoGast, ComprasSujExcluAnexo) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 data.iddeclaNIT, 
                 data.fecha, 
@@ -59,6 +60,7 @@ export const createSujeto = async (req, res) => {
                 data.serie || null, 
                 data.numero_control, // 🛡️ DTE
                 data.uuid_dte,       // 🛡️ UUID de Generación
+                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
                 monto, 
                 retencion, 
                 data.tipoOp || '1', 
@@ -105,11 +107,12 @@ export const updateSujeto = async (req, res) => {
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
+        // 🛡️ SE INYECTA ComprasSujExcluSelloRecepcion EN EL UPDATE
         const [result] = await pool.query(
             `UPDATE comprassujexcluidos SET 
                 iddeclaNIT = ?, ComprasSujExcluFecha = ?, ComprasSujExcluMesDeclarado = ?, ComprasSujExcluAnioDeclarado = ?,
                 ComprasSujExcluTipoDoc = ?, ComprasSujExcluNIT = ?, ComprasSujExcluNom = ?, 
-                ComprasSujExcluSerieDoc = ?, ComprasSujExcluNumDoc = ?, ComprasSujExcluCodGeneracion = ?,
+                ComprasSujExcluSerieDoc = ?, ComprasSujExcluNumDoc = ?, ComprasSujExcluCodGeneracion = ?, ComprasSujExcluSelloRecepcion = ?,
                 ComprasSujExcluMontoOpera = ?, ComprasSujExcluMontoReten = ?, 
                 ComprasSujExcluTipoOpera = ?, ComprasSujExcluClasificacion = ?, ComprasSujExclusector = ?, 
                 ComprasSujExcluTipoCostoGast = ?, ComprasSujExcluAnexo = ?
@@ -125,6 +128,7 @@ export const updateSujeto = async (req, res) => {
                 data.serie || null, 
                 data.numero_control,
                 data.uuid_dte,       
+                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
                 monto, 
                 retencion, 
                 data.tipoOp || '1', 

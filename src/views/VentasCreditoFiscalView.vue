@@ -292,12 +292,12 @@
                      <div v-if="venta.FiscSelloRecepcion" class="badge-sello-mh mt-1" :title="venta.FiscSelloRecepcion">✔️ Sello MH</div>
                   </td>
                   <td class="text-right text-muted">
-                    <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ parseFloat(venta.FiscVtaGravLocal || 0).toFixed(2) }}
+                    <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ formatoMoneda(venta.FiscVtaGravLocal) }}
                   </td>
                   <td class="text-right fw-bold" :class="venta.FisTipoDoc === '05' ? 'text-danger' : 'text-success'">
-                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${parseFloat(venta.FiscDebitoFiscal || 0).toFixed(2) }}
+                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${{ formatoMoneda(venta.FiscDebitoFiscal) }}
                   </td>
-                  <td class="text-right fw-bold text-dark">${{ parseFloat(venta.FiscTotalVtas || 0).toFixed(2) }}</td>
+                  <td class="text-right fw-bold text-dark">${{ formatoMoneda(venta.FiscTotalVtas) }}</td>
                   <td class="text-center">
                     <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
                     <button class="btn-icon text-danger" @click="eliminarVenta(venta)" title="Eliminar">🗑️</button>
@@ -324,6 +324,12 @@ const BASE_URL = `http://${hostname}:3000`;
 const API_URL = `${BASE_URL}/api/ventas-CCF`; 
 
 const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+// --- FUNCIÓN ANTI-NAN ---
+const formatoMoneda = (valor) => {
+    const num = Number(valor);
+    return isNaN(num) ? '0.00' : num.toFixed(2);
+};
 
 // --- LÓGICA DE LA MÁSCARA DTE ---
 const ccfParts = ref({ part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
@@ -359,7 +365,7 @@ const formulario = ref({
     cliente: '', 
     nrc: '',
     tipo_operacion: '1', 
-    tipo_ingreso: '1',
+    tipo_ingreso: '3',
     gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
     origenTabla: 'credfiscal'
 });

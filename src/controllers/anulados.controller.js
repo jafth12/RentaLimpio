@@ -20,7 +20,7 @@ export const createAnulacion = async (req, res) => {
     try {
         // 🛡️ LIMPIEZA DE DATOS MAESTRA
         const uuidLimpio = d.uuid_dte ? d.uuid_dte.replace(/-/g, '') : null;
-        // 🛡️ NUEVO: Atrapamos el Sello de Recepción
+        // 🛡️ Sello sin guiones para la BD
         const selloLimpio = d.sello_recepcion ? d.sello_recepcion.replace(/-/g, '') : null; 
         const fechaLimpia = d.fecha ? d.fecha.split('T')[0] : null; 
 
@@ -40,7 +40,7 @@ export const createAnulacion = async (req, res) => {
             return res.status(400).json({ message: '⚠️ Este documento o rango ya se encuentra registrado como Anulado/Extraviado.' });
         }
 
-        // 🛡️ NUEVO: Añadido DetaDocSelloRecepcion al INSERT
+        // 🛡️ INSERT CON SELLO DE RECEPCIÓN
         const [result] = await pool.query(
             `INSERT INTO anuladosextraviados 
             (iddeclaNIT, DetaDocFecha, AnulMesDeclarado, AnulAnioDeclarado, DetaDocTipoDoc, 
@@ -70,10 +70,8 @@ export const updateAnulacion = async (req, res) => {
 
     try {
         const uuidLimpio = d.uuid_dte ? d.uuid_dte.replace(/-/g, '') : null;
-        // 🛡️ NUEVO: Atrapamos el Sello de Recepción
         const selloLimpio = d.sello_recepcion ? d.sello_recepcion.replace(/-/g, '') : null;
 
-        // 🛡️ NUEVO: Añadido DetaDocSelloRecepcion al UPDATE
         const [result] = await pool.query(
             `UPDATE anuladosextraviados SET 
             iddeclaNIT=?, DetaDocFecha=?, AnulMesDeclarado=?, AnulAnioDeclarado=?, DetaDocTipoDoc=?, 
@@ -113,6 +111,7 @@ export const deleteAnulacion = async (req, res) => {
     }
 };
 
+// 🛡️ REPARADO: Ahora esta función también extrae el SELLO de las tablas originales
 export const buscarDocumentoInteligente = async (req, res) => {
     const { tipo, termino, nit } = req.query;
     if (!termino || !tipo || !nit) return res.status(400).json({message: "Faltan parámetros."});
@@ -122,11 +121,17 @@ export const buscarDocumentoInteligente = async (req, res) => {
         const searchTerm = `%${termino.replace(/-/g, '')}%`;
 
         if (tipo === '01') { // Consumidor Final
-            query = `SELECT ConsFecha as fecha, ConsCodGeneracion as uuid, ConsNumDocAL as dte FROM consumidorfinal WHERE iddeclaNIT = ? AND (REPLACE(ConsCodGeneracion, '-', '') LIKE ? OR REPLACE(ConsNumDocAL, '-', '') LIKE ?) LIMIT 1`;
+            query = `SELECT ConsFecha as fecha, ConsCodGeneracion as uuid, ConsNumDocAL as dte, ConsSelloRecepcion as sello 
+                     FROM consumidorfinal 
+                     WHERE iddeclaNIT = ? AND (REPLACE(ConsCodGeneracion, '-', '') LIKE ? OR REPLACE(ConsNumDocAL, '-', '') LIKE ?) LIMIT 1`;
         } else if (tipo === '03-V') { // Ventas CCF
-            query = `SELECT FiscFecha as fecha, FiscCodGeneracion as uuid, FiscNumDoc as dte FROM credfiscal WHERE iddeclaNIT = ? AND (REPLACE(FiscCodGeneracion, '-', '') LIKE ? OR REPLACE(FiscNumDoc, '-', '') LIKE ?) LIMIT 1`;
+            query = `SELECT FiscFecha as fecha, FiscCodGeneracion as uuid, FiscNumDoc as dte, FiscSelloRecepcion as sello 
+                     FROM credfiscal 
+                     WHERE iddeclaNIT = ? AND (REPLACE(FiscCodGeneracion, '-', '') LIKE ? OR REPLACE(FiscNumDoc, '-', '') LIKE ?) LIMIT 1`;
         } else if (tipo === 'Compra') { // Compras
-            query = `SELECT ComFecha as fecha, ComCodGeneracion as uuid, ComNumero as dte FROM compras WHERE iddeclaNIT = ? AND (REPLACE(ComCodGeneracion, '-', '') LIKE ? OR REPLACE(ComNumero, '-', '') LIKE ?) LIMIT 1`;
+            query = `SELECT ComFecha as fecha, ComCodGeneracion as uuid, ComNumero as dte, NULL as sello 
+                     FROM compras 
+                     WHERE iddeclaNIT = ? AND (REPLACE(ComCodGeneracion, '-', '') LIKE ? OR REPLACE(ComNumero, '-', '') LIKE ?) LIMIT 1`;
         }
 
         if (query) {
