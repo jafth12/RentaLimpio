@@ -1,203 +1,211 @@
 <template>
   <MainLayout>
-    <div class="retenciones-container">
-      
-      <div class="header-section">
-        <div class="title-box">
-          <h1>🛡️ 1% Retenciones al Declarante</h1>
-          <p class="subtitle">Registro de comprobantes de retención (DTE 07) efectuadas por Agentes de Retención</p>
+    <div class="rl-view">
+
+      <!-- Encabezado -->
+      <div class="rl-view-header">
+        <div class="rl-view-title">
+          <h1>🛡️ Retenciones 1% al Declarante</h1>
+          <p class="rl-view-subtitle">Comprobantes de retención (DTE 07) efectuados por Agentes de Retención</p>
         </div>
-        
-        <div class="header-actions">
-          <button @click="alternarVista" class="btn btn-primary">
-            {{ mostrandoLista ? '➕ Nueva Retención' : '📋 Ver Historial' }}
-          </button>
-        </div>
+        <button @click="alternarVista" class="rl-btn rl-btn-primary">
+          {{ mostrandoLista ? '➕ Nueva Retención' : '📋 Ver Historial' }}
+        </button>
       </div>
 
-      <div class="main-content">
-        
-        <div v-if="!mostrandoLista" class="card fade-in">
-          <div class="card-header">
+      <!-- FORMULARIO -->
+      <div v-if="!mostrandoLista" class="rl-card">
+        <div class="rl-card-header">
+          <div>
             <h2>{{ modoEdicion ? '✏️ Editar Retención' : '✨ Registrar Nueva Retención' }}</h2>
-            <span class="badge-info">{{ modoEdicion ? 'Actualizando documento' : 'Comprobante de Retención 1%' }}</span>
           </div>
-
-          <form @submit.prevent="guardarRetencion" class="form-body">
-            
-            <div class="form-section border-bottom-dashed pb-3 mb-3">
-              <h3 class="section-title">🏢 Configuración de la Declaración</h3>
-              <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label text-dark">Empresa (Declarante - Receptor) <span class="text-danger">*</span></label>
-                  <select v-model="formulario.iddeclaNIT" class="form-control select-highlight fw-bold" required>
-                    <option value="" disabled>-- Seleccione Contribuyente --</option>
-                    <option v-for="emp in declarantes" :key="emp.iddeclaNIT" :value="emp.iddeclaNIT">
-                      {{ emp.declarante }}
-                    </option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Mes y Año de Declaración <span class="text-danger">*</span></label>
-                  <div class="d-flex gap-2">
-                    <select v-model="formulario.mesDeclarado" class="form-control" required>
-                      <option v-for="m in meses" :key="m" :value="m">{{ m }}</option>
-                    </select>
-                    <input type="number" v-model="formulario.anioDeclarado" class="form-control w-50" required>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h3 class="section-title">🏢 Agente de Retención (Emisor)</h3>
-              <div class="form-grid">
-                <div class="form-group">
-                  <label class="form-label">NIT del Agente <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.nitAgente" class="form-control" placeholder="0000-000000-000-0" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Nombre o Razón Social <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.nomAgente" class="form-control fw-bold" placeholder="Ej: CREDICAMPO S.A de C.V" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">DUI del Agente (Opcional)</label>
-                  <input type="text" v-model="formulario.duiAgente" class="form-control" placeholder="00000000-0">
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section bg-light">
-              <h3 class="section-title">📄 Detalles del Comprobante (DTE 07)</h3>
-              <div class="form-grid four-cols">
-                <div class="form-group">
-                  <label class="form-label">Fecha de Emisión <span class="text-danger">*</span></label>
-                  <input type="date" v-model="formulario.fecha" class="form-control" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Número de Control (DTE) <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.numDoc" class="form-control fw-bold" placeholder="DTE-07-..." required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Código de Generación</label>
-                  <input type="text" v-model="formulario.codGeneracion" class="form-control" placeholder="XXXXXXXX-XXXX...">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Sello de Recepción</label>
-                  <input type="text" v-model="formulario.sello_recepcion" class="form-control" placeholder="Ej: 202542266B...">
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h3 class="section-title">💰 Montos de Operación</h3>
-              <div class="montos-wrapper">
-                <div class="monto-group">
-                  <label class="monto-label">Monto Sujeto a Retención</label>
-                  <div class="input-wrapper">
-                    <span class="currency">$</span>
-                    <input type="number" v-model.number="formulario.montoSujeto" step="0.01" class="form-control monto-input text-dark" placeholder="0.00" @input="calcularRetencion" required>
-                  </div>
-                </div>
-
-                <div class="monto-group total-group">
-                  <label class="monto-label text-danger">Total IVA Retenido (1%)</label>
-                  <div class="input-wrapper">
-                    <span class="currency text-danger">-$</span>
-                    <input type="number" v-model.number="formulario.montoRetenido" step="0.01" class="form-control total-input text-danger" placeholder="0.00" required>
-                  </div>
-                  <small class="text-xs text-muted">Autocalculado (Puede editarse por diferencias de centavos)</small>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg" :disabled="cargando">
-                {{ cargando ? 'Guardando...' : (modoEdicion ? 'Actualizar Retención' : '💾 Guardar Retención') }}
-              </button>
-            </div>
-
-            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
-              {{ mensaje }}
-            </div>
-
-          </form>
+          <span class="rl-badge rl-badge-info">
+            {{ modoEdicion ? 'Actualizando documento' : 'Comprobante de Retención 1%' }}
+          </span>
         </div>
 
-        <div v-else class="card fade-in">
-          <div class="card-header flex-between flex-wrap gap-3">
-             <div style="display: flex; align-items: center; gap: 10px;">
-                 <h3>📋 Historial de Retenciones (1%)</h3>
-                 <span class="badge-count">{{ retencionesFiltradas.length }} documentos</span>
-             </div>
-             
-             <div class="history-filters">
-                <input type="number" v-model="anioFiltro" placeholder="Año" min="2000" class="form-control filter-year" title="Filtrar por año">
-                <select v-model="mesFiltro" class="form-control filter-month">
-                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
+        <form @submit.prevent="guardarRetencion">
+
+          <!-- Sección: Configuración -->
+          <div class="rl-form-section">
+            <p class="rl-section-title">Configuración de la Declaración</p>
+            <div class="rl-grid rl-grid-2">
+              <div class="rl-field">
+                <label class="rl-label">Empresa (Declarante - Receptor) <span class="req">*</span></label>
+                <select v-model="formulario.iddeclaNIT" class="rl-select" required>
+                  <option value="" disabled>-- Seleccione Contribuyente --</option>
+                  <option v-for="emp in declarantes" :key="emp.iddeclaNIT" :value="emp.iddeclaNIT">
+                    {{ emp.declarante }}
+                  </option>
                 </select>
-                <input type="text" v-model="declaranteFiltro" list="lista-decla-reten" placeholder="🏢 Empresa..." class="form-control filter-input">
-                <datalist id="lista-decla-reten">
-                   <option v-for="d in declarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
-                </datalist>
-                <input type="text" v-model="filtroBusqueda" placeholder="🔍 DTE / NIT Agente..." class="form-control search-list">
-             </div>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Mes y Año de Declaración <span class="req">*</span></label>
+                <div style="display:flex;gap:10px">
+                  <select v-model="formulario.mesDeclarado" class="rl-select" required>
+                    <option v-for="m in meses" :key="m" :value="m">{{ m }}</option>
+                  </select>
+                  <input type="number" v-model="formulario.anioDeclarado" class="rl-input" style="width:90px" required>
+                </div>
+              </div>
+            </div>
           </div>
-          
-          <div class="table-responsive">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Empresa Asignada</th>
-                  <th>Agente Retenedor</th>
-                  <th>N° Comprobante (DTE)</th>
-                  <th class="text-right">Monto Sujeto</th>
-                  <th class="text-right text-danger">IVA Retenido</th>
-                  <th class="text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="ret in retencionesFiltradas" :key="ret.idRetenciones" :class="{'row-anulada': esAnulado(ret.RetenNumDoc)}">
-                  <td>
-                    <div class="fw-bold text-dark">{{ formatearFechaVisual(ret.RetenFecha) }}</div>
-                    <small class="text-muted">Declarado: <strong class="text-primary">{{ ret.RetenMesDeclarado || '---' }}</strong></small>
-                  </td>
-                  <td>
-                    <span class="badge-empresa">{{ ret.iddeclaNIT || 'Sin Asignar' }}</span>
-                  </td>
-                  <td>
-                    <span class="fw-bold" :class="esAnulado(ret.RetenNumDoc) ? 'text-muted' : 'text-dark'">{{ ret.RetenNomAgente || '---' }}</span>
-                    <small class="d-block text-muted text-xs mt-1">NIT: {{ ret.RetenNitAgente }}</small>
-                  </td>
-                  <td>
-                    <span class="doc-number" :class="{'text-danger border-danger': esAnulado(ret.RetenNumDoc)}">{{ ret.RetenNumDoc }}</span>
-                    <small v-if="ret.RetenCodGeneracion" class="d-block text-muted text-xs mt-1" :title="ret.RetenCodGeneracion">{{ truncarCodGen(ret.RetenCodGeneracion) }}</small>
-                  </td>
-                  <td class="text-right text-muted">${{ parseFloat(ret.RetenMontoSujeto || 0).toFixed(2) }}</td>
-                  <td class="text-right fw-bold" :class="esAnulado(ret.RetenNumDoc) ? 'text-muted' : 'text-danger'">
-                    -${{ parseFloat(ret.RetenMontoDeReten || 0).toFixed(2) }}
-                  </td>
-                  <td class="text-center actions-cell">
-                    <button v-if="!esAnulado(ret.RetenNumDoc)" class="btn-icon" @click="prepararEdicion(ret)" title="Editar">✏️</button>
-                    <button v-if="!esAnulado(ret.RetenNumDoc)" class="btn-icon text-warning" @click="anularRetencion(ret.idRetenciones)" title="Anular Documento">🚫</button>
-                    
-                    <button class="btn-icon text-danger" @click="eliminarRetencion(ret.idRetenciones)" title="Eliminar">🗑️</button>
-                  </td>
-                </tr>
-                <tr v-if="retencionesFiltradas.length === 0">
-                  <td colspan="7" class="text-center py-4 text-muted">No se encontraron retenciones con los filtros actuales.</td>
-                </tr>
-              </tbody>
-            </table>
+
+          <!-- Sección: Agente -->
+          <div class="rl-form-section">
+            <p class="rl-section-title">Agente de Retención (Emisor)</p>
+            <div class="rl-grid rl-grid-3">
+              <div class="rl-field">
+                <label class="rl-label">NIT del Agente <span class="req">*</span></label>
+                <input type="text" v-model="formulario.nitAgente" class="rl-input" placeholder="0000-000000-000-0" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Nombre o Razón Social <span class="req">*</span></label>
+                <input type="text" v-model="formulario.nomAgente" class="rl-input" style="font-weight:700" placeholder="Ej: CREDICAMPO S.A de C.V" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">DUI del Agente (Opcional)</label>
+                <input type="text" v-model="formulario.duiAgente" class="rl-input" placeholder="00000000-0">
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Comprobante DTE -->
+          <div class="rl-form-section rl-bg-soft">
+            <p class="rl-section-title">Detalles del Comprobante DTE-07</p>
+            <div class="rl-grid rl-grid-2">
+              <div class="rl-field">
+                <label class="rl-label">Fecha de Emisión <span class="req">*</span></label>
+                <input type="date" v-model="formulario.fecha" class="rl-input" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Número de Control (DTE) <span class="req">*</span></label>
+                <input type="text" v-model="formulario.numDoc" class="rl-input" style="font-weight:700" placeholder="DTE-07-..." required>
+              </div>
+            </div>
+            <!-- UUID + Sello unificados -->
+            <div class="rl-dte-group rl-mt-3">
+              <div class="rl-field">
+                <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID)</label>
+                <input type="text" v-model="formulario.codGeneracion" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX">
+              </div>
+              <div class="rl-field rl-field-sello">
+                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción (solo DTE)</label>
+                <div class="rl-sello-wrap">
+                  <span class="rl-sello-icon">✅</span>
+                  <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Ej: 202542266B...">
+                </div>
+                <span class="rl-sello-hint">40 caracteres alfanuméricos · Solo aplica para DTE</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Montos -->
+          <div class="rl-form-section">
+            <p class="rl-section-title">Montos de Operación</p>
+            <div class="rl-montos">
+              <div class="rl-monto-item">
+                <span class="rl-monto-label">Monto Sujeto a Retención</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency">$</span>
+                  <input type="number" v-model.number="formulario.montoSujeto" step="0.01" class="rl-input rl-input-monto" placeholder="0.00" @input="calcularRetencion" required>
+                </div>
+              </div>
+              <div class="rl-monto-item is-total">
+                <span class="rl-monto-label" style="color:#ef4444">Total IVA Retenido (1%)</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency" style="color:#ef4444">-$</span>
+                  <input type="number" v-model.number="formulario.montoRetenido" step="0.01" class="rl-input rl-input-monto" style="color:#ef4444;font-weight:800;font-size:1.1rem" placeholder="0.00" required>
+                </div>
+                <small class="rl-sello-hint">Autocalculado · Puede editarse por diferencias de centavos</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Acciones -->
+          <div class="rl-form-actions">
+            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="rl-btn rl-btn-secondary">Cancelar</button>
+            <button type="submit" class="rl-btn rl-btn-success rl-btn-lg" :disabled="cargando">
+              {{ cargando ? 'Guardando...' : (modoEdicion ? '✔ Actualizar Retención' : '💾 Guardar Retención') }}
+            </button>
+          </div>
+          <div v-if="mensaje" class="rl-alert" :class="tipoMensaje === 'success' ? 'rl-alert-success' : 'rl-alert-danger'">
+            {{ mensaje }}
+          </div>
+        </form>
+      </div>
+
+      <!-- LISTADO -->
+      <div v-else class="rl-card">
+        <div class="rl-card-header">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h3>📋 Historial de Retenciones (1%)</h3>
+            <span class="rl-badge rl-badge-count">{{ retencionesFiltradas.length }} documentos</span>
+          </div>
+          <div class="rl-filters">
+            <input type="number" v-model="anioFiltro" placeholder="Año" min="2000" class="rl-input rl-filter-sm">
+            <select v-model="mesFiltro" class="rl-select rl-filter-md">
+              <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
+            </select>
+            <input type="text" v-model="declaranteFiltro" list="lista-decla-reten" placeholder="🏢 Empresa..." class="rl-input rl-filter-md">
+            <datalist id="lista-decla-reten">
+              <option v-for="d in declarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
+            </datalist>
+            <input type="text" v-model="filtroBusqueda" placeholder="🔍 DTE / NIT Agente..." class="rl-input rl-filter-search">
           </div>
         </div>
 
+        <div class="rl-table-wrap">
+          <table class="rl-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Empresa</th>
+                <th>Agente Retenedor</th>
+                <th>N° Comprobante (DTE)</th>
+                <th style="text-align:right">Monto Sujeto</th>
+                <th style="text-align:right;color:#ef4444">IVA Retenido</th>
+                <th style="text-align:center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="ret in retencionesFiltradas" :key="ret.idRetenciones"
+                  :class="{ 'is-anulado': esAnulado(ret.RetenNumDoc) }">
+                <td>
+                  <div style="font-weight:700">{{ formatearFechaVisual(ret.RetenFecha) }}</div>
+                  <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ ret.RetenMesDeclarado || '---' }}</strong></small>
+                </td>
+                <td><span class="rl-badge rl-badge-info">{{ ret.iddeclaNIT || 'Sin Asignar' }}</span></td>
+                <td>
+                  <div style="font-weight:700">{{ ret.RetenNomAgente || '---' }}</div>
+                  <small class="rl-text-muted">NIT: {{ ret.RetenNitAgente }}</small>
+                </td>
+                <td>
+                  <span class="rl-doc-number" :style="esAnulado(ret.RetenNumDoc) ? 'color:#ef4444' : ''">{{ ret.RetenNumDoc }}</span>
+                  <small v-if="ret.RetenCodGeneracion" class="rl-text-muted" style="display:block;margin-top:2px" :title="ret.RetenCodGeneracion">{{ truncarCodGen(ret.RetenCodGeneracion) }}</small>
+                </td>
+                <td style="text-align:right;color:#6b7280">${{ parseFloat(ret.RetenMontoSujeto || 0).toFixed(2) }}</td>
+                <td style="text-align:right;font-weight:700;color:#ef4444">
+                  -${{ parseFloat(ret.RetenMontoDeReten || 0).toFixed(2) }}
+                </td>
+                <td style="text-align:center">
+                  <button v-if="!esAnulado(ret.RetenNumDoc)" class="rl-btn-icon" @click="prepararEdicion(ret)" title="Editar">✏️</button>
+                  <button v-if="!esAnulado(ret.RetenNumDoc)" class="rl-btn-icon" @click="anularRetencion(ret.idRetenciones)" title="Anular" style="color:#d97706">🚫</button>
+                  <button class="rl-btn-icon" @click="eliminarRetencion(ret.idRetenciones)" title="Eliminar" style="color:#ef4444">🗑️</button>
+                </td>
+              </tr>
+              <tr v-if="retencionesFiltradas.length === 0">
+                <td colspan="7" class="rl-empty-state">No se encontraron retenciones con los filtros actuales.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
     </div>
   </MainLayout>
 </template>
+
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
@@ -399,92 +407,7 @@ onMounted(() => {
 });
 </script>
 
+
 <style scoped>
-.retenciones-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
-.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
-
-.card { background: white; border-radius: 12px; border: 1px solid rgba(85, 194, 183, 0.15); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); padding: 24px; margin-bottom: 20px; animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-.card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
-.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
-.card-header h3 { font-size: 1.1rem; margin: 0; font-weight: 700; }
-.badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
-.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
-.badge-empresa { font-size: 0.75rem; background: #fef3c7; color: #b45309; padding: 4px 8px; border-radius: 6px; font-weight: 700; border: 1px solid #fcd34d; }
-
-.form-section { margin-bottom: 30px; }
-.section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
-.border-bottom-dashed { border-bottom: 1px dashed #cbd5e1; }
-.pb-3 { padding-bottom: 15px; } .mb-3 { margin-bottom: 15px; }
-
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-.three-cols { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
-/* 🛡️ NUEVA CLASE PARA 4 COLUMNAS */
-.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.form-group { margin-bottom: 5px; }
-.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
-
-.form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
-.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
-.select-highlight { border-color: #55C2B7; background-color: #f0fdfa; }
-
-.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px dashed #cbd5e1; }
-.monto-group { flex: 1; min-width: 150px; }
-.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
-.input-wrapper { position: relative; }
-.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 1rem; }
-.monto-input { padding-left: 26px; font-weight: 600; text-align: right; }
-.total-input { padding-left: 32px; font-weight: 800; border-color: #fca5a5; text-align: right; font-size: 1.2rem; background: #fef2f2; color: #b91c1c; }
-.total-input:focus { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
-
-.d-flex { display: flex; } .gap-2 { gap: 10px; } .w-50 { width: 50%; }
-
-.btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-.btn:active { transform: translateY(1px); }
-.btn-primary { background-color: #55C2B7; color: white; } .btn-primary:hover { background-color: #45a89d; }
-.btn-success { background-color: #10b981; color: white; } .btn-success:hover { background-color: #059669; }
-.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; } .btn-secondary:hover { background-color: #f3f4f6; }
-.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; transition: transform 0.2s;} .btn-icon:hover { background-color: #f9fafb; color: #111827; transform: scale(1.1); }
-
-.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
-.flex-between { display: flex; justify-content: space-between; align-items: center; }
-.flex-wrap { flex-wrap: wrap; } .gap-3 { gap: 15px; }
-
-.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
-.filter-year { max-width: 140px; font-weight: 600; color: #1f2937; background-color: #f9fafb; border-color: #d1d5db; }
-.filter-year:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
-.filter-month { max-width: 160px; font-weight: 600; color: #374151; background-color: #f9fafb; border-color: #d1d5db; }
-.filter-month:focus { border-color: #55C2B7; background-color: #fff; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
-.filter-input, .search-list { flex: 1; min-width: 150px; max-width: 280px; }
-.filter-input { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; }
-
-.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
-.table { width: 100%; border-collapse: collapse; background: white; }
-.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
-.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
-.table tr:hover td { background-color: #f9fafb; }
-.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; }
-
-/* 🛡️ ESTILOS PARA FILAS ANULADAS */
-.row-anulada td { background-color: #fef2f2 !important; color: #9ca3af !important; text-decoration: line-through; }
-.row-anulada .doc-number { text-decoration: none; background-color: #fee2e2; }
-.row-anulada .badge-empresa { filter: grayscale(100%); opacity: 0.7; }
-.row-anulada .text-dark, .row-anulada .text-danger { color: #9ca3af !important; }
-.border-danger { border: 1px solid #ef4444; }
-
-.text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-muted { color: #6b7280; } .text-dark { color: #1f2937; } .fw-bold { font-weight: 700; } .text-xs { font-size: 0.75rem; } .text-right { text-align: right; } .text-center { text-align: center; } .text-primary { color: #55C2B7; } .text-warning { color: #f59e0b; } .d-block { display: block; } .mt-1 { margin-top: 4px; }
-.actions-cell { min-width: 120px; }
-
-.alert { padding: 12px; border-radius: 6px; margin-top: 20px; font-weight: 500; text-align: center; }
-.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
-.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-
-@media (max-width: 768px) {
-  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; } .header-actions { width: 100%; } .header-actions .btn { width: 100%; }
-  .history-filters { flex-direction: column; width: 100%; }
-  .filter-year, .filter-month, .filter-input, .search-list { max-width: 100%; width: 100%; }
-}
+/* RetencionesView — estilos base en assets/forms.css */
 </style>

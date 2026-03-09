@@ -1,315 +1,329 @@
 <template>
   <MainLayout>
-    <div class="ventas-container">
-      <div class="header-section">
-        <div class="title-box">
-          <h1>🏢 Ventas Crédito Fiscal y Notas</h1>
-          <p class="subtitle">Emisión de CCF, Notas de Crédito y Débito (Anexo 2)</p>
+    <div class="rl-view">
+
+      <div class="rl-view-header">
+        <div class="rl-view-title">
+          <h1>🏢 Ventas Crédito Fiscal (y Notas)</h1>
+          <p class="rl-view-subtitle">CCF, Notas de Crédito y Débito a Contribuyentes · Anexo 2</p>
         </div>
-        <div class="header-actions">
-          <button @click="alternarVista" class="btn btn-primary">
-            {{ mostrandoLista ? '➕ Nuevo Documento' : '📋 Ver Historial' }}
-          </button>
+        <button @click="alternarVista" class="rl-btn rl-btn-primary">
+          {{ mostrandoLista ? '➕ Nuevo Documento' : '📋 Ver Historial' }}
+        </button>
+      </div>
+
+      <!-- FORMULARIO -->
+      <div v-if="!mostrandoLista" class="rl-card">
+        <div class="rl-card-header">
+          <div>
+            <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
+            <span class="rl-badge rl-badge-info" style="margin-top:4px;display:inline-block">
+              {{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}
+            </span>
+          </div>
+          <div class="modo-toggle">
+            <label :class="{ active: formulario.modoIngreso === 'dte' }">
+              <input type="radio" v-model="formulario.modoIngreso" value="dte" class="sr-only"> 🌐 DTE
+            </label>
+            <label :class="{ active: formulario.modoIngreso === 'fisico' }">
+              <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="sr-only"> 🖨️ Físico
+            </label>
+          </div>
+        </div>
+
+        <form @submit.prevent="guardarVenta">
+
+          <div v-if="formulario.tipoDocumento === '05'" class="rl-alert" style="background:#fffbeb;color:#92400e;border-color:#fde68a;margin-bottom:16px">
+            <strong>💡 Nota de Crédito:</strong> Ingrese los montos que está devolviendo o descontando <em>(en positivo, Hacienda los restará)</em>.
+          </div>
+          <div v-if="formulario.tipoDocumento === '06'" class="rl-alert" style="background:#eff6ff;color:#1e40af;border-color:#bfdbfe;margin-bottom:16px">
+            <strong>💡 Nota de Débito:</strong> Ingrese el cargo extra que no se incluyó en el CCF original.
+          </div>
+
+          <!-- Sección: Documento -->
+          <div class="rl-form-section">
+            <p class="rl-section-title">Detalles del Documento</p>
+            <div class="rl-grid rl-grid-2">
+              <div class="rl-field">
+                <label class="rl-label">Empresa / Declarante <span class="req">*</span></label>
+                <select v-model="formulario.iddeclaNIT" class="rl-select" required>
+                  <option value="" disabled>-- Seleccione Empresa --</option>
+                  <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
+                </select>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Tipo de Documento <span class="req">*</span></label>
+                <select v-model="formulario.tipoDocumento" class="rl-select" style="font-weight:700" required>
+                  <option value="03">03 - Comprobante de Crédito Fiscal (CCF)</option>
+                  <option value="05">05 - Nota de Crédito (NC)</option>
+                  <option value="06">06 - Nota de Débito (ND)</option>
+                </select>
+              </div>
+            </div>
+            <div class="rl-grid rl-grid-3 rl-mt-3">
+              <div class="rl-field">
+                <label class="rl-label">Fecha Emisión <span class="req">*</span></label>
+                <input type="date" v-model="formulario.fecha" class="rl-input" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Mes a Declarar <span class="req">*</span></label>
+                <select v-model="formulario.mesDeclarado" class="rl-select" required>
+                  <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+                </select>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Año <span class="req">*</span></label>
+                <input type="number" v-model="formulario.anioDeclarado" class="rl-input" min="2000" required>
+              </div>
+            </div>
+
+            <!-- Campos DTE -->
+            <div v-if="formulario.modoIngreso === 'dte'" class="rl-dte-group rl-mt-3">
+              <div class="rl-field" style="grid-column:1/-1">
+                <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID) <span class="req">*</span></label>
+                <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Número Control (DTE) <span class="req">*</span></label>
+                <div class="rl-dte-wrap">
+                  <span class="rl-dte-prefix">DTE</span>
+                  <input type="text" :value="ccfParts.part1" class="rl-dte-part w2" readonly style="background:#f3f4f6">
+                  <span class="rl-dte-sep">–</span>
+                  <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="rl-dte-part letter" placeholder="S" @focus="$event.target.select()">
+                  <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e,'part2',3)" class="rl-dte-part w3" placeholder="000">
+                  <span class="rl-dte-sep">P</span>
+                  <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e,'part3',3)" class="rl-dte-part w3" placeholder="000">
+                  <span class="rl-dte-sep">–</span>
+                  <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e,'part4',15)" class="rl-dte-part grow" placeholder="Correlativo...">
+                </div>
+              </div>
+              <div class="rl-field rl-field-sello">
+                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción MH (Opcional)</label>
+                <div class="rl-sello-wrap">
+                  <span class="rl-sello-icon">✅</span>
+                  <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Pegue los 40 caracteres del Sello MH...">
+                </div>
+                <span class="rl-sello-hint">40 caracteres alfanuméricos · Solo aplica para DTE</span>
+              </div>
+            </div>
+
+            <!-- Campos Físico -->
+            <div v-if="formulario.modoIngreso === 'fisico'" class="rl-grid rl-grid-2 rl-mt-3">
+              <div class="rl-field">
+                <label class="rl-label">Número de Resolución <span class="req">*</span></label>
+                <input type="text" v-model="formulario.resolucion" class="rl-input" placeholder="15042-RES-CR-..." required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Número Correlativo CCF <span class="req">*</span></label>
+                <input type="text" v-model="formulario.numero_fisico" class="rl-input" style="font-weight:700" placeholder="Ej: 12345" required>
+              </div>
+            </div>
+
+            <div class="rl-grid rl-grid-2 rl-mt-3">
+              <div class="rl-field">
+                <label class="rl-label">Serie (Opcional)</label>
+                <input type="text" v-model="formulario.serie" class="rl-input" placeholder="SERIE">
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Cliente -->
+          <div class="rl-form-section">
+            <p class="rl-section-title">Cliente (Contribuyente)</p>
+            <div class="rl-grid rl-grid-3">
+              <div class="rl-field">
+                <label class="rl-label">Nombre / Razón Social <span class="req">*</span></label>
+                <input type="text" v-model="formulario.cliente" class="rl-input" placeholder="Empresa o Contribuyente" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">NIT del Cliente <span class="req">*</span></label>
+                <input type="text" v-model="formulario.nit" class="rl-input" placeholder="0000-000000-000-0" required>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">NRC (Registro) <span class="req">*</span></label>
+                <input type="text" v-model="formulario.nrc" class="rl-input" placeholder="000000-0" required>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sección: Montos -->
+          <div class="rl-form-section rl-bg-soft">
+            <p class="rl-section-title">Clasificación y Montos</p>
+            <div class="rl-grid rl-grid-2" style="margin-bottom:16px">
+              <div class="rl-field">
+                <label class="rl-label">Tipo de Operación</label>
+                <select v-model="formulario.tipo_operacion" class="rl-select">
+                  <option value="1">1 - Ventas Gravadas Local</option>
+                  <option value="2">2 - Ventas Exentas Local</option>
+                  <option value="3">3 - Ventas No Sujetas Local</option>
+                  <option value="4">4 - Exportaciones CA</option>
+                  <option value="5">5 - Exportaciones Fuera CA</option>
+                  <option value="6">6 - Exportaciones de Servicios</option>
+                  <option value="7">7 - Zonas Francas y DPA</option>
+                  <option value="8">8 - Ventas a Cuenta de Terceros</option>
+                </select>
+              </div>
+              <div class="rl-field">
+                <label class="rl-label">Tipo de Ingreso</label>
+                <select v-model="formulario.tipo_ingreso" class="rl-select">
+                  <option value="1">1 - Ingresos de Actividades Ordinarias</option>
+                  <option value="2">2 - Ingresos Financieros</option>
+                  <option value="3">3 - Otros Ingresos y/o Ganancias</option>
+                </select>
+              </div>
+            </div>
+            <div class="rl-montos">
+              <div class="rl-monto-item">
+                <span class="rl-monto-label">{{ formulario.tipoDocumento === '05' ? 'Devolución / Descuento (Base)' : formulario.tipoDocumento === '06' ? 'Cargo Extra (Base)' : 'Base Gravada' }}</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency">$</span>
+                  <input type="number" v-model="formulario.gravadas" step="0.01" class="rl-input rl-input-monto" @blur="formatearDecimal('gravadas')">
+                </div>
+              </div>
+              <div class="rl-monto-item">
+                <span class="rl-monto-label" style="color:#059669">{{ formulario.tipoDocumento === '05' ? 'IVA a Revertir (13%)' : formulario.tipoDocumento === '06' ? 'IVA Adicional (13%)' : '13% IVA (Débito)' }}</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency" style="color:#059669">{{ formulario.tipoDocumento === '05' ? '-' : '+' }}</span>
+                  <input type="number" v-model="formulario.debitoFiscal" step="0.01" class="rl-input rl-input-monto" style="color:#059669" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')">
+                </div>
+              </div>
+              <div class="rl-monto-item">
+                <span class="rl-monto-label">Exentas</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency">$</span>
+                  <input type="number" v-model="formulario.exentas" step="0.01" class="rl-input rl-input-monto" @blur="formatearDecimal('exentas')">
+                </div>
+              </div>
+              <div class="rl-monto-item">
+                <span class="rl-monto-label">No Sujetas</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency">$</span>
+                  <input type="number" v-model="formulario.noSujetas" step="0.01" class="rl-input rl-input-monto" @blur="formatearDecimal('noSujetas')">
+                </div>
+              </div>
+              <div class="rl-monto-item is-total">
+                <span class="rl-monto-label">{{ formulario.tipoDocumento === '05' ? 'TOTAL NC' : formulario.tipoDocumento === '06' ? 'TOTAL ND' : 'TOTAL DOCUMENTO' }}</span>
+                <div class="rl-monto-wrap">
+                  <span class="rl-monto-currency" style="color:#0d9488">$</span>
+                  <input v-model="formulario.total" type="text" class="rl-input rl-input-total" readonly>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rl-form-actions">
+            <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="rl-btn rl-btn-secondary">Cancelar</button>
+            <button type="submit" class="rl-btn rl-btn-success rl-btn-lg" :disabled="cargando">
+              {{ cargando ? 'Procesando...' : (modoEdicion ? '✔ Actualizar Registro' : '💾 Guardar en BD') }}
+            </button>
+          </div>
+          <div v-if="mensaje" class="rl-alert" :class="tipoMensaje === 'success' ? 'rl-alert-success' : 'rl-alert-danger'">
+            {{ mensaje }}
+          </div>
+        </form>
+      </div>
+
+      <!-- LISTADO -->
+      <div v-else class="rl-card">
+        <div class="rl-card-header">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h3>📋 Historial de Documentos (Anexo 2)</h3>
+            <span class="rl-badge rl-badge-count">{{ ventasFiltradas.length }} documentos</span>
+          </div>
+          <div class="rl-filters">
+            <input type="number" v-model="anioFiltro" placeholder="Año" class="rl-input rl-filter-sm">
+            <select v-model="mesFiltro" class="rl-select rl-filter-md">
+              <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
+            </select>
+            <select v-model="declaranteFiltro" class="rl-select rl-filter-md">
+              <option value="">🏢 Todas las Empresas</option>
+              <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
+            </select>
+            <input type="text" v-model="filtro" placeholder="🔍 DTE / Cliente..." class="rl-input rl-filter-search">
+          </div>
+        </div>
+
+        <div v-if="seleccionados.length > 0" class="rl-bulk-bar">
+          <div class="rl-bulk-info">
+            <span class="rl-badge rl-badge-success">{{ seleccionados.length }} seleccionados</span>
+            Asignar para declarar en:
+          </div>
+          <div class="rl-bulk-controls">
+            <select v-model="bulkMes" class="rl-select" style="width:auto">
+              <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
+            </select>
+            <input type="number" v-model="bulkAnio" class="rl-input" style="width:80px">
+            <button class="rl-btn rl-btn-primary rl-btn-sm" @click="aplicarCambioMasivo" :disabled="cargandoMasivo">
+              {{ cargandoMasivo ? 'Aplicando...' : '💾 Mover Facturas' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="rl-table-wrap">
+          <table class="rl-table">
+            <thead>
+              <tr>
+                <th style="width:40px;text-align:center">
+                  <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="rl-checkbox">
+                </th>
+                <th>Fecha</th><th>Tipo</th><th>Clase</th><th>Cliente</th><th>N° Documento</th>
+                <th style="text-align:right">Base</th>
+                <th style="text-align:right;color:#059669">IVA 13%</th>
+                <th style="text-align:right">Total</th>
+                <th style="text-align:center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="venta in ventasFiltradas" :key="venta.idCredFiscal"
+                  :class="{ 'is-selected': seleccionados.includes(venta.idCredFiscal), 'is-anulado': esAnulado(venta) }">
+                <td style="text-align:center">
+                  <input type="checkbox" :value="venta.idCredFiscal" v-model="seleccionados" class="rl-checkbox">
+                </td>
+                <td>
+                  <div style="font-weight:700">{{ formatearFecha(venta.FiscFecha) }}</div>
+                  <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ venta.FiscMesDeclarado || 'N/A' }}</strong></small>
+                </td>
+                <td>
+                  <span class="tipo-badge" :class="venta.FisTipoDoc === '03' ? 'tipo-blue' : venta.FisTipoDoc === '05' ? 'tipo-orange' : 'tipo-purple'">
+                    {{ venta.FisTipoDoc === '05' ? 'NC (05)' : venta.FisTipoDoc === '06' ? 'ND (06)' : 'CCF (03)' }}
+                  </span>
+                </td>
+                <td>
+                  <span class="tipo-badge" :class="venta.FisClasDoc === '4' ? 'tipo-blue' : 'tipo-green'">
+                    {{ venta.FisClasDoc === '4' ? 'DTE' : 'Físico' }}
+                  </span>
+                </td>
+                <td>
+                  <div style="font-weight:700">{{ venta.FiscNomRazonDenomi || 'Desconocido' }}</div>
+                  <small class="rl-text-muted">{{ venta.FiscNit || 'N/A' }}</small>
+                </td>
+                <td>
+                  <span class="rl-doc-number" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span>
+                  <div v-if="venta.FiscSelloRecepcion" style="margin-top:3px">
+                    <span class="rl-badge" style="background:#d1fae5;color:#065f46;font-size:.65rem" :title="venta.FiscSelloRecepcion">✔ Sello MH</span>
+                  </div>
+                </td>
+                <td style="text-align:right;color:#6b7280">
+                  <span v-if="venta.FisTipoDoc === '05'" style="color:#ef4444">-</span>${{ formatoMoneda(venta.FiscVtaGravLocal) }}
+                </td>
+                <td style="text-align:right;font-weight:700" :style="venta.FisTipoDoc === '05' ? 'color:#ef4444' : 'color:#059669'">
+                  {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${{ formatoMoneda(venta.FiscDebitoFiscal) }}
+                </td>
+                <td style="text-align:right;font-weight:700">${{ formatoMoneda(venta.FiscTotalVtas) }}</td>
+                <td style="text-align:center">
+                  <button class="rl-btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
+                  <button class="rl-btn-icon" @click="eliminarVenta(venta)" title="Eliminar" style="color:#ef4444">🗑️</button>
+                  <button class="rl-btn-icon" @click="anularDocumento(venta)" title="Anular" style="color:#d97706">🚫</button>
+                </td>
+              </tr>
+              <tr v-if="ventasFiltradas.length === 0">
+                <td colspan="10" class="rl-empty-state">No se encontraron registros para estos filtros.</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
-      <div class="main-content">
-        <div v-if="!mostrandoLista" class="card fade-in">
-          
-          <div class="card-header flex-between">
-            <div>
-              <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
-              <span class="badge-info">{{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}</span>
-            </div>
-            <div class="toggle-switch">
-               <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
-                  <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico (DTE)
-               </label>
-               <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
-                  <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico / Papel
-               </label>
-            </div>
-          </div>
-
-          <form @submit.prevent="guardarVenta" class="form-body mt-4">
-            
-            <div v-if="formulario.tipoDocumento === '05'" class="alert alert-warning mb-4 fade-in">
-                <strong>💡 Llenado de Nota de Crédito:</strong> Ingrese el monto o excedente que está <b>devolviendo o descontando</b> de la factura original. <em>(Nota: En el Anexo de Hacienda, estos valores se ingresan en positivo; ellos los restan automáticamente).</em>
-            </div>
-            <div v-if="formulario.tipoDocumento === '06'" class="alert alert-info mb-4 fade-in">
-                <strong>💡 Llenado de Nota de Débito:</strong> Ingrese el <b>cargo extra o excedente a cobrar</b> que no se incluyó en el Comprobante de Crédito Fiscal original.
-            </div>
-
-            <div class="form-section">
-              <h3 class="section-title">📄 Detalles del Documento</h3>
-              <div class="form-grid four-cols">
-                
-                <div class="form-group" style="grid-column: span 2;">
-                   <label class="form-label text-dark fw-bold">🏢 Empresa / Declarante <span class="text-danger">*</span></label>
-                   <select v-model="formulario.iddeclaNIT" class="form-control" required>
-                      <option value="" disabled>-- Seleccione Empresa --</option>
-                      <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">
-                         {{ d.declarante }}
-                      </option>
-                   </select>
-                </div>
-
-                <div class="form-group" style="grid-column: span 2;">
-                   <label class="form-label text-primary-dark">🏷️ Tipo de Documento <span class="text-danger">*</span></label>
-                   <select v-model="formulario.tipoDocumento" class="form-control border-primary fw-bold" required>
-                      <option value="03">03 - Comprobante de Crédito Fiscal (CCF)</option>
-                      <option value="05">05 - Nota de Crédito (NC)</option>
-                      <option value="06">06 - Nota de Débito (ND)</option>
-                   </select>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Fecha Emisión <span class="text-danger">*</span></label>
-                  <input type="date" v-model="formulario.fecha" class="form-control" required>
-                </div>
-                
-                <div class="form-group">
-                  <label class="form-label">Mes a Declarar <span class="text-danger">*</span></label>
-                  <select v-model="formulario.mesDeclarado" class="form-control" required>
-                    <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
-                  </select>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Año a Declarar <span class="text-danger">*</span></label>
-                  <input type="number" v-model="formulario.anioDeclarado" class="form-control" min="2000" required>
-                </div>
-
-                <div class="form-group">
-                  <label class="form-label">Serie (Opcional)</label>
-                  <input type="text" v-model="formulario.serie" class="form-control" placeholder="SERIE">
-                </div>
-
-                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
-                  <label class="form-label">Código de Generación (UUID) <span class="text-danger">*</span></label>
-                   <input type="text" v-model="formulario.uuid_dte" class="form-control uuid-input" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
-                </div>
-
-                <div class="form-group fade-in" style="grid-column: span 2;" v-if="formulario.modoIngreso === 'dte'">
-                   <label class="form-label">Número Control (DTE) <span class="text-danger">*</span></label>
-                   <div class="dte-mask-container">
-                      <span class="dte-prefix">DTE</span>
-                      <input type="text" :value="ccfParts.part1" class="dte-part w-2ch bg-transparent" readonly>
-                      <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="dte-part dte-letter" placeholder="S" @focus="$event.target.select()">
-                      <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e, 'part2', 3)" class="dte-part w-3ch" placeholder="000">
-                      <span class="dte-sep">P</span>
-                      <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e, 'part3', 3)" class="dte-part w-3ch" placeholder="000">
-                      <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e, 'part4', 15)" class="dte-part flex-grow" placeholder="Correlativo...">
-                   </div>
-                </div>
-
-                <div class="form-group fade-in" style="grid-column: span 4;" v-if="formulario.modoIngreso === 'dte'">
-                   <label class="form-label text-success">✔️ Sello de Recepción MH (Opcional)</label>
-                   <input type="text" v-model="formulario.sello_recepcion" class="form-control input-sello" placeholder="Pegue aquí los 40 caracteres del Sello de Recepción (Si aplica)">
-                </div>
-
-                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
-                  <label class="form-label">Número de Resolución <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.resolucion" class="form-control" placeholder="15042-RES-CR-..." required>
-                </div>
-                <div v-if="formulario.modoIngreso === 'fisico'" class="form-group fade-in" style="grid-column: span 2;">
-                  <label class="form-label">Número Correlativo de CCF <span class="text-danger">*</span></label>
-                  <input type="text" v-model="formulario.numero_fisico" class="form-control fw-bold" placeholder="Ej: 12345" required>
-                </div>
-
-              </div>
-            </div>
-
-            <div class="form-section">
-              <h3 class="section-title">🏢 Cliente (Contribuyente)</h3>
-              <div class="form-grid">
-                <div class="form-group">
-                    <label class="form-label">Nombre / Razón Social <span class="text-danger">*</span></label>
-                    <input type="text" v-model="formulario.cliente" class="form-control" placeholder="Nombre de la Empresa o Contribuyente" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">NRC (Registro) <span class="text-danger">*</span></label>
-                    <input type="text" v-model="formulario.nrc" class="form-control" placeholder="000000-0" required>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-section bg-light p-3 rounded-lg border">
-              <h3 class="section-title">💰 Clasificación y Montos</h3>
-              
-              <div class="form-grid mt-2 mb-3">
-                 <div class="form-group">
-                    <label class="form-label text-dark">Tipo de Operación</label>
-                    <select v-model="formulario.tipo_operacion" class="form-control select-catalogo">
-                       <option value="1">1 - Ventas Gravadas Local</option>
-                       <option value="2">2 - Ventas Exentas Local</option>
-                       <option value="3">3 - Ventas No Sujetas Local</option>
-                       <option value="4">4 - Exportaciones CA</option>
-                       <option value="5">5 - Exportaciones Fuera CA</option>
-                       <option value="6">6 - Exportaciones de Servicios</option>
-                       <option value="7">7 - Zonas Francas y DPA</option>
-                       <option value="8">8 - Ventas a Cuenta de Terceros</option>
-                    </select>
-                 </div>
-                 <div class="form-group">
-                    <label class="form-label text-dark">Tipo de Ingreso</label>
-                    <select v-model="formulario.tipo_ingreso" class="form-control select-catalogo">
-                       <option value="1">1 - Ingresos de Actividades Ordinarias</option>
-                       <option value="2">2 - Ingresos Financieros</option>
-                       <option value="3">3 - Otros Ingresos y/o Ganancias</option>
-                    </select>
-                 </div>
-              </div>
-
-              <div class="montos-wrapper">
-                <div class="monto-group">
-                    <label class="monto-label">
-                        {{ formulario.tipoDocumento === '05' ? 'Devolución / Descuento (Base)' : (formulario.tipoDocumento === '06' ? 'Cargo Extra (Base)' : 'Base Gravada') }}
-                    </label>
-                    <div class="input-wrapper">
-                        <span class="currency">$</span>
-                        <input type="number" v-model="formulario.gravadas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('gravadas')">
-                    </div>
-                </div>
-
-                <div class="monto-group">
-                    <label class="monto-label text-success">
-                        {{ formulario.tipoDocumento === '05' ? 'IVA a Revertir (13%)' : (formulario.tipoDocumento === '06' ? 'IVA Adicional (13%)' : '13% IVA (Débito)') }}
-                    </label>
-                    <div class="input-wrapper">
-                        <span class="currency text-success">{{ formulario.tipoDocumento === '05' ? '-' : '+' }}</span>
-                        <input type="number" v-model="formulario.debitoFiscal" step="0.01" class="form-control monto-input text-success" @input="recalcularTotal" @blur="formatearDecimal('debitoFiscal')">
-                    </div>
-                </div>
-
-                <div class="monto-group">
-                    <label class="monto-label">Exentas</label>
-                    <div class="input-wrapper">
-                        <span class="currency">$</span>
-                        <input type="number" v-model="formulario.exentas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('exentas')">
-                    </div>
-                </div>
-
-                <div class="monto-group">
-                    <label class="monto-label">No Sujetas</label>
-                    <div class="input-wrapper">
-                        <span class="currency">$</span>
-                        <input type="number" v-model="formulario.noSujetas" step="0.01" class="form-control monto-input" @blur="formatearDecimal('noSujetas')">
-                    </div>
-                </div>
-
-                <div class="monto-group total-group">
-                    <label class="monto-label text-primary">
-                        {{ formulario.tipoDocumento === '05' ? 'TOTAL NOTA DE CRÉDITO' : (formulario.tipoDocumento === '06' ? 'TOTAL NOTA DE DÉBITO' : 'TOTAL DOCUMENTO') }}
-                    </label>
-                    <div class="input-wrapper">
-                        <span class="currency text-primary">$</span>
-                        <input v-model="formulario.total" type="text" class="form-control total-input text-primary" readonly>
-                    </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="btn btn-secondary">Cancelar</button>
-              <button type="submit" class="btn btn-success btn-lg shadow-btn" :disabled="cargando">{{ cargando ? 'Procesando...' : (modoEdicion ? 'Actualizar Registro' : '💾 Guardar en BD') }}</button>
-            </div>
-
-            <div v-if="mensaje" :class="['alert', tipoMensaje === 'success' ? 'alert-success' : 'alert-danger']">
-              {{ mensaje }}
-            </div>
-          </form>
-        </div>
-
-        <div v-else class="card fade-in">
-          <div class="card-header flex-between flex-wrap gap-3">
-             <div style="display: flex; align-items: center; gap: 10px;">
-                 <h3>📋 Historial de Documentos (Anexo 2)</h3>
-                 <span class="badge-count">{{ ventasFiltradas.length }} documentos</span>
-             </div>
-             
-             <div class="history-filters">
-                <input type="number" v-model="anioFiltro" placeholder="Año" class="form-control filter-year">
-                <select v-model="mesFiltro" class="form-control filter-month">
-                  <option v-for="m in mesesFiltroOptions" :key="m.valor" :value="m.valor">{{ m.nombre }}</option>
-                </select>
-                <select v-model="declaranteFiltro" class="form-control filter-input">
-                    <option value="">🏢 Todas las Empresas</option>
-                    <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
-                </select>
-                <input type="text" v-model="filtro" placeholder="🔍 DTE / Cliente..." class="form-control search-list">
-             </div>
-          </div>
-
-          <div v-if="seleccionados.length > 0" class="bulk-action-bar fade-in">
-             <div class="bulk-info">
-                <span class="badge-success">{{ seleccionados.length }} seleccionados</span>
-                <span class="bulk-text">Asignar para declarar en:</span>
-             </div>
-             <div class="bulk-controls">
-                <select v-model="bulkMes" class="form-control form-control-sm w-auto d-inline">
-                   <option v-for="m in mesesOptions" :key="m" :value="m">{{ m }}</option>
-                </select>
-                <input type="number" v-model="bulkAnio" class="form-control form-control-sm w-auto d-inline" style="width: 80px;">
-                <button class="btn btn-primary btn-sm" @click="aplicarCambioMasivo" :disabled="cargandoMasivo">
-                   {{ cargandoMasivo ? 'Aplicando...' : '💾 Mover Facturas' }}
-                </button>
-             </div>
-          </div>
-
-          <div class="table-responsive">
-            <table class="table">
-              <thead>
-                <tr>
-                  <th style="width: 40px; text-align: center;">
-                    <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="row-checkbox" title="Seleccionar todo">
-                  </th>
-                  <th>Fecha</th><th>Tipo</th><th>Clase</th><th>Cliente (NRC)</th><th>N° Documento</th><th class="text-right">Base</th><th class="text-right text-success">IVA (13%)</th><th class="text-right">Total</th><th class="text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="venta in ventasFiltradas" :key="venta.idCredFiscal" :class="{'selected-row': seleccionados.includes(venta.idCredFiscal), 'is-anulado': esAnulado(venta)}">
-                  <td class="text-center">
-                     <input type="checkbox" :value="venta.idCredFiscal" v-model="seleccionados" class="row-checkbox">
-                  </td>
-                  <td>
-                    <div class="fw-bold text-dark">{{ formatearFecha(venta.FiscFecha) }}</div>
-                    <small class="text-muted">Declarado: <strong class="text-primary">{{ venta.FiscMesDeclarado || 'N/A' }}</strong></small>
-                  </td>
-                  <td>
-                     <span class="badge-type" :class="{'blue': venta.FisTipoDoc === '03', 'orange': venta.FisTipoDoc === '05', 'purple': venta.FisTipoDoc === '06'}">
-                         {{ venta.FisTipoDoc === '05' ? 'NC (05)' : (venta.FisTipoDoc === '06' ? 'ND (06)' : 'CCF (03)') }}
-                     </span>
-                  </td>
-                  <td>
-                     <span class="badge-type" :class="{'blue': venta.FisClasDoc === '4', 'green': venta.FisClasDoc !== '4'}">
-                         {{ venta.FisClasDoc === '4' ? 'DTE' : 'Físico' }}
-                     </span>
-                  </td>
-                  <td><div class="fw-bold text-dark">{{ venta.FiscNomRazonDenomi || 'Desconocido' }}</div><small class="text-muted">{{ venta.FiscNit || 'N/A' }}</small></td>
-                  <td>
-                     <span class="doc-number text-xs" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span>
-                     <div v-if="venta.FiscSelloRecepcion" class="badge-sello-mh mt-1" :title="venta.FiscSelloRecepcion">✔️ Sello MH</div>
-                  </td>
-                  <td class="text-right text-muted">
-                    <span v-if="venta.FisTipoDoc === '05'" class="text-danger">-</span>${{ formatoMoneda(venta.FiscVtaGravLocal) }}
-                  </td>
-                  <td class="text-right fw-bold" :class="venta.FisTipoDoc === '05' ? 'text-danger' : 'text-success'">
-                    {{ venta.FisTipoDoc === '05' ? '-' : '+' }}${{ formatoMoneda(venta.FiscDebitoFiscal) }}
-                  </td>
-                  <td class="text-right fw-bold text-dark">${{ formatoMoneda(venta.FiscTotalVtas) }}</td>
-                  <td class="text-center">
-                    <button class="btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
-                    <button class="btn-icon text-danger" @click="eliminarVenta(venta)" title="Eliminar">🗑️</button>
-                    <button class="btn-icon text-warning" @click="anularDocumento(venta)" title="Anular Documento">🚫</button>
-                  </td>
-                </tr>
-                <tr v-if="ventasFiltradas.length === 0"><td colspan="10" class="text-center py-4 text-muted">No se encontraron registros para estos filtros.</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
     </div>
   </MainLayout>
 </template>
@@ -655,112 +669,16 @@ const formatearFecha = (f) => f ? f.split('T')[0] : '';
 onMounted(cargarDatos);
 </script>
 
+
 <style scoped>
-.ventas-container { padding: 20px; background: linear-gradient(180deg, rgba(85, 194, 183, 0.15) 0%, #f3f4f6 35%); height: 100%; overflow-y: auto; font-family: 'Segoe UI', system-ui, sans-serif; }
-.header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
-.title-box h1 { font-size: 1.5rem; color: #1f2937; margin: 0; font-weight: 700; }
-.subtitle { color: #57606f; font-size: 0.9rem; margin-top: 4px; font-weight: 500; }
-.card { background: white; border-radius: 12px; border: 1px solid rgba(85, 194, 183, 0.15); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); padding: 24px; margin-bottom: 20px; animation: fadeIn 0.4s ease-out; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-.card-header { border-bottom: 1px solid #f0fdfa; padding-bottom: 16px; margin-bottom: 20px; }
-.card-header h2 { font-size: 1.25rem; color: #111827; margin: 0; font-weight: 700; }
-.badge-info { font-size: 0.75rem; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 20px; font-weight: 600; display: inline-block; margin-top: 5px; }
-.badge-count { font-size: 0.8rem; background-color: #e2e8f0; color: #475569; padding: 4px 10px; border-radius: 20px; font-weight: 700; border: 1px solid #cbd5e1; }
-
-/* 🛡️ Switch Layout */
-.toggle-switch { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; border: 1px solid #e2e8f0; }
-.toggle-switch label { cursor: pointer; padding: 6px 16px; font-size: 0.85rem; font-weight: 600; color: #64748b; border-radius: 6px; transition: all 0.2s; margin: 0; display: flex; align-items: center; justify-content: center; }
-.toggle-switch label.active { background: white; color: #0f766e; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.d-none { display: none; }
-
-/* Badges Dinámicos de Tipo y Clase de Documento */
-.badge-type { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.02em; }
-.badge-type.blue { background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
-.badge-type.orange { background-color: #ffedd5; color: #c2410c; border: 1px solid #fed7aa; }
-.badge-type.purple { background-color: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
-.badge-type.green { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-
-.form-section { margin-bottom: 30px; }
-.section-title { font-size: 1rem; color: #374151; font-weight: 700; margin-bottom: 15px; border-left: 4px solid #55C2B7; padding-left: 12px; }
-.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
-.four-cols { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.form-label { display: block; font-size: 0.8rem; font-weight: 600; color: #4b5563; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.025em; }
-.form-control { width: 100%; padding: 0.6rem 0.85rem; font-size: 0.95rem; color: #1f2937; background-color: #f9fafb; border: 1px solid #d1d5db; border-radius: 0.5rem; transition: all 0.2s; box-sizing: border-box; }
-.form-control:focus { background-color: #fff; border-color: #55C2B7; outline: 0; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); }
-.border-primary { border-color: #55C2B7; border-width: 2px; }
-
-/* 🛡️ ESTILOS DEL SELLO */
-.input-sello { background-color: #f0fdf4; border-color: #34d399; color: #065f46; font-family: monospace; font-weight: bold; }
-.input-sello:focus { border-color: #10b981; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2); background-color: #ffffff; }
-.badge-sello-mh { font-size: 0.65rem; background: #d1fae5; color: #065f46; padding: 2px 6px; border-radius: 12px; display: inline-block; border: 1px solid #6ee7b7; font-weight: bold; cursor: help; }
-
-.uuid-input { font-family: 'Consolas', monospace; font-size: 0.85rem; background-color: #f8fafc; color: #1e3a8a; }
-.select-catalogo { background-color: #f0fdfa; border-color: #99f6e4; color: #0f766e; font-weight: 600; }
-
-.montos-wrapper { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; padding: 15px; background: #fff; border-radius: 8px; border: 1px solid #f3f4f6; }
-.monto-group { flex: 1; min-width: 150px; }
-.monto-label { font-size: 0.75rem; font-weight: 700; color: #6b7280; margin-bottom: 6px; display: block; text-transform: uppercase; }
-.input-wrapper { position: relative; }
-.currency { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9ca3af; font-weight: 600; font-size: 0.9rem; }
-.monto-input { padding-left: 24px; font-weight: 600; text-align: right; color: #1f2937; }
-.total-input { padding-left: 24px; font-weight: 800; color: #0d9488; border-color: #55C2B7; text-align: right; font-size: 1.25rem; background: #f0fdfa; }
-
-.btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.6rem 1.2rem; font-weight: 600; font-size: 0.9rem; border-radius: 0.5rem; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-.btn-primary { background-color: #55C2B7; color: white; }
-.btn-success { background-color: #10b981; color: white; }
-.btn-secondary { background-color: #fff; color: #4b5563; border: 1px solid #d1d5db; margin-right: 10px; }
-.btn-icon { background: white; border: 1px solid #e5e7eb; cursor: pointer; font-size: 1rem; padding: 6px; border-radius: 6px; color: #6b7280; margin: 0 2px; }
-.form-actions { display: flex; justify-content: flex-end; margin-top: 30px; padding-top: 20px; border-top: 1px dashed #e5e7eb; gap: 12px; }
-.table-responsive { overflow-x: auto; border-radius: 8px; border: 1px solid #e5e7eb; }
-.table { width: 100%; border-collapse: collapse; background: white; }
-.table th { text-align: left; padding: 14px 18px; background-color: #f8fafc; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #64748b; border-bottom: 1px solid #e5e7eb; }
-.table td { padding: 14px 18px; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; color: #374151; vertical-align: middle; }
-.doc-number { font-family: monospace; font-weight: 600; color: #4b5563; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; display: inline-block;}
-.alert { padding: 12px; border-radius: 6px; font-weight: 500; text-align: center; }
-.alert-success { background-color: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; margin-top: 20px; }
-.alert-danger { background-color: #fef2f2; color: #991b1b; border: 1px solid #fecaca; margin-top: 20px; }
-.alert-warning { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; text-align: left; }
-.alert-info { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; text-align: left; }
-.text-danger { color: #ef4444; } .text-success { color: #10b981; } .text-primary { color: #55C2B7; }
-.flex-between { display: flex; justify-content: space-between; align-items: center; }
-
-.history-filters { display: flex; gap: 10px; flex: 1; justify-content: flex-end; flex-wrap: wrap; }
-.filter-input { max-width: 200px; background-color: #f0fdfa; border-color: #55C2B7; font-weight: 600; color: #0f766e; }
-.filter-year { max-width: 100px; font-weight: 600; }
-.filter-month { max-width: 140px; font-weight: 600; }
-.search-list { flex: 1; min-width: 150px; max-width: 250px; }
-
-.bulk-action-bar { display: flex; justify-content: space-between; align-items: center; background-color: #f0fdfa; border: 1px solid #55C2B7; padding: 12px 20px; border-radius: 8px; margin-bottom: 15px; flex-wrap: wrap; gap: 15px; }
-.bulk-info { display: flex; align-items: center; gap: 10px; }
-.bulk-text { font-weight: 600; color: #0f766e; font-size: 0.95rem; }
-.badge-success { background: #10b981; color: white; padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.85rem; }
-.bulk-controls { display: flex; align-items: center; gap: 10px; }
-.form-control-sm { padding: 0.4rem 0.6rem; font-size: 0.9rem; height: auto; }
-.btn-sm { padding: 0.5rem 1rem; font-size: 0.9rem; }
-.d-inline { display: inline-block; }
-.w-auto { width: auto; }
-.row-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #55C2B7; }
-.selected-row td { background-color: #f0fdfa !important; border-bottom-color: #ccfbf1; }
-
-.dte-mask-container { display: flex; align-items: center; border: 1px solid #d1d5db; border-radius: 0.5rem; background: #f9fafb; overflow: hidden; transition: all 0.2s; }
-.dte-mask-container:focus-within { border-color: #55C2B7; box-shadow: 0 0 0 3px rgba(85, 194, 183, 0.2); background: white; }
-.dte-prefix { background: #f3f4f6; padding: 0.6rem 0.8rem; font-size: 0.8rem; font-weight: 700; color: #55C2B7; border-right: 1px solid #e5e7eb; }
-.dte-sep { padding: 0 5px; color: #9ca3af; font-weight: bold; }
-.dte-part { border: none; text-align: center; padding: 0.6rem 2px; font-family: 'Courier New', monospace; font-size: 0.95rem; outline: none; background: transparent; color: #1f2937; font-weight: 600; }
-.w-2ch { width: 32px; } .w-3ch { width: 44px; } .flex-grow { flex: 1; text-align: left; padding-left: 8px; }
-.dte-letter { width: 30px; color: #d97706; font-weight: 800; background: #fffbeb; border-radius: 4px; margin: 2px; }
-.bg-transparent { background-color: transparent !important; }
-.text-xs { font-size: 0.75rem; }
-
-.is-anulado td { background-color: #fee2e2 !important; color: #991b1b !important; text-decoration: line-through; opacity: 0.7; }
-.is-anulado .doc-number::after { content: " (ANULADO)"; color: #dc2626; font-size: 0.7rem; font-weight: 800; text-decoration: none !important; display: inline-block; margin-left: 5px; }
-
-@media (max-width: 768px) {
-  .montos-wrapper { flex-direction: column; }
-  .monto-group { width: 100%; }
-  .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
-  .header-actions { width: 100%; }
-  .history-filters { flex-direction: column; max-width: 100%; }
-  .bulk-action-bar { flex-direction: column; align-items: flex-start; }
-}
+/* VentasCreditoFiscalView — estilos base en assets/forms.css */
+.modo-toggle { display:flex; gap:4px; background:#f3f4f6; border-radius:8px; padding:4px; }
+.modo-toggle label { padding:6px 14px; border-radius:6px; font-size:.85rem; font-weight:600; color:#6b7280; cursor:pointer; transition:all .15s; }
+.modo-toggle label.active { background:white; color:#0d9488; box-shadow:0 1px 3px rgba(0,0,0,.1); }
+.sr-only { display:none; }
+.tipo-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:12px; font-size:.72rem; font-weight:700; }
+.tipo-blue   { background:#dbeafe; color:#1e40af; }
+.tipo-green  { background:#d1fae5; color:#065f46; }
+.tipo-orange { background:#fef3c7; color:#92400e; }
+.tipo-purple { background:#ede9fe; color:#5b21b6; }
 </style>
