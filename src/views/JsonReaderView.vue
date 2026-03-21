@@ -203,7 +203,7 @@ watch(miNit, (nuevoValor) => {
   if (nitLimpio.length >= 8 && declarantesDB.value.length > 0) {
     const empresa = declarantesDB.value.find(d => limpiarNit(d.iddeclaNIT) === nitLimpio);
     if (empresa) {
-        miAlias.value = empresa.declarante || empresa.declaNRC;
+        miAlias.value = limpiarNit(empresa.declaNRC) || '';
         miNrc.value = limpiarNit(empresa.declaNRC);
     } else {
         miAlias.value = '';
@@ -226,10 +226,10 @@ const obtenerMesNombre = (fechaIso) => {
 
 const normalizarPayload = (json) => {
   return {
-    backup_info: json.backup_info || json.encabezado || { 
-      nit: limpiarNit(miNit.value), 
-      empresa: 'Importación Manual',
-      periodo: new Date().getFullYear().toString()
+    backup_info: { 
+      nit: limpiarNit(miNit.value),
+      empresa: (json.backup_info || json.encabezado)?.empresa || 'Importación Manual',
+      periodo: (json.backup_info || json.encabezado)?.periodo || new Date().getFullYear().toString()
     },
     data: {
       compras: json.data?.compras || json.modulos?.compras || [],
@@ -254,7 +254,12 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
   const codGen = ident.codigoGeneracion || null; 
   
   // 🛡️ EL CAZADOR DE SELLOS TODOTERRENO:
-  const selloRec = dte.selloRecibido || recepcion.selloRecepcion || null; 
+  const selloRec = dte.selloRecibido || 
+                   recepcion?.selloRecepcion || 
+                   dte.respuestaHacienda?.selloRecibido || 
+                   dte.ResponseMH?.selloRecibido || 
+                   dte.respuestaMH?.selloRecibido || 
+                   null;
   
   const total = parseFloat(resumen.totalPagar) || 0;
   let iva = parseFloat(resumen.totalIva) || 0;
@@ -283,7 +288,7 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
         data: {
           RetenNitAgente: emisorNit, RetenNomAgente: emisor.nombre?.toUpperCase(), RetenFecha: fecha, RetenListTipoDoc: '07', RetenSerieDoc: '', RetenNumDoc: numero, 
           RetenCodGeneracion: codGen, 
-          RetenSelloRecepcion: selloRec, // 🛡️ CORRECCIÓN: SE INYECTA SELLO
+          RetenSelloRecepcion: selloRec,
           RetenMontoSujeto: parseFloat(resumen.totalSujetoRetencion) || parseFloat(resumen.totalPagar) || 0,
           RetenMontoDeReten: parseFloat(resumen.totalIVAretenido) || 0, RetenDuiDelAgente: '', RetenNumAnexo: '4', RetenMesDeclarado: obtenerMesNombre(fecha), RetenAnioDeclarado: fecha.split('-')[0]
         }
@@ -294,7 +299,7 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
         data: {
           ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, 
           ComCodGeneracion: codGen, 
-          ComSelloRecepcion: selloRec, // 🛡️ CORRECCIÓN: SE INYECTA SELLO
+          ComSelloRecepcion: selloRec, 
           proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(), ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3', ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0], comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
         }
       };
@@ -319,7 +324,7 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
     } else if (tipoDte === '14') { 
       return {
         modulo: 'sujetos_excluidos',
-        data: { ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero, ComprasSujExcluCodGeneracion: codGen, ComprasSujExcluNIT: receptorNit, ComprasSujExcluNom: receptor.nombre?.toUpperCase(), ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: (total * 0.10).toFixed(2), ComprasSujExcluTipoDoc: '14', ComprasSujExcluAnexo: '5' }
+        data: { ComprasSujExcluFecha: fecha, ComprasSujExcluNumDoc: numero, ComprasSujExcluCodGeneracion: codGen, ComprasSujExcluSelloRecepcion: selloRec, ComprasSujExcluNIT: receptorNit, ComprasSujExcluNom: receptor.nombre?.toUpperCase(), ComprasSujExcluMontoOpera: total, ComprasSujExcluMontoReten: (total * 0.10).toFixed(2), ComprasSujExcluTipoDoc: '14', ComprasSujExcluAnexo: '5' }
       };
     }
   }
@@ -338,7 +343,6 @@ const cargarArchivo = (event) => {
       try {
         const jsonRaw = JSON.parse(e.target.result);
 
-        // 🛡️ Busca inteligentemente el NIT analizando si eres emisor o receptor
         let docPrueba = Array.isArray(jsonRaw) ? jsonRaw[0] : jsonRaw;
         docPrueba = docPrueba.dteJson || docPrueba.dte || docPrueba;
 
@@ -370,7 +374,9 @@ const cargarArchivo = (event) => {
           if (jsonRaw.anexo3_compras) {
               jsonRaw.anexo3_compras.forEach(c => payloadFinal.value.data.compras.push({
                   ComFecha: c.fecha.split('T')[0], ComClase: c.clase || '4', ComTipo: c.tipo || '03', 
-                  ComNumero: c.numero, ComCodGeneracion: c.numero, proveedor_ProvNIT: c.nit_proveedor, 
+                  ComNumero: c.numero, ComCodGeneracion: c.numero, 
+                  ComSelloRecepcion: c.selloRecepcion || c.sello_recepcion || null, // 🛡️ BLINDAJE DE BACKUPS
+                  proveedor_ProvNIT: c.nit_proveedor, 
                   ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0, 
                   ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0, 
                   ComTotal: parseFloat(c.total) || 0, 
@@ -381,6 +387,8 @@ const cargarArchivo = (event) => {
           if (jsonRaw.anexo4_retenciones) {
               jsonRaw.anexo4_retenciones.forEach(r => payloadFinal.value.data.retenciones.push({
                   RetenFecha: r.fecha.split('T')[0], RetenNitAgente: r.nit_agente, RetenNumDoc: r.documento,
+                  RetenCodGeneracion: r.documento,
+                  RetenSelloRecepcion: r.selloRecepcion || r.sello_recepcion || null, // 🛡️ BLINDAJE DE BACKUPS
                   RetenMontoSujeto: parseFloat(r.monto_sujeto) || 0, RetenMontoDeReten: parseFloat(r.monto_retenido) || 0,
                   RetenMesDeclarado: obtenerMesNombre(r.fecha), RetenAnioDeclarado: r.fecha.split('T')[0].split('-')[0],
                   RetenNumAnexo: '4', RetenListTipoDoc: '07'
@@ -415,8 +423,16 @@ const cargarArchivo = (event) => {
 const enviarAlBackend = async () => {
   cargando.value = true;
   try {
-    const data = payloadFinal.value.data;
-    if (data.compras.length === 0 && data.ventas_ccf.length === 0 && data.ventas_cf.length === 0 && data.sujetos_excluidos.length === 0 && data.retenciones?.length === 0) {
+    const data = payloadFinal.value?.data || {};
+    
+    // Cuenta el total de documentos detectados
+    const totalDocs = (data.compras?.length || 0) + 
+                      (data.ventas_ccf?.length || 0) + 
+                      (data.ventas_cf?.length || 0) + 
+                      (data.sujetos_excluidos?.length || 0) + 
+                      (data.retenciones?.length || 0);
+
+    if (totalDocs === 0) {
         alert("⚠️ El archivo cargado no contiene documentos que le pertenezcan a su empresa (Verifique NIT/DUI/NRC).");
         cargando.value = false;
         return;
