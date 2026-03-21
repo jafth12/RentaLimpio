@@ -2,7 +2,6 @@
   <MainLayout>
     <div class="rl-view">
 
-      <!-- ── Encabezado ── -->
       <div class="rl-view-header">
         <div class="rl-view-title">
           <h1>🛍️ Gestión de Compras</h1>
@@ -13,36 +12,39 @@
         </button>
       </div>
 
-      <!-- ══════════════════════════════════════
-           FORMULARIO
-           ══════════════════════════════════════ -->
-      <div v-if="!mostrandoLista" class="rl-card">
+      <div v-if="!mostrandoLista" class="rl-card rl-fade-in">
 
-        <div class="rl-card-header">
+        <div class="rl-card-header" style="align-items: center;">
           <div>
             <h2>{{ modoEdicion ? '✏️ Editar Compra' : '✨ Nueva Factura / CCF' }}</h2>
+            <span class="rl-badge rl-badge-info rl-mt-2">
+              {{ modoEdicion ? 'Modificando registro existente' : 'Ingresa los datos del documento' }}
+            </span>
           </div>
-          <span class="rl-badge rl-badge-info">
-            {{ modoEdicion ? 'Modificando registro existente' : 'Ingresa los datos del documento' }}
-          </span>
+          <div class="rl-toggle-switch">
+             <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico
+             </label>
+             <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico
+             </label>
+          </div>
         </div>
 
         <form @submit.prevent="guardarCompra">
 
-          <!-- Sección: Identificación -->
           <div class="rl-form-section">
             <p class="rl-section-title">Datos de Identificación</p>
             <div class="rl-grid rl-grid-2">
 
-              <!-- Empresa -->
               <div class="rl-field" :class="{ 'has-error': errores.declarante }">
                 <label class="rl-label">Su Empresa (Receptor) <span class="req">*</span></label>
                 <div v-if="!declaranteSeleccionado" class="rl-search-box">
                   <input type="text" v-model="busquedaDeclarante" placeholder="Buscar empresa..." class="rl-input" @focus="mostrarSugerenciasDeclarante = true">
                   <ul v-if="mostrarSugerenciasDeclarante && declarantesFiltrados.length > 0" class="rl-suggestions">
                     <li v-for="d in declarantesFiltrados" :key="d.iddeclaNIT" @click="seleccionarDeclarante(d)">
-                      <span style="font-weight:700">{{ d.declarante }}</span>
-                      <span class="rl-text-muted">{{ d.iddeclaNIT }}</span>
+                      <span class="rl-fw-bold">{{ d.declarante }}</span>
+                      <span class="rl-text-muted" style="font-size:0.75rem">{{ d.iddeclaNIT }}</span>
                     </li>
                   </ul>
                 </div>
@@ -50,8 +52,8 @@
                   <div class="rl-selected-info">
                     <span class="rl-selected-icon">🏢</span>
                     <div>
-                      <div style="font-weight:700;font-size:.9rem">{{ declaranteSeleccionado.declarante }}</div>
-                      <div class="rl-text-muted">{{ declaranteSeleccionado.iddeclaNIT }}</div>
+                      <div class="rl-fw-bold" style="font-size:.9rem">{{ declaranteSeleccionado.declarante }}</div>
+                      <div class="rl-text-muted" style="font-size:0.75rem">{{ declaranteSeleccionado.iddeclaNIT }}</div>
                     </div>
                   </div>
                   <button type="button" @click="quitarDeclarante" class="rl-btn-text">Cambiar</button>
@@ -59,15 +61,14 @@
                 <span v-if="errores.declarante" class="rl-error-msg">⚠ Requerido</span>
               </div>
 
-              <!-- Proveedor -->
               <div class="rl-field" :class="{ 'has-error': errores.proveedor }">
                 <label class="rl-label">Proveedor (Emisor) <span class="req">*</span></label>
                 <div v-if="!proveedorSeleccionado" class="rl-search-box">
                   <input type="text" v-model="busqueda" placeholder="Buscar proveedor..." class="rl-input" @focus="mostrarSugerencias = true">
                   <ul v-if="mostrarSugerencias && proveedoresFiltrados.length > 0" class="rl-suggestions">
                     <li v-for="p in proveedoresFiltrados" :key="p.ProvNIT" @click="seleccionarProveedor(p)">
-                      <span style="font-weight:700">{{ p.ProvNombre }}</span>
-                      <span class="rl-text-muted">{{ p.ProvNIT }}</span>
+                      <span class="rl-fw-bold">{{ p.ProvNombre }}</span>
+                      <span class="rl-text-muted" style="font-size:0.75rem">{{ p.ProvNIT }}</span>
                     </li>
                   </ul>
                 </div>
@@ -75,8 +76,8 @@
                   <div class="rl-selected-info">
                     <span class="rl-selected-icon">🚚</span>
                     <div>
-                      <div style="font-weight:700;font-size:.9rem">{{ proveedorSeleccionado.ProvNombre }}</div>
-                      <div class="rl-text-muted">{{ proveedorSeleccionado.ProvNIT }}</div>
+                      <div class="rl-fw-bold" style="font-size:.9rem">{{ proveedorSeleccionado.ProvNombre }}</div>
+                      <div class="rl-text-muted" style="font-size:0.75rem">{{ proveedorSeleccionado.ProvNIT }}</div>
                     </div>
                   </div>
                   <button type="button" @click="quitarProveedor" class="rl-btn-text">Cambiar</button>
@@ -87,11 +88,9 @@
             </div>
           </div>
 
-          <!-- Sección: Documento -->
           <div class="rl-form-section">
             <p class="rl-section-title">Detalles del Documento Recibido</p>
 
-            <!-- Fila 1: Fechas -->
             <div class="rl-grid rl-grid-3">
               <div class="rl-field">
                 <label class="rl-label">Fecha Emisión <span class="req">*</span></label>
@@ -109,10 +108,9 @@
               </div>
             </div>
 
-            <!-- Fila 2: Número CCF -->
-            <div class="rl-field rl-mt-3">
-              <label class="rl-label">Número CCF (DTE / Físico) <span class="req">*</span></label>
-              <div class="rl-dte-wrap" :class="{ 'error-border': errores.numero }">
+            <div class="rl-field rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
+              <label class="rl-label">Número DTE <span class="req">*</span></label>
+              <div class="rl-dte-wrap" :class="{ 'has-error': errores.numero }">
                 <span class="rl-dte-prefix">DTE</span>
                 <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e,'part1',2)" class="rl-dte-part w2" placeholder="00">
                 <span class="rl-dte-sep">–</span>
@@ -125,23 +123,28 @@
               </div>
             </div>
 
-            <!-- Fila 3: UUID + Sello (caja visual unificada) -->
-            <div class="rl-dte-group rl-mt-3">
+            <div class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'fisico'">
+               <div class="rl-field" :class="{ 'has-error': errores.numero }">
+                 <label class="rl-label">Número de Documento (Físico) <span class="req">*</span></label>
+                 <input type="text" v-model="formulario.numero_fisico" class="rl-input" placeholder="Ej: 123456" :required="formulario.modoIngreso === 'fisico'">
+               </div>
+            </div>
+
+            <div class="rl-dte-group rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
               <div class="rl-field">
                 <label class="rl-label" style="color:#0369a1">🔑 Código UUID (con guiones)</label>
                 <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX">
               </div>
               <div class="rl-field rl-field-sello">
-                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción (solo DTE)</label>
+                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción</label>
                 <div class="rl-sello-wrap">
                   <span class="rl-sello-icon">✅</span>
                   <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Ej: 202542266B0EFC5743...">
                 </div>
-                <span class="rl-sello-hint">40 caracteres alfanuméricos · Solo aplica para DTE</span>
+                <span class="rl-sello-hint">40 caracteres alfanuméricos</span>
               </div>
             </div>
 
-            <!-- Fila 4: Catálogos Hacienda -->
             <div class="rl-grid rl-grid-3 rl-mt-3">
               <div class="rl-field">
                 <label class="rl-label">Clase</label>
@@ -182,7 +185,6 @@
             </div>
           </div>
 
-          <!-- Sección: Montos -->
           <div class="rl-form-section rl-bg-soft">
             <p class="rl-section-title">Montos y Totales</p>
             <div class="rl-montos">
@@ -224,7 +226,6 @@
             </div>
           </div>
 
-          <!-- Acciones -->
           <div class="rl-form-actions">
             <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="rl-btn rl-btn-secondary">Cancelar</button>
             <button type="submit" class="rl-btn rl-btn-success rl-btn-lg" :disabled="cargando">
@@ -239,10 +240,7 @@
         </form>
       </div>
 
-      <!-- ══════════════════════════════════════
-           LISTADO
-           ══════════════════════════════════════ -->
-      <div v-else class="rl-card">
+      <div v-else class="rl-card rl-fade-in">
 
         <div class="rl-card-header">
           <div style="display:flex;align-items:center;gap:10px">
@@ -258,11 +256,10 @@
             <datalist id="lista-decla-compras">
               <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
             </datalist>
-            <input type="text" v-model="filtroLista" placeholder="🔍 DTE / Proveedor..." class="rl-input rl-input-search rl-filter-search">
+            <input type="text" v-model="filtroLista" placeholder="🔍 DTE / Proveedor..." class="rl-input rl-filter-search">
           </div>
         </div>
 
-        <!-- Bulk actions -->
         <div v-if="seleccionados.length > 0" class="rl-bulk-bar">
           <div class="rl-bulk-info">
             <span class="rl-badge rl-badge-success">{{ seleccionados.length }} seleccionados</span>
@@ -279,7 +276,6 @@
           </div>
         </div>
 
-        <!-- Tabla -->
         <div class="rl-table-wrap">
           <table class="rl-table">
             <thead>
@@ -288,33 +284,40 @@
                   <input type="checkbox" @change="toggleAll" :checked="comprasFiltradas.length > 0 && seleccionados.length === comprasFiltradas.length" class="rl-checkbox">
                 </th>
                 <th>Fecha</th>
-                <th>Anexo</th>
+                <th>Clase</th>
                 <th>Proveedor</th>
                 <th>Documento CCF</th>
-                <th style="text-align:right">Total</th>
-                <th style="text-align:center">Acciones</th>
+                <th class="rl-text-right">Total</th>
+                <th class="rl-text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="c in comprasFiltradas" :key="c.idcompras"
                   :class="{ 'is-selected': seleccionados.includes(c.idcompras), 'is-anulado': esAnulado(c) }">
-                <td style="text-align:center">
+                <td class="rl-text-center">
                   <input type="checkbox" :value="c.idcompras" v-model="seleccionados" class="rl-checkbox">
                 </td>
                 <td>
-                  <div style="font-weight:700">{{ formatearFecha(c.ComFecha) }}</div>
-                  <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ c.ComMesDeclarado }}</strong></small>
+                  <div class="rl-fw-bold">{{ formatearFecha(c.ComFecha) }}</div>
+                  <small class="rl-text-muted">Declarado: <strong class="rl-text-primary">{{ c.ComMesDeclarado }}</strong></small>
                 </td>
-                <td><span class="rl-badge rl-badge-anexo">Anexo 3</span></td>
                 <td>
-                  <div style="font-weight:700">{{ c.ComNomProve }}</div>
+                  <span class="rl-badge rl-badge-type" :class="c.ComClase === '4' ? 'blue' : 'orange'">
+                    {{ c.ComClase === '4' ? 'DTE' : 'Físico' }}
+                  </span>
+                </td>
+                <td>
+                  <div class="rl-fw-bold">{{ c.ComNomProve }}</div>
                   <small class="rl-text-muted">{{ c.proveedor_ProvNIT }}</small>
                 </td>
-                <td><span class="rl-doc-number">{{ c.ComNumero }}</span></td>
-                <td style="text-align:right;font-weight:700;color:#059669">${{ parseFloat(c.ComTotal || 0).toFixed(2) }}</td>
-                <td style="text-align:center">
+                <td>
+                  <span class="rl-doc-number" :title="c.ComCodGeneracion || 'N/A'">{{ c.ComNumero }}</span>
+                  <div v-if="c.ComSelloRecepcion" class="rl-badge-sello-mh" :title="c.ComSelloRecepcion">✔️ Sello MH</div>
+                </td>
+                <td class="rl-text-right rl-fw-bold rl-text-success">${{ parseFloat(c.ComTotal || 0).toFixed(2) }}</td>
+                <td class="rl-text-center">
                   <button class="rl-btn-icon" @click="prepararEdicion(c)" title="Editar">✏️</button>
-                  <button class="rl-btn-icon" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar" style="color:#ef4444">🗑️</button>
+                  <button class="rl-btn-icon rl-text-danger" v-if="rolActual === 'admin'" @click="eliminarCompra(c.idcompras)" title="Eliminar">🗑️</button>
                   <button class="rl-btn-icon" @click="anularDocumento(c)" title="Anular Documento" style="color:#d97706">🚫</button>
                 </td>
               </tr>
@@ -357,13 +360,16 @@ const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Ju
 const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 
 const formulario = ref({ 
+    modoIngreso: 'dte', // 🛡️ Controla el Switch
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
     numero_control: '', 
+    numero_fisico: '', // 🛡️ Almacena el número físico
     uuid_dte: '',
-    sello_recepcion: '', // 🛡️ CAMBIO: Campo de Sello Integrado
-    claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
+    sello_recepcion: '', 
+    claseDocumento: '4. DOCUMENTO TRIBUTARIO DTE', 
+    tipoDocumento: '03 COMPROBANTE DE CREDITO FISCAL',
     tipoOperacion: '1. GRAVADA', clasificacion: '2. GASTO', sector: '2. COMERCIO', tipoCostoGasto: '2. GASTO DE ADMINISTRACION SIN DONACION',
     internasGravadas: '0.00', internacionalesGravBienes: '0.00', importacionesGravBienes: '0.00', importacionesGravServicios: '0.00',
     internasExentas: '0.00', internacionalesExentas: '0.00', importacionesNoSujetas: '0.00',
@@ -381,6 +387,17 @@ const tipoMensaje = ref('');
 const mostrandoLista = ref(true); 
 const modoEdicion = ref(false);    
 const idEdicion = ref(null);       
+
+// 🛡️ WATCHER: Ajusta la clase de documento al cambiar el switch
+watch(() => formulario.value.modoIngreso, (newVal) => {
+    if (newVal === 'dte') {
+        formulario.value.claseDocumento = "4. DOCUMENTO TRIBUTARIO DTE";
+    } else {
+        if (formulario.value.claseDocumento.startsWith('4')) {
+            formulario.value.claseDocumento = "1. IMPRESO POR IMPRENTA O TIQUETES";
+        }
+    }
+});
 
 watch(() => formulario.value.fecha, (nuevaFecha) => {
     if (nuevaFecha && !modoEdicion.value) {
@@ -421,7 +438,7 @@ const aplicarCambioMasivo = async () => {
                 ComTipo: compraOri.ComTipo,
                 ComNumero: compraOri.ComNumero,
                 ComCodGeneracion: compraOri.ComCodGeneracion,
-                ComSelloRecepcion: compraOri.ComSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
+                ComSelloRecepcion: compraOri.ComSelloRecepcion, 
                 proveedor_ProvNIT: compraOri.proveedor_ProvNIT,
                 ComNomProve: compraOri.ComNomProve,
                 ComIntExe: compraOri.ComIntExe,
@@ -562,18 +579,26 @@ const quitarDeclarante = () => declaranteSeleccionado.value = null;
 const prepararEdicion = (compra) => {
   let fSegura = compra.ComFecha ? new Date(compra.ComFecha).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
   const rawNum = compra.ComNumero || '';
-  const cleanNumero = rawNum.replace(/-/g, '');
-  const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
-  const match = cleanNumero.match(regex);
-  ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+  const esDTE = compra.ComClase === '4';
+
+  if (esDTE) {
+      const cleanNumero = rawNum.replace(/-/g, '');
+      const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/;
+      const match = cleanNumero.match(regex);
+      ccfParts.value = match ? { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+  } else {
+      ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+  }
 
   formulario.value = {
+    modoIngreso: esDTE ? 'dte' : 'fisico', // 🛡️ Asigna Switch
     fecha: fSegura, 
     mesDeclarado: compra.ComMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
     anioDeclarado: compra.ComAnioDeclarado || fSegura.substring(0,4),
-    numero_control: rawNum, 
+    numero_control: esDTE ? rawNum : '', 
+    numero_fisico: esDTE ? '' : rawNum, // 🛡️ Asigna número al campo correspondiente
     uuid_dte: compra.ComCodGeneracion || '',
-    sello_recepcion: compra.ComSelloRecepcion || '', // 🛡️ CAMBIO: Sello integrado al editar
+    sello_recepcion: compra.ComSelloRecepcion || '', 
     claseDocumento: recuperarOpcionCompleta(compra.ComClase, opcionesClase), 
     tipoDocumento: recuperarOpcionCompleta(compra.ComTipo, opcionesTipo),
     tipoOperacion: recuperarOpcionCompleta(compra.ComTipoOpeRenta, opcionesOperacion), 
@@ -609,12 +634,14 @@ const prepararEdicion = (compra) => {
 const cancelarEdicion = () => { resetForm(); modoEdicion.value = false; idEdicion.value = null; mostrandoLista.value = true; };
 
 const resetForm = () => {
+  formulario.value.modoIngreso = 'dte'; 
   formulario.value.fecha = new Date().toISOString().split('T')[0];
   formulario.value.mesDeclarado = mesesOptions[new Date().getMonth()];
   formulario.value.anioDeclarado = new Date().getFullYear().toString();
   formulario.value.numero_control = ''; 
+  formulario.value.numero_fisico = '';
   formulario.value.uuid_dte = '';
-  formulario.value.sello_recepcion = ''; // 🛡️ CAMBIO: Resetear Sello
+  formulario.value.sello_recepcion = ''; 
   
   formulario.value.claseDocumento = '4. DOCUMENTO TRIBUTARIO DTE';
   formulario.value.tipoDocumento = '03 COMPROBANTE DE CREDITO FISCAL';
@@ -676,6 +703,7 @@ const anularDocumento = async (compraOriginal) => {
             tipoDeta: '1', 
             tipoDoc: '03',
             uuid_dte: compraOriginal.ComCodGeneracion || '',
+            sello_recepcion: compraOriginal.ComSelloRecepcion || '', 
             desde: compraOriginal.ComNumero || '', 
             hasta: compraOriginal.ComNumero || '', 
             serie: '',
@@ -693,25 +721,32 @@ const anularDocumento = async (compraOriginal) => {
 };
 
 const guardarCompra = async () => {
-  actualizarNumeroCompleto(); 
+  if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto(); 
+  
+  // 🛡️ Determina qué número usar
+  const numeroFinal = formulario.value.modoIngreso === 'dte' ? formulario.value.numero_control : formulario.value.numero_fisico;
+
   errores.value.proveedor = !proveedorSeleccionado.value;
   errores.value.declarante = !declaranteSeleccionado.value;
   errores.value.fecha = !formulario.value.fecha;
-  errores.value.numero = !formulario.value.numero_control; 
+  errores.value.numero = !numeroFinal; 
   errores.value.internas = formulario.value.internasGravadas === '' || parseFloat(formulario.value.internasGravadas) < 0;
 
   if (Object.values(errores.value).some(v => v)) { alert("Complete los campos obligatorios."); return; }
 
   cargando.value = true;
 
+  // 🛡️ Asegura que la clase se envía correctamente al backend
+  const claseDocFinal = formulario.value.modoIngreso === 'dte' ? '4' : (extraerSoloCodigo(formulario.value.claseDocumento) === '4' ? '1' : extraerSoloCodigo(formulario.value.claseDocumento));
+
   const payload = { 
       ComFecha: formulario.value.fecha,
       ComMesDeclarado: formulario.value.mesDeclarado,
       ComAnioDeclarado: formulario.value.anioDeclarado,
-      ComNumero: formulario.value.numero_control,
-      ComCodGeneracion: formulario.value.uuid_dte,
-      ComSelloRecepcion: formulario.value.sello_recepcion, // 🛡️ CAMBIO: Enviar el Sello a la DB
-      ComClase: extraerSoloCodigo(formulario.value.claseDocumento),
+      ComNumero: numeroFinal, // Guarda el número según modo
+      ComCodGeneracion: formulario.value.modoIngreso === 'dte' ? formulario.value.uuid_dte : null,
+      ComSelloRecepcion: formulario.value.modoIngreso === 'dte' ? formulario.value.sello_recepcion : null, 
+      ComClase: claseDocFinal,
       ComTipo: extraerSoloCodigo(formulario.value.tipoDocumento),
       ComTipoOpeRenta: extraerSoloCodigo(formulario.value.tipoOperacion),
       ComClasiRenta: extraerSoloCodigo(formulario.value.clasificacion),
@@ -751,5 +786,5 @@ onMounted(cargarDatos);
 
 <style scoped>
 /* Estilos específicos de ComprasView — la base viene de assets/forms.css */
-.error-border { border-color: #ef4444 !important; }
+.error-border { border-color: var(--red-500) !important; }
 </style>

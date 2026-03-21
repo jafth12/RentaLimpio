@@ -17,7 +17,6 @@ const formatearFecha = (fecha) => {
 export const getCompras = async (req, res) => {
     try {
         const [rows] = await pool.query('SELECT * FROM compras ORDER BY ComFecha ASC');
-        // Limpiamos las fechas antes de mandarlas al frontend
         rows.forEach(r => {
             if (r.ComFecha) r.ComFecha = formatearFecha(r.ComFecha);
         });
@@ -47,20 +46,30 @@ export const getCompraById = async (req, res) => {
 export const createCompra = async (req, res) => {
     const d = req.body;
     try {
-        if (!d.iddeclaNIT || !d.ComFecha || !d.ComNumero || !d.proveedor_ProvNIT || !d.ComMesDeclarado) {
-            return res.status(400).json({ message: 'Empresa, Fecha, Mes, DTE y NIT del Proveedor son obligatorios.'});
+        // 🛡️ IDENTIFICACIÓN INTELIGENTE (FÍSICO VS DTE)
+        const esFisico = d.ComClase !== '4';
+        const numDoc = d.ComNumero;
+        const uuidDte = esFisico ? null : (d.ComCodGeneracion || '');
+        const selloRec = esFisico ? null : (d.ComSelloRecepcion || null);
+
+        // 🚨 VALIDACIONES ESTRICTAS
+        if (!d.iddeclaNIT || !d.ComFecha || !numDoc || !d.proveedor_ProvNIT || !d.ComMesDeclarado) {
+            return res.status(400).json({ message: '⚠️ Empresa, Fecha, Mes, Número de Documento y NIT del Proveedor son obligatorios.'});
+        }
+        if (!esFisico && !uuidDte) {
+            return res.status(400).json({ message: '⚠️ El Código UUID es obligatorio para las compras electrónicas (DTE).' });
         }
 
-        // 🛡️ REGLA ANTIDUPLICADOS: Verifica si ya existe antes de guardar (ignorando guiones)
+        // 🛡️ REGLA ANTIDUPLICADOS MEJORADA
         const [duplicado] = await pool.query(
             `SELECT idcompras FROM compras 
              WHERE iddeclaNIT = ? 
              AND (
                  (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
                  OR 
-                 (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+                 ((ComCodGeneracion IS NULL OR ComCodGeneracion = '') AND REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
              )`,
-            [d.iddeclaNIT, d.ComCodGeneracion, d.ComNumero, d.proveedor_ProvNIT]
+            [d.iddeclaNIT, uuidDte, numDoc, d.proveedor_ProvNIT]
         );
 
         if (duplicado.length > 0) {
@@ -73,12 +82,11 @@ export const createCompra = async (req, res) => {
         let montoCotrans = 0;
 
         if (montoCombustible > 0) {
-            // Fovial = $0.20, Cotrans = $0.10. Representan 2/3 y 1/3 del impuesto total
             montoFovial = parseFloat((montoCombustible * 2 / 3).toFixed(2));
             montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
         }
 
-        // 🛡️ SE INYECTA ComSelloRecepcion EN EL INSERT
+        // 🛡️ INSERCIÓN BLINDADA
         const [result] = await pool.query(
             `INSERT INTO compras 
             (iddeclaNIT, ComFecha, ComMesDeclarado, ComAnioDeclarado, ComClase, ComTipo, ComNumero, ComCodGeneracion, ComSelloRecepcion,
@@ -87,38 +95,17 @@ export const createCompra = async (req, res) => {
              ComCredFiscal, comFovial, comCotran, ComOtroAtributo, ComTotal, ComClasiRenta, ComTipoCostoGasto, ComTipoOpeRenta, ComSecNum, ComAnexo) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '3')`,
             [
-                d.iddeclaNIT, 
-                d.ComFecha,
-                d.ComMesDeclarado,
-                d.ComAnioDeclarado,
-                d.ComClase || '4',
-                d.ComTipo || '03',
-                d.ComNumero,   
-                d.ComCodGeneracion,   
-                d.ComSelloRecepcion || null,  // 🛡️ NUEVO CAMPO CAPTURADO
-                d.proveedor_ProvNIT,    
-                d.ComNomProve, 
-                d.ComIntExe || 0,
-                d.ComInternacioExe || 0,
-                d.ComImpExeNoSujetas || 0,
-                d.ComIntGrav || 0,
-                d.ComInternacGravBienes || 0,
-                d.ComImportGravBienes || 0,
-                d.ComImportGravServicios || 0,
-                d.ComCredFiscal || 0,
-                montoFovial,
-                montoCotrans,
-                montoCombustible,
-                d.ComTotal || 0,
-                d.ComClasiRenta || '1', 
-                d.ComTipoCostoGasto || '2', 
-                d.ComTipoOpeRenta || '1',
-                d.ComSecNum || '2'
+                d.iddeclaNIT, d.ComFecha, d.ComMesDeclarado, d.ComAnioDeclarado, d.ComClase || '4', d.ComTipo || '03',
+                numDoc, uuidDte, selloRec, d.proveedor_ProvNIT, d.ComNomProve, 
+                d.ComIntExe || 0, d.ComInternacioExe || 0, d.ComImpExeNoSujetas || 0,
+                d.ComIntGrav || 0, d.ComInternacGravBienes || 0, d.ComImportGravBienes || 0, d.ComImportGravServicios || 0,
+                d.ComCredFiscal || 0, montoFovial, montoCotrans, montoCombustible, d.ComTotal || 0,
+                d.ComClasiRenta || '1', d.ComTipoCostoGasto || '2', d.ComTipoOpeRenta || '1', d.ComSecNum || '2'
             ]
         );
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE: ${d.ComNumero} - Total: $${d.ComTotal}`);
+        registrarAccion(usuario, 'CREACION', 'COMPRAS', `DTE/Doc: ${numDoc} - Total: $${d.ComTotal}`);
         res.status(201).json({ message: 'Compra registrada en BD con éxito', id: result.insertId });
     } catch (error) {
         console.error("Error BD:", error);
@@ -131,24 +118,37 @@ export const updateCompra = async (req, res) => {
     const { id } = req.params;
     const d = req.body;
     try {
-        // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR: Evita que la edites y le pongas un DTE de OTRA compra
+        // 🛡️ IDENTIFICACIÓN INTELIGENTE (FÍSICO VS DTE)
+        const esFisico = d.ComClase !== '4';
+        const numDoc = d.ComNumero;
+        const uuidDte = esFisico ? null : (d.ComCodGeneracion || '');
+        const selloRec = esFisico ? null : (d.ComSelloRecepcion || null);
+
+        // 🚨 VALIDACIONES ESTRICTAS
+        if (!d.iddeclaNIT || !d.ComFecha || !numDoc || !d.proveedor_ProvNIT) {
+            return res.status(400).json({ message: '⚠️ Empresa, Fecha, Número de Documento y NIT del Proveedor son obligatorios.'});
+        }
+        if (!esFisico && !uuidDte) {
+            return res.status(400).json({ message: '⚠️ El Código UUID es obligatorio para DTE.' });
+        }
+
+        // 🛡️ REGLA ANTIDUPLICADOS AL ACTUALIZAR
         const [duplicado] = await pool.query(
             `SELECT idcompras FROM compras 
-             WHERE iddeclaNIT = ? 
-             AND idcompras != ?
+             WHERE iddeclaNIT = ? AND idcompras != ?
              AND (
                  (ComCodGeneracion = ? AND ComCodGeneracion IS NOT NULL AND ComCodGeneracion != '') 
                  OR 
-                 (REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
+                 ((ComCodGeneracion IS NULL OR ComCodGeneracion = '') AND REPLACE(ComNumero, '-', '') = REPLACE(?, '-', '') AND REPLACE(proveedor_ProvNIT, '-', '') = REPLACE(?, '-', ''))
              )`,
-            [d.iddeclaNIT, id, d.ComCodGeneracion, d.ComNumero, d.proveedor_ProvNIT]
+            [d.iddeclaNIT, id, uuidDte, numDoc, d.proveedor_ProvNIT]
         );
 
         if (duplicado.length > 0) {
-            return res.status(400).json({ message: '⚠️ Conflicto de Documento. Ya existe OTRA compra registrada con ese mismo Número de DTE o Código de Generación.' });
+            return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRA compra con ese mismo Número de Documento o UUID.' });
         }
 
-        // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE (Proporción 2 a 1)
+        // LÓGICA DE CÁLCULO PARA IMPUESTOS AL COMBUSTIBLE
         const montoCombustible = parseFloat(d.ComOtroAtributo) || 0;
         let montoFovial = 0;
         let montoCotrans = 0;
@@ -158,7 +158,7 @@ export const updateCompra = async (req, res) => {
             montoCotrans = parseFloat((montoCombustible - montoFovial).toFixed(2));
         }
 
-        // 🛡️ SE INYECTA ComSelloRecepcion EN EL UPDATE
+        // 🛡️ ACTUALIZACIÓN BLINDADA
         const [result] = await pool.query(
             `UPDATE compras SET 
             iddeclaNIT=?, ComFecha=?, ComMesDeclarado=?, ComAnioDeclarado=?, ComClase=?, ComTipo=?, ComNumero=?, ComCodGeneracion=?, ComSelloRecepcion=?, 
@@ -167,41 +167,19 @@ export const updateCompra = async (req, res) => {
             ComCredFiscal=?, comFovial=?, comCotran=?, ComOtroAtributo=?, ComTotal=?, ComClasiRenta=?, ComTipoCostoGasto=?, ComTipoOpeRenta=?, ComSecNum=?
             WHERE idcompras = ?`,
             [
-                d.iddeclaNIT, 
-                d.ComFecha,
-                d.ComMesDeclarado,
-                d.ComAnioDeclarado,
-                d.ComClase,
-                d.ComTipo,
-                d.ComNumero,   
-                d.ComCodGeneracion,   
-                d.ComSelloRecepcion || null,  // 🛡️ NUEVO CAMPO CAPTURADO
-                d.proveedor_ProvNIT,    
-                d.ComNomProve, 
-                d.ComIntExe || 0,
-                d.ComInternacioExe || 0,
-                d.ComImpExeNoSujetas || 0,
-                d.ComIntGrav || 0,
-                d.ComInternacGravBienes || 0,
-                d.ComImportGravBienes || 0,
-                d.ComImportGravServicios || 0,
-                d.ComCredFiscal || 0,
-                montoFovial,
-                montoCotrans,
-                montoCombustible,
-                d.ComTotal || 0,
-                d.ComClasiRenta || '1', 
-                d.ComTipoCostoGasto || '2', 
-                d.ComTipoOpeRenta || '1',
-                d.ComSecNum || '2',
-                id
+                d.iddeclaNIT, d.ComFecha, d.ComMesDeclarado, d.ComAnioDeclarado, d.ComClase, d.ComTipo,
+                numDoc, uuidDte, selloRec, d.proveedor_ProvNIT, d.ComNomProve, 
+                d.ComIntExe || 0, d.ComInternacioExe || 0, d.ComImpExeNoSujetas || 0,
+                d.ComIntGrav || 0, d.ComInternacGravBienes || 0, d.ComImportGravBienes || 0, d.ComImportGravServicios || 0,
+                d.ComCredFiscal || 0, montoFovial, montoCotrans, montoCombustible, d.ComTotal || 0,
+                d.ComClasiRenta || '1', d.ComTipoCostoGasto || '2', d.ComTipoOpeRenta || '1', d.ComSecNum || '2', id
             ]
         );
         
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Compra no encontrada' });
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `DTE Actualizado: ${d.ComNumero} - Total: $${d.ComTotal}`);
+        registrarAccion(usuario, 'MODIFICACION', 'COMPRAS', `Doc Actualizado: ${numDoc} - Total: $${d.ComTotal}`);
         res.json({ message: 'Compra actualizada correctamente' });
     } catch (error) {
         console.error("Error BD:", error);

@@ -281,7 +281,9 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
       return {
         modulo: 'retenciones',
         data: {
-          RetenNitAgente: emisorNit, RetenNomAgente: emisor.nombre?.toUpperCase(), RetenFecha: fecha, RetenListTipoDoc: '07', RetenSerieDoc: '', RetenNumDoc: numero, RetenCodGeneracion: codGen, 
+          RetenNitAgente: emisorNit, RetenNomAgente: emisor.nombre?.toUpperCase(), RetenFecha: fecha, RetenListTipoDoc: '07', RetenSerieDoc: '', RetenNumDoc: numero, 
+          RetenCodGeneracion: codGen, 
+          RetenSelloRecepcion: selloRec, // 🛡️ CORRECCIÓN: SE INYECTA SELLO
           RetenMontoSujeto: parseFloat(resumen.totalSujetoRetencion) || parseFloat(resumen.totalPagar) || 0,
           RetenMontoDeReten: parseFloat(resumen.totalIVAretenido) || 0, RetenDuiDelAgente: '', RetenNumAnexo: '4', RetenMesDeclarado: obtenerMesNombre(fecha), RetenAnioDeclarado: fecha.split('-')[0]
         }
@@ -290,7 +292,10 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
       return {
         modulo: 'compras',
         data: {
-          ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, ComCodGeneracion: codGen, proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(), ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3', ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0], comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
+          ComFecha: fecha, ComTipo: tipoDte, ComNumero: numero, 
+          ComCodGeneracion: codGen, 
+          ComSelloRecepcion: selloRec, // 🛡️ CORRECCIÓN: SE INYECTA SELLO
+          proveedor_ProvNIT: emisorNit, ComNomProve: emisor.nombre?.toUpperCase(), ComIntGrav: gravado, ComCredFiscal: iva, ComTotal: total, ComClase: '4', ComAnexo: '3', ComMesDeclarado: obtenerMesNombre(fecha), ComAnioDeclarado: fecha.split('-')[0], comFovial: fovial, comCotran: cotrans, ComOtroAtributo: parseFloat((fovial + cotrans).toFixed(2)) 
         }
       };
     }
@@ -301,36 +306,14 @@ const clasificarDTE = (dte, nitUsuario, nrcUsuario) => {
       return {
         modulo: 'ventas_ccf',
         data: { 
-            FiscFecha: fecha, 
-            FiscNumDoc: numero, 
-            FiscCodGeneracion: codGen, 
-            FiscSelloRecepcion: selloRec, // 🛡️ INYECCIÓN DEL SELLO PARA CCF
-            FiscNit: receptorNit, 
-            FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), 
-            FiscVtaGravLocal: gravado, 
-            FiscDebitoFiscal: iva, 
-            FiscTotalVtas: total, 
-            FisClasDoc: '4', 
-            FisTipoDoc: tipoDte, 
-            FiscNumAnexo: '2' 
+            FiscFecha: fecha, FiscNumDoc: numero, FiscCodGeneracion: codGen, FiscSelloRecepcion: selloRec, FiscNit: receptorNit, FiscNomRazonDenomi: receptor.nombre?.toUpperCase(), FiscVtaGravLocal: gravado, FiscDebitoFiscal: iva, FiscTotalVtas: total, FisClasDoc: '4', FisTipoDoc: tipoDte, FiscNumAnexo: '2' 
         }
       };
     } else if (tipoDte === '01' || ((tipoDte === '05' || tipoDte === '06') && !esClienteConNRC)) {
       return {
         modulo: 'ventas_cf',
         data: { 
-            ConsFecha: fecha, 
-            ConsNumDocDEL: numero, 
-            ConsNumDocAL: numero, 
-            ConsCodGeneracion: codGen, 
-            ConsSelloRecepcion: selloRec, // 🛡️ SELLO PARA CF
-            ConsVtaGravLocales: gravado, 
-            ConsTotalVta: total, 
-            ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', 
-            ConsNumDocIdentCliente: receptorNit || '', 
-            ConsClaseDoc: '4', 
-            ConsTipoDoc: tipoDte, 
-            ConsNumAnexo: '1' 
+            ConsFecha: fecha, ConsNumDocDEL: numero, ConsNumDocAL: numero, ConsCodGeneracion: codGen, ConsSelloRecepcion: selloRec, ConsVtaGravLocales: gravado, ConsTotalVta: total, ConsNomRazonCliente: receptor.nombre?.toUpperCase() || 'CLIENTE GENERAL', ConsNumDocIdentCliente: receptorNit || '', ConsClaseDoc: '4', ConsTipoDoc: tipoDte, ConsNumAnexo: '1' 
         }
       };
     } else if (tipoDte === '14') { 
@@ -440,8 +423,21 @@ const enviarAlBackend = async () => {
     }
 
     const res = await axios.post(`${BASE_URL}/api/importar-todo`, payloadFinal.value);
+    
+    // 🛡️ LA NUEVA ALERTA INTELIGENTE CON DESGLOSE
     const r = res.data.detalle || {};
-    alert(`✅ IMPORTACIÓN EXITOSA\n\n📥 Compras: ${r.compras || 0}\n📥 CCF: ${r.ventas_ccf || 0}\n📥 Consumidor: ${r.ventas_cf || 0}\n📥 Sujetos: ${r.sujetos || 0}\n🛡️ Retenciones: ${r.retenciones || 0}\n\n⚠️ Duplicados Omitidos: ${r.duplicados || 0}`);
+    const msg = res.data.message || 'Importación finalizada';
+
+    let desglose = `${msg}\n\n📊 DESGLOSE POR MÓDULO:\n`;
+    if (r.compras) desglose += `🛒 Compras: ${r.compras.insertados} nuevos | 🔄 ${r.compras.actualizados} actualizados\n`;
+    if (r.ventas_ccf) desglose += `📄 Créd. Fiscal: ${r.ventas_ccf.insertados} nuevos | 🔄 ${r.ventas_ccf.actualizados} actualizados\n`;
+    if (r.ventas_cf) desglose += `🧾 Cons. Final: ${r.ventas_cf.insertados} nuevos | 🔄 ${r.ventas_cf.actualizados} actualizados\n`;
+    if (r.sujetos) desglose += `🚫 Suj. Excluidos: ${r.sujetos.insertados} nuevos | 🔄 ${r.sujetos.actualizados} actualizados\n`;
+    if (r.retenciones) desglose += `🛡️ Retenciones 1%: ${r.retenciones.insertados} nuevos | 🔄 ${r.retenciones.actualizados} actualizados\n`;
+    if (r.notas) desglose += `📝 Notas C/D: ${r.notas.insertados} nuevos | 🔄 ${r.notas.actualizados} actualizados\n`;
+
+    alert(desglose);
+    
     limpiar();
     router.push('/importar-exportar');
 
