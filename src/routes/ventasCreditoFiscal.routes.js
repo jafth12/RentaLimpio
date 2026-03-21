@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { exportarVentasCredito } from "../controllers/data.controller.js";
+import { exportarVentasCredito } from "../controllers/reportes.controller.js";
 import { getVentasCCF, createVentasCCF, updateVentasCCF, deleteVentasCCF, getVentaCCFById } from "../controllers/ventasCreditoFiscal.controller.js";
 import { requireAdmin } from '../middlewares/roleAuth.js';
 

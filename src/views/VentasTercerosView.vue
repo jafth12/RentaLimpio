@@ -4,18 +4,28 @@
       <div class="rl-view-header">
         <div class="rl-view-title">
           <h1>🤝 Ventas a Cuenta de Terceros</h1>
-          <p class="rl-view-subtitle">Operaciones realizadas en nombre de un mandante · Anexo 4</p>
+          <p class="rl-view-subtitle">Operaciones realizadas en nombre de un mandante · Anexo 6</p>
         </div>
         <button @click="alternarVista" class="rl-btn rl-btn-primary">{{ mostrandoLista ? '➕ Nueva Operación' : '📋 Ver Listado' }}</button>
       </div>
 
-      <div v-if="!mostrandoLista" class="rl-card">
-        <div class="rl-card-header">
-          <div><h2>{{ modoEdicion ? '✏️ Editar Operación' : '✨ Nueva Operación de Terceros' }}</h2></div>
-          <span class="rl-badge rl-badge-info">{{ modoEdicion ? 'Modificando datos' : 'Ingreso de documento DTE o Físico' }}</span>
+      <div v-if="!mostrandoLista" class="rl-card rl-fade-in">
+        <div class="rl-card-header" style="align-items: center;">
+          <div>
+            <h2>{{ modoEdicion ? '✏️ Editar Operación' : '✨ Nueva Operación de Terceros' }}</h2>
+            <span class="rl-badge rl-badge-info rl-mt-2">{{ modoEdicion ? 'Modificando datos' : 'Ingreso de documento DTE o Físico' }}</span>
+          </div>
+          <div class="rl-toggle-switch">
+             <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico
+             </label>
+             <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico
+             </label>
+          </div>
         </div>
+
         <form @submit.prevent="guardarVenta">
-          <!-- Documento -->
           <div class="rl-form-section">
             <p class="rl-section-title">Datos del Documento Emitido</p>
             <div class="rl-grid rl-grid-2">
@@ -43,24 +53,27 @@
               </div>
               <div class="rl-field">
                 <label class="rl-label">Tipo de Documento</label>
-                <input type="text" v-model="formulario.tipoDoc" class="rl-input" placeholder="Ej: 01, 03...">
+                <select v-model="formulario.LisVtaGraTerTipoDoc" class="rl-select" required>
+                  <option value="03">03 - Comprobante de Crédito Fiscal</option>
+                  <option value="11">11 - Factura de Exportación</option>
+                </select>
               </div>
               <div class="rl-field">
                 <label class="rl-label">Serie (Opcional)</label>
                 <input type="text" v-model="formulario.serie" class="rl-input" placeholder="SERIE">
               </div>
             </div>
-            <!-- UUID + Sello + DTE -->
-            <div class="rl-dte-group rl-mt-3">
+
+            <div class="rl-dte-group rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
               <div class="rl-field" style="grid-column:1/-1">
                 <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID) <span class="req">*</span></label>
-                <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+                <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" :required="formulario.modoIngreso === 'dte'">
               </div>
               <div class="rl-field">
                 <label class="rl-label">Número DTE <span class="req">*</span></label>
                 <div class="rl-dte-wrap">
                   <span class="rl-dte-prefix">DTE</span>
-                  <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e,'part1',2)" class="rl-dte-part w2" placeholder="01">
+                  <input type="text" :value="ccfParts.part1" readonly class="rl-dte-part w2" style="background:#f3f4f6">
                   <span class="rl-dte-sep">–</span>
                   <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="rl-dte-part letter" placeholder="S" @focus="$event.target.select()">
                   <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e,'part2',3)" class="rl-dte-part w3" placeholder="000">
@@ -71,7 +84,7 @@
                 </div>
               </div>
               <div class="rl-field rl-field-sello">
-                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción (solo DTE)</label>
+                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción</label>
                 <div class="rl-sello-wrap">
                   <span class="rl-sello-icon">✅</span>
                   <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Ej: 202542266B0EFC5743...">
@@ -79,9 +92,19 @@
                 <span class="rl-sello-hint">40 caracteres alfanuméricos</span>
               </div>
             </div>
+
+            <div class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'fisico'">
+               <div class="rl-field">
+                 <label class="rl-label">Número de Resolución <span class="req">*</span></label>
+                 <input type="text" v-model="formulario.resolucion" class="rl-input" placeholder="15042-RES-CR-..." :required="formulario.modoIngreso === 'fisico'">
+               </div>
+               <div class="rl-field">
+                 <label class="rl-label">Número de Documento (Físico) <span class="req">*</span></label>
+                 <input type="text" v-model="formulario.numero_fisico" class="rl-input" placeholder="Ej: 12345" style="font-weight:700" :required="formulario.modoIngreso === 'fisico'">
+               </div>
+            </div>
           </div>
 
-          <!-- Mandante -->
           <div class="rl-form-section">
             <p class="rl-section-title">Datos del Mandante (a quien representa)</p>
             <div class="rl-grid rl-grid-2">
@@ -96,7 +119,6 @@
             </div>
           </div>
 
-          <!-- Montos -->
           <div class="rl-form-section rl-bg-soft">
             <p class="rl-section-title">Montos de Operación</p>
             <div class="rl-montos">
@@ -125,8 +147,7 @@
         </form>
       </div>
 
-      <!-- LISTADO -->
-      <div v-else class="rl-card">
+      <div v-else class="rl-card rl-fade-in">
         <div class="rl-card-header">
           <div style="display:flex;align-items:center;gap:10px">
             <h3>📋 Historial de Ventas por Terceros</h3>
@@ -166,7 +187,7 @@
                 <th style="width:40px;text-align:center">
                   <input type="checkbox" @change="toggleAll" :checked="ventasFiltradas.length > 0 && seleccionados.length === ventasFiltradas.length" class="rl-checkbox">
                 </th>
-                <th>Fecha</th><th>Empresa</th><th>Mandante (Tercero)</th><th>Número DTE</th>
+                <th>Fecha</th><th>Tipo</th><th>Mandante (Tercero)</th><th>Número DTE</th>
                 <th style="text-align:right">Monto</th><th style="text-align:right;color:#059669">IVA</th>
                 <th style="text-align:center">Acciones</th>
               </tr>
@@ -179,16 +200,23 @@
                 </td>
                 <td>
                   <div style="font-weight:700">{{ formatearFecha(venta.VtaGraTerFecha) }}</div>
-                  <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ venta.VtaGraTerMesDec || 'N/A' }}</strong></small>
+                  <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ venta.VtaGraTerMesDeclarado || 'N/A' }}</strong></small>
                 </td>
-                <td><span class="rl-badge rl-badge-info">{{ venta.iddeclaNIT }}</span></td>
                 <td>
-                  <div style="font-weight:700">{{ venta.VtaGraTerNomMandante || '---' }}</div>
-                  <small class="rl-text-muted">{{ venta.VtaGraTerNITMandante }}</small>
+                  <span class="rl-badge rl-badge-type" :class="venta.VtaGraTerCodGeneracion ? 'blue' : 'orange'">
+                    {{ venta.VtaGraTerCodGeneracion ? 'DTE' : 'Físico' }}
+                  </span>
                 </td>
-                <td><span class="rl-doc-number">{{ venta.VtaGraTerNumDoc }}</span></td>
-                <td style="text-align:right;font-weight:700">${{ parseFloat(venta.VtaGraTerMontGrav || 0).toFixed(2) }}</td>
-                <td style="text-align:right;font-weight:700;color:#059669">${{ parseFloat(venta.VtaGraTerDebFisc || 0).toFixed(2) }}</td>
+                <td>
+                  <div style="font-weight:700">{{ venta.VtaGraTerNom || '---' }}</div>
+                  <small class="rl-text-muted">{{ venta.VtaGraTerNit }}</small>
+                </td>
+                <td>
+                  <span class="rl-doc-number" :title="venta.VtaGraTerCodGeneracion || venta.VtaGraTerNumResolu">{{ venta.VtaGraTerNumDoc }}</span>
+                  <div v-if="venta.VtaGraTerSelloRecepcion" class="rl-badge-sello-mh mt-1" :title="venta.VtaGraTerSelloRecepcion">✔️ Sello MH</div>
+                </td>
+                <td style="text-align:right;font-weight:700">${{ parseFloat(venta.VtaGraTerMontoOper || 0).toFixed(2) }}</td>
+                <td style="text-align:right;font-weight:700;color:#059669">${{ parseFloat(venta.VtaGraTerIVAOper || 0).toFixed(2) }}</td>
                 <td style="text-align:center">
                   <button class="rl-btn-icon" @click="prepararEdicion(venta)" title="Editar">✏️</button>
                   <button class="rl-btn-icon" @click="eliminarVenta(venta.idVtaGraTer)" title="Eliminar" style="color:#ef4444">🗑️</button>
@@ -217,21 +245,24 @@ const API_URL = `${BASE_URL}/api/ventas-terceros`;
 const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
 // --- LÓGICA DE MÁSCARA DTE ---
-const ccfParts = ref({ part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+const ccfParts = ref({ part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 const handleLetraInput = (e) => { let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto(); };
 const handleInputMask = (e, partName, maxLength) => { let raw = e.target.value.replace(/\D/g, ''); if (raw.length > maxLength) raw = raw.slice(-maxLength); const padded = raw.padStart(maxLength, '0'); ccfParts.value[partName] = padded; e.target.value = padded; actualizarNumeroCompleto(); };
-const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie || 'S'; formulario.value.numero = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; };
+const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie || 'S'; formulario.value.numero_control = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; };
 
 // --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
+    modoIngreso: 'dte', 
     iddeclaNIT: '',
     fecha: new Date().toISOString().split('T')[0],
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
-    numero: '', 
+    numero_control: '', 
+    numero_fisico: '',
     uuid_dte: '', 
-    sello_recepcion: '', // 🛡️ NUEVO: Integración del Sello
+    sello_recepcion: '', 
     serie: '', 
+    resolucion: '',
     nitMandante: '', nombreMandante: '', 
     LisVtaGraTerTipoDoc: '03', 
     gravadas: '0.00', comision: '0.00' 
@@ -264,8 +295,10 @@ const aplicarCambioMasivo = async () => {
         const promesas = seleccionados.value.map(id => {
             const vOri = listaVentas.value.find(v => v.idVtaGravTerDomici === id);
             if (!vOri) return Promise.resolve();
+            const esFisico = !vOri.VtaGraTerCodGeneracion;
 
             const payload = {
+                modoIngreso: esFisico ? 'fisico' : 'dte',
                 iddeclaNIT: vOri.iddeclaNIT,
                 fecha: vOri.VtaGraTerFecha ? vOri.VtaGraTerFecha.split('T')[0] : null,
                 mesDeclarado: bulkMes.value,
@@ -274,9 +307,10 @@ const aplicarCambioMasivo = async () => {
                 nombreMandante: vOri.VtaGraTerNom,
                 LisVtaGraTerTipoDoc: vOri.LisVtaGraTerTipoDoc,
                 serie: vOri.VtaGraTerNumSerie,
-                numero: vOri.VtaGraTerNumDoc,
+                resolucion: vOri.VtaGraTerNumResolu,
+                numero_final: vOri.VtaGraTerNumDoc,
                 uuid_dte: vOri.VtaGraTerCodGeneracion,
-                sello_recepcion: vOri.VtaGraTerSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
+                sello_recepcion: vOri.VtaGraTerSelloRecepcion, 
                 gravadas: vOri.VtaGraTerMontoOper,
                 comision: vOri.VtaGraTerIVAOper 
             };
@@ -296,6 +330,13 @@ watch(() => formulario.value.fecha, (nuevaFecha) => {
         const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
         formulario.value.mesDeclarado = mesesOptions[mesIdx];
         formulario.value.anioDeclarado = nuevaFecha.split('-')[0];
+    }
+});
+
+watch(() => formulario.value.LisVtaGraTerTipoDoc, (val) => {
+    if(val) {
+        ccfParts.value.part1 = val;
+        if(formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto();
     }
 });
 
@@ -351,14 +392,22 @@ const cargarDatos = async () => {
 
 const guardarVenta = async () => {
     if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
-    actualizarNumeroCompleto();
+    
+    if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto();
+    const numeroFinal = formulario.value.modoIngreso === 'dte' ? formulario.value.numero_control : formulario.value.numero_fisico;
+    
+    const payload = {
+        ...formulario.value,
+        numero_final: numeroFinal
+    };
+
     cargando.value = true;
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
+            await axios.put(`${API_URL}/${idEdicion.value}`, payload);
             tipoMensaje.value = 'success'; mensaje.value = '¡Actualizado en BD!';
         } else {
-            await axios.post(API_URL, formulario.value);
+            await axios.post(API_URL, payload);
             tipoMensaje.value = 'success'; mensaje.value = '¡Guardado con éxito!';
         }
         await cargarDatos();
@@ -376,27 +425,33 @@ const eliminarVenta = async (id) => {
 const prepararEdicion = (venta) => {
     let fSegura = venta.VtaGraTerFecha ? venta.VtaGraTerFecha.split('T')[0] : new Date().toISOString().split('T')[0];
     const rawNum = venta.VtaGraTerNumDoc || '';
-    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
-    const match = rawNum.replace(/-/g, '').match(regex);
-    
-    ccfParts.value = match ? 
-        { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
-        { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    const esDTE = !!venta.VtaGraTerCodGeneracion;
+
+    if (esDTE) {
+        const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
+        const match = rawNum.replace(/-/g, '').match(regex);
+        ccfParts.value = match ? 
+            { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
+            { part1: venta.LisVtaGraTerTipoDoc || '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    }
 
     formulario.value = {
+        modoIngreso: esDTE ? 'dte' : 'fisico',
         iddeclaNIT: venta.iddeclaNIT,
         fecha: fSegura,
         mesDeclarado: venta.VtaGraTerMesDeclarado || mesesOptions[new Date(fSegura).getMonth()],
         anioDeclarado: venta.VtaGraTerAnioDeclarado || fSegura.substring(0,4),
-        numero: rawNum,
+        numero_control: esDTE ? rawNum : '',
+        numero_fisico: esDTE ? '' : rawNum,
         uuid_dte: venta.VtaGraTerCodGeneracion || '',
-        sello_recepcion: venta.VtaGraTerSelloRecepcion || '', // 🛡️ Sello al editar
+        sello_recepcion: venta.VtaGraTerSelloRecepcion || '', 
         serie: venta.VtaGraTerNumSerie || '',
+        resolucion: venta.VtaGraTerNumResolu || '',
         nitMandante: venta.VtaGraTerNit || '',
         nombreMandante: venta.VtaGraTerNom || '',
         LisVtaGraTerTipoDoc: venta.LisVtaGraTerTipoDoc || '03',
         gravadas: parseFloat(venta.VtaGraTerMontoOper || 0).toFixed(2),
-        comision: parseFloat(venta.VtaGraTerIVAOper || 0).toFixed(2) // IVA
+        comision: parseFloat(venta.VtaGraTerIVAOper || 0).toFixed(2) 
     };
     idEdicion.value = venta.idVtaGravTerDomici; modoEdicion.value = true; mostrandoLista.value = false;
 };
@@ -404,8 +459,13 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
-    formulario.value = { iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), numero: '', uuid_dte: '', sello_recepcion: '', serie: '', nitMandante: '', nombreMandante: '', LisVtaGraTerTipoDoc: '03', gravadas: '0.00', comision: '0.00' };
-    ccfParts.value = { part1: '00', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    formulario.value = { 
+        modoIngreso: 'dte',
+        iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(), 
+        numero_control: '', numero_fisico: '', uuid_dte: '', sello_recepcion: '', serie: '', resolucion: '', 
+        nitMandante: '', nombreMandante: '', LisVtaGraTerTipoDoc: '03', gravadas: '0.00', comision: '0.00' 
+    };
+    ccfParts.value = { part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
 };
 
@@ -415,7 +475,6 @@ const formatearFecha = (f) => f ? f.split('T')[0] : '';
 onMounted(cargarDatos);
 </script>
 
--e 
 <style scoped>
 /* VentasTercerosView — estilos base en assets/forms.css */
 </style>

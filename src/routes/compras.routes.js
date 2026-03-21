@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getCompras, createCompra, deleteCompra, updateCompra } from "../controllers/compras.controller.js";
-import { exportarCompras } from "../controllers/data.controller.js"; // 🛡️ NUEVO: Importamos el exportador
+import { exportarCompras } from "../controllers/reportes.controller.js";
 import { requireAdmin } from '../middlewares/roleAuth.js';
 
 const router = Router();

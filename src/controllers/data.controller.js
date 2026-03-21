@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarAccion } from './historial.controller.js';
 
 // ==========================================
 // FUNCIONES AUXILIARES Y DE EXTRACCIÓN
@@ -33,72 +34,11 @@ const extraerAnio = (fechaIso, anioOriginal) => {
 };
 
 // ==========================================
-// 1. EXPORTACIONES INDIVIDUALES Y BACKUP
+// NOTA: Las funciones de exportación (exportarCompras, exportarVentasConsumidor,
+// exportarVentasCredito, exportarSujetos, exportarRetenciones, exportarTodoJSON)
+// fueron consolidadas en reportes.controller.js (versión con UNION que incluye
+// notas de crédito/débito). Este controller solo maneja importación.
 // ==========================================
-export const exportarCompras = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { compras: rows } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
-
-export const exportarVentasConsumidor = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { ventas_cf: rows } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
-
-export const exportarVentasCredito = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { ventas_ccf: rows } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
-
-export const exportarSujetos = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { sujetos_excluidos: rows } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
-
-export const exportarRetenciones = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [rows] = await pool.query('SELECT * FROM retenciones WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? ORDER BY RetenFecha ASC', [nit, mes, anio]);
-        res.json({ backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}` }, data: { retenciones: rows } });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
-
-export const exportarTodoJSON = async (req, res) => {
-    const { mes, anio, nit } = req.query;
-    if (!nit) return res.status(400).json({ message: "Se requiere NIT para el backup." });
-
-    try {
-        const [declarante] = await pool.query('SELECT declarante FROM declarante WHERE iddeclaNIT = ?', [nit]);
-        const [compras] = await pool.query('SELECT * FROM compras WHERE iddeclaNIT = ? AND ComMesDeclarado = ? AND ComAnioDeclarado = ? ORDER BY ComFecha ASC', [nit, mes, anio]);
-        const [ventasCCF] = await pool.query('SELECT * FROM credfiscal WHERE iddeclaNIT = ? AND FiscMesDeclarado = ? AND FiscAnioDeclarado = ? ORDER BY FiscFecha ASC', [nit, mes, anio]);
-        const [ventasCF] = await pool.query('SELECT * FROM consumidorfinal WHERE iddeclaNIT = ? AND ConsMesDeclarado = ? AND ConsAnioDeclarado = ? ORDER BY ConsFecha ASC', [nit, mes, anio]);
-        const [sujetos] = await pool.query('SELECT * FROM comprassujexcluidos WHERE iddeclaNIT = ? AND ComprasSujExcluMesDeclarado = ? AND ComprasSujExcluAnioDeclarado = ? ORDER BY ComprasSujExcluFecha ASC', [nit, mes, anio]);
-        const [retenciones] = await pool.query('SELECT * FROM retenciones WHERE iddeclaNIT = ? AND RetenMesDeclarado = ? AND RetenAnioDeclarado = ? ORDER BY RetenFecha ASC', [nit, mes, anio]); 
-        const [notas] = await pool.query('SELECT * FROM notas_credito WHERE iddeclaNIT = ? AND NCMesDeclarado = ? AND NCAnioDeclarado = ? ORDER BY NCFecha ASC', [nit, mes, anio]); 
-
-        res.json({
-            backup_info: { nit, empresa: declarante[0]?.declarante, periodo: `${mes}/${anio}`, fecha_respaldo: new Date().toISOString() },
-            data: { compras, ventas_cf: ventasCF, ventas_ccf: ventasCCF, sujetos_excluidos: sujetos, retenciones, notas_credito: notas } 
-        });
-    } catch (error) { res.status(500).json({ message: error.message }); }
-};
 
 // ==========================================
 // 2. IMPORTACIÓN MASIVA INTELIGENTE
@@ -509,6 +449,13 @@ export const importarTodoJSON = async (req, res) => {
         }
 
         await connection.commit();
+
+        // 📋 Auditoría de la importación
+        const usuario = req.headers['x-usuario'] || 'Sistema';
+        const totalIns = Object.values(reporte).reduce((s, m) => s + m.insertados, 0);
+        const totalAct = Object.values(reporte).reduce((s, m) => s + m.actualizados, 0);
+        registrarAccion(usuario, 'IMPORTACION JSON', 'TODOS LOS MÓDULOS', 
+            `NIT: ${nitDeclarante} | ${totalIns} insertados, ${totalAct} actualizados`);
 
         // Construir resumen legible para el frontend
         const totalInsertados = Object.values(reporte).reduce((s, m) => s + m.insertados, 0);

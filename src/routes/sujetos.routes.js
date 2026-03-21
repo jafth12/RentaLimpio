@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { exportarSujetos } from "../controllers/data.controller.js";
+import { exportarSujetos } from "../controllers/reportes.controller.js";
 import { getSujetos, createSujeto, updateSujeto, deleteSujeto } from "../controllers/sujetos.controller.js";
 
 const router = Router();

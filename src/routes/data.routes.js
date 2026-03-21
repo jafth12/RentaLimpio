@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { exportarTodoJSON, importarTodoJSON } from '../controllers/data.controller.js';
+import { importarTodoJSON } from '../controllers/data.controller.js';
+import { exportarTodoJSON } from '../controllers/reportes.controller.js';
 
 const router = Router();
 

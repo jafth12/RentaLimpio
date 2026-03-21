@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { exportarVentasConsumidor } from "../controllers/data.controller.js";
+import { exportarVentasConsumidor } from "../controllers/reportes.controller.js";
 import { 
     getVentasCF, 
     getVentaCFById,
