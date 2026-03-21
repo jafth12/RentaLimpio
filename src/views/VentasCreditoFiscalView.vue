@@ -12,21 +12,22 @@
         </button>
       </div>
 
-      <div v-if="!mostrandoLista" class="rl-card rl-fade-in">
-        <div class="rl-card-header" style="align-items: center;">
+      <!-- FORMULARIO -->
+      <div v-if="!mostrandoLista" class="rl-card">
+        <div class="rl-card-header">
           <div>
             <h2>{{ modoEdicion ? '✏️ Editar Documento' : '✨ Nuevo Documento' }}</h2>
-            <span class="rl-badge rl-badge-info rl-mt-2">
+            <span class="rl-badge rl-badge-info" style="margin-top:4px;display:inline-block">
               {{ modoEdicion ? 'Modificando registro en Base de Datos' : 'Documento para Contribuyentes' }}
             </span>
           </div>
-          <div class="rl-toggle-switch">
-             <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
-                <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico
-             </label>
-             <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
-                <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico
-             </label>
+          <div class="modo-toggle">
+            <label :class="{ active: formulario.modoIngreso === 'dte' }">
+              <input type="radio" v-model="formulario.modoIngreso" value="dte" class="sr-only"> 🌐 DTE
+            </label>
+            <label :class="{ active: formulario.modoIngreso === 'fisico' }">
+              <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="sr-only"> 🖨️ Físico
+            </label>
           </div>
         </div>
 
@@ -39,6 +40,7 @@
             <strong>💡 Nota de Débito:</strong> Ingrese el cargo extra que no se incluyó en el CCF original.
           </div>
 
+          <!-- Sección: Documento -->
           <div class="rl-form-section">
             <p class="rl-section-title">Detalles del Documento</p>
             <div class="rl-grid rl-grid-2">
@@ -75,7 +77,8 @@
               </div>
             </div>
 
-            <div v-if="formulario.modoIngreso === 'dte'" class="rl-dte-group rl-mt-3 rl-fade-in">
+            <!-- Campos DTE -->
+            <div v-if="formulario.modoIngreso === 'dte'" class="rl-dte-group rl-mt-3">
               <div class="rl-field" style="grid-column:1/-1">
                 <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID) <span class="req">*</span></label>
                 <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
@@ -98,24 +101,25 @@
                 <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción MH (Opcional)</label>
                 <div class="rl-sello-wrap">
                   <span class="rl-sello-icon">✅</span>
-                  <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Pegue los 40 caracteres...">
+                  <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Pegue los 40 caracteres del Sello MH...">
                 </div>
-                <span class="rl-sello-hint">40 caracteres alfanuméricos</span>
+                <span class="rl-sello-hint">40 caracteres alfanuméricos · Solo aplica para DTE</span>
               </div>
             </div>
 
-            <div v-if="formulario.modoIngreso === 'fisico'" class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in">
+            <!-- Campos Físico -->
+            <div v-if="formulario.modoIngreso === 'fisico'" class="rl-grid rl-grid-2 rl-mt-3">
               <div class="rl-field">
                 <label class="rl-label">Número de Resolución <span class="req">*</span></label>
-                <input type="text" v-model="formulario.resolucion" class="rl-input" placeholder="15042-RES-CR-..." :required="formulario.modoIngreso === 'fisico'">
+                <input type="text" v-model="formulario.resolucion" class="rl-input" placeholder="15042-RES-CR-..." required>
               </div>
               <div class="rl-field">
                 <label class="rl-label">Número Correlativo CCF <span class="req">*</span></label>
-                <input type="text" v-model="formulario.numero_fisico" class="rl-input" style="font-weight:700" placeholder="Ej: 12345" :required="formulario.modoIngreso === 'fisico'">
+                <input type="text" v-model="formulario.numero_fisico" class="rl-input" style="font-weight:700" placeholder="Ej: 12345" required>
               </div>
             </div>
 
-            <div v-if="formulario.modoIngreso === 'fisico'" class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in">
+            <div class="rl-grid rl-grid-2 rl-mt-3">
               <div class="rl-field">
                 <label class="rl-label">Serie (Opcional)</label>
                 <input type="text" v-model="formulario.serie" class="rl-input" placeholder="SERIE">
@@ -123,6 +127,7 @@
             </div>
           </div>
 
+          <!-- Sección: Cliente -->
           <div class="rl-form-section">
             <p class="rl-section-title">Cliente (Contribuyente)</p>
             <div class="rl-grid rl-grid-3">
@@ -141,6 +146,7 @@
             </div>
           </div>
 
+          <!-- Sección: Montos -->
           <div class="rl-form-section rl-bg-soft">
             <p class="rl-section-title">Clasificación y Montos</p>
             <div class="rl-grid rl-grid-2" style="margin-bottom:16px">
@@ -217,7 +223,8 @@
         </form>
       </div>
 
-      <div v-else class="rl-card rl-fade-in">
+      <!-- LISTADO -->
+      <div v-else class="rl-card">
         <div class="rl-card-header">
           <div style="display:flex;align-items:center;gap:10px">
             <h3>📋 Historial de Documentos (Anexo 2)</h3>
@@ -277,12 +284,12 @@
                   <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ venta.FiscMesDeclarado || 'N/A' }}</strong></small>
                 </td>
                 <td>
-                  <span class="rl-badge rl-badge-type" :class="venta.FisTipoDoc === '03' ? 'blue' : 'orange'">
+                  <span class="tipo-badge" :class="venta.FisTipoDoc === '03' ? 'tipo-blue' : venta.FisTipoDoc === '05' ? 'tipo-orange' : 'tipo-purple'">
                     {{ venta.FisTipoDoc === '05' ? 'NC (05)' : venta.FisTipoDoc === '06' ? 'ND (06)' : 'CCF (03)' }}
                   </span>
                 </td>
                 <td>
-                  <span class="rl-badge" :class="venta.FisClasDoc === '4' ? 'rl-badge-info' : 'rl-badge-anexo'">
+                  <span class="tipo-badge" :class="venta.FisClasDoc === '4' ? 'tipo-blue' : 'tipo-green'">
                     {{ venta.FisClasDoc === '4' ? 'DTE' : 'Físico' }}
                   </span>
                 </td>
@@ -293,7 +300,7 @@
                 <td>
                   <span class="rl-doc-number" :title="venta.FiscCodGeneracion || venta.FiscNumResol">{{ venta.FiscNumDoc || 'N/A' }}</span>
                   <div v-if="venta.FiscSelloRecepcion" style="margin-top:3px">
-                    <span class="rl-badge-sello-mh" :title="venta.FiscSelloRecepcion">✔ Sello MH</span>
+                    <span class="rl-badge" style="background:#d1fae5;color:#065f46;font-size:.65rem" :title="venta.FiscSelloRecepcion">✔ Sello MH</span>
                   </div>
                 </td>
                 <td style="text-align:right;color:#6b7280">
@@ -332,11 +339,13 @@ const API_URL = `${BASE_URL}/api/ventas-CCF`;
 
 const mesesOptions = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
+// --- FUNCIÓN ANTI-NAN ---
 const formatoMoneda = (valor) => {
     const num = Number(valor);
     return isNaN(num) ? '0.00' : num.toFixed(2);
 };
 
+// --- LÓGICA DE LA MÁSCARA DTE ---
 const ccfParts = ref({ part1: '03', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
 const handleLetraInput = (e) => { 
     let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); 
@@ -353,6 +362,7 @@ const actualizarNumeroCompleto = () => {
     formulario.value.numero_control = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; 
 };
 
+// --- ESTADOS DEL FORMULARIO ---
 const formulario = ref({
     modoIngreso: 'dte', 
     iddeclaNIT: '',
@@ -362,14 +372,14 @@ const formulario = ref({
     tipoDocumento: '03',
     numero_control: '', 
     uuid_dte: '', 
-    sello_recepcion: '', 
+    sello_recepcion: '', // 🛡️ NUEVO: Atrapa el sello MH
     serie: '', 
     resolucion: '', 
     numero_fisico: '', 
     cliente: '', 
     nrc: '',
     tipo_operacion: '1', 
-    tipo_ingreso: '1',
+    tipo_ingreso: '3',
     gravadas: '0.00', debitoFiscal: '0.00', exentas: '0.00', noSujetas: '0.00', total: '0.00',
     origenTabla: 'credfiscal'
 });
@@ -384,6 +394,7 @@ const cargando = ref(false);
 const mensaje = ref('');
 const tipoMensaje = ref('');
 
+// --- ASIGNACIÓN MASIVA ---
 const seleccionados = ref([]);
 const bulkMes = ref(mesesOptions[new Date().getMonth()]);
 const bulkAnio = ref(new Date().getFullYear().toString());
@@ -416,7 +427,7 @@ const aplicarCambioMasivo = async () => {
                 numero_fisico: ventaOri.FiscNumDoc,
                 numero_control: ventaOri.FiscNumDoc,
                 uuid_dte: ventaOri.FiscCodGeneracion,
-                sello_recepcion: ventaOri.FiscSelloRecepcion,
+                sello_recepcion: ventaOri.FiscSelloRecepcion, // 🛡️ Evitamos que se borre en envíos masivos
                 nrc: ventaOri.FiscNit,
                 cliente: ventaOri.FiscNomRazonDenomi,
                 exentas: ventaOri.FiscVtaExen,
@@ -437,6 +448,7 @@ const aplicarCambioMasivo = async () => {
     finally { cargandoMasivo.value = false; }
 };
 
+// --- CÁLCULOS DINÁMICOS Y WATCHERS ---
 watch(() => formulario.value.fecha, (nuevaFecha) => {
     if (nuevaFecha && !modoEdicion.value) {
         const mesIdx = parseInt(nuevaFecha.split('-')[1], 10) - 1;
@@ -470,6 +482,7 @@ const calcularTotalGeneral = () => {
 
 const recalcularTotal = () => { calcularTotalGeneral(); };
 
+// --- FILTROS ---
 const mesesFiltroOptions = [
   { nombre: 'Todos los Meses', valor: '' },
   { nombre: 'Enero', valor: 'Enero' }, { nombre: 'Febrero', valor: 'Febrero' }, { nombre: 'Marzo', valor: 'Marzo' },
@@ -500,12 +513,13 @@ const formatearDecimal = (campo) => {
     formulario.value[campo] = !isNaN(valor) ? valor.toFixed(2) : '0.00';
 };
 
+// --- OPERACIONES CON DB (AXIOS) ---
 const cargarDatos = async () => {
     try {
         const resD = await axios.get(`${BASE_URL}/api/declarantes`);
         todosLosDeclarantes.value = resD.data || [];
         
-        const resV = await axios.get(API_URL);
+        const resV = await axios.get(API_URL, { params: { nit: declaranteFiltro.value || undefined, mes: mesFiltro.value || undefined, anio: anioFiltro.value || undefined } });
         listaVentas.value = resV.data || [];
 
         const resA = await axios.get(`${BASE_URL}/api/anulados`);
@@ -577,7 +591,7 @@ const prepararEdicion = (venta) => {
         numero_control: esDTE ? rawNum : '',
         numero_fisico: esDTE ? '' : rawNum,
         uuid_dte: venta.FiscCodGeneracion || '',
-        sello_recepcion: venta.FiscSelloRecepcion || '', 
+        sello_recepcion: venta.FiscSelloRecepcion || '', // 🛡️ Atrapa el sello al editar
         serie: venta.FiscSerieDoc || '',
         resolucion: venta.FiscNumResol || '',
         cliente: venta.FiscNomRazonDenomi || '',
@@ -597,6 +611,7 @@ const prepararEdicion = (venta) => {
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
+    // 🛡️ REINICIO SEGURO Y FORZADO DE SELECTORES
     formulario.value = { 
         modoIngreso: 'dte', 
         iddeclaNIT: '', 
@@ -606,7 +621,7 @@ const resetForm = () => {
         tipoDocumento: '03', 
         numero_control: '', 
         uuid_dte: '', 
-        sello_recepcion: '', 
+        sello_recepcion: '', // Limpiamos el sello
         serie: '', 
         resolucion: '', 
         numero_fisico: '', 
@@ -634,7 +649,7 @@ const anularDocumento = async (ventaOriginal) => {
             tipoDeta: '1', 
             tipoDoc: ventaOriginal.FisTipoDoc || '03', 
             uuid_dte: ventaOriginal.FiscCodGeneracion,
-            sello_recepcion: ventaOriginal.FiscSelloRecepcion || '', 
+            sello_recepcion: ventaOriginal.FiscSelloRecepcion || '', // 🛡️ ¡AQUÍ ESTÁ! Sello de CCF asegurado
             desde: ventaOriginal.FiscNumDoc, 
             hasta: ventaOriginal.FiscNumDoc, 
             serie: ventaOriginal.FiscSerieDoc || '',
@@ -650,6 +665,12 @@ const anularDocumento = async (ventaOriginal) => {
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
+
+
+// 🛡️ Recargar datos del backend cuando cambian los filtros principales
+watch([declaranteFiltro, mesFiltro, anioFiltro], () => {
+    cargarDatos();
+});
 
 onMounted(cargarDatos);
 </script>

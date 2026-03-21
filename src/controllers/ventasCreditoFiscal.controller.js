@@ -3,42 +3,51 @@ import { registrarAccion } from './historial.controller.js';
 
 // --- 1. OBTENER TODAS LAS VENTAS CCF Y NOTAS (UNION) ---
 export const getVentasCCF = async (req, res) => {
+    const { nit, mes, anio } = req.query;
     try {
+        const condCCF  = [];
+        const condNC   = ["NCTipo = 'VENTA'", "NCAnexo = '2'"];
+        const params   = [];
+
+        if (nit)  { condCCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');       params.push(nit,  nit); }
+        if (mes)  { condCCF.push('FiscMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   params.push(mes,  mes); }
+        if (anio) { condCCF.push('FiscAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  params.push(anio, anio); }
+
+        const whereCCF = condCCF.length ? 'WHERE ' + condCCF.join(' AND ') : '';
+        const whereNC  = 'WHERE ' + condNC.join(' AND ');
+
         const query = `
             SELECT 
                 idCredFiscal, iddeclaNIT, FiscFecha, FisClasDoc, FisTipoDoc, FiscSerieDoc, 
-                FiscNumDoc, FiscCodGeneracion, FiscNumResol, FiscSelloRecepcion, /* <-- 🛡️ AÑADIDO: Sello de Recepción */
+                FiscNumDoc, FiscCodGeneracion, FiscNumResol, FiscSelloRecepcion,
                 FiscNumContInter, FiscNit, FiscNomRazonDenomi, 
                 FiscVtaExen, FiscVtaNoSujetas, FiscVtaGravLocal, FiscDebitoFiscal, FiscTotalVtas, 
                 BusFiscTipoOperaRenta, BusFiscTipoIngresoRenta, FiscMesDeclarado, FiscAnioDeclarado, 
                 'credfiscal' AS OrigenTabla 
-            FROM credfiscal 
-            
+            FROM credfiscal ${whereCCF}
+
             UNION ALL 
-            
+
             SELECT 
                 idNotaCredito as idCredFiscal, iddeclaNIT, NCFecha as FiscFecha, NCClaseDoc as FisClasDoc, 
                 NCTipoDoc as FisTipoDoc, NULL as FiscSerieDoc, NCNumero as FiscNumDoc, 
-                NCCodGeneracion as FiscCodGeneracion, NULL as FiscNumResol, NULL as FiscSelloRecepcion, /* <-- Relleno para notas */
-                NULL as FiscNumContInter, 
-                NCNitContraparte as FiscNit, NCNombreContraparte as FiscNomRazonDenomi, 
+                NCCodGeneracion as FiscCodGeneracion, NULL as FiscNumResol, NULL as FiscSelloRecepcion,
+                NULL as FiscNumContInter, NCNitContraparte as FiscNit, NCNombreContraparte as FiscNomRazonDenomi, 
                 NCMontoExento as FiscVtaExen, 0.00 as FiscVtaNoSujetas, NCMontoGravado as FiscVtaGravLocal, 
                 NCIva as FiscDebitoFiscal, NCTotal as FiscTotalVtas, '1' as BusFiscTipoOperaRenta, 
                 '1' as BusFiscTipoIngresoRenta, NCMesDeclarado as FiscMesDeclarado, 
                 NCAnioDeclarado as FiscAnioDeclarado, 'notas_credito' AS OrigenTabla 
-            FROM notas_credito 
-            WHERE NCTipo = 'VENTA' AND NCAnexo = '2'
-            
+            FROM notas_credito ${whereNC}
+
             ORDER BY FiscFecha ASC
         `;
-        const [rows] = await pool.query(query);
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener ventas CCF', error: error.message });
     }
 };
 
-// --- 2. OBTENER UNA VENTA O NOTA ---
 export const getVentaCCFById = async (req, res) => {
     const { id } = req.params;
     const { origen } = req.query; 

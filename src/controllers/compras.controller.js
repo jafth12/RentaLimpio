@@ -15,8 +15,22 @@ const formatearFecha = (fecha) => {
 
 // --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
+        const { nit, mes, anio } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM compras ORDER BY ComFecha ASC');
+        let query = 'SELECT * FROM compras';
+        const params = [];
+        const condiciones = [];
+
+        if (nit)  { condiciones.push('iddeclaNIT = ?');  params.push(nit); }
+        if (mes)  { condiciones.push('ComMesDeclarado = ?');  params.push(mes); }
+        if (anio) { condiciones.push('ComAnioDeclarado = ?'); params.push(anio); }
+
+        if (condiciones.length > 0) {
+            query += ' WHERE ' + condiciones.join(' AND ');
+        }
+        query += ' ORDER BY ComFecha ASC';
+
+        const [rows] = await pool.query(query, params);;
         rows.forEach(r => {
             if (r.ComFecha) r.ComFecha = formatearFecha(r.ComFecha);
         });

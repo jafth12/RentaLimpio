@@ -3,7 +3,20 @@ import { registrarAccion } from './historial.controller.js';
 
 // --- 1. OBTENER TODAS LAS VENTAS CF Y NOTAS (UNION ALL) ---
 export const getVentasCF = async (req, res) => {
+    const { nit, mes, anio } = req.query;
     try {
+        // Construir condiciones opcionales para ambas partes del UNION
+        const condCF   = [];
+        const condNC   = ["NCTipo = 'VENTA'", "NCAnexo = '1'"];
+        const params   = [];
+
+        if (nit)  { condCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');       params.push(nit,  nit); }
+        if (mes)  { condCF.push('ConsMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   params.push(mes,  mes); }
+        if (anio) { condCF.push('ConsAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  params.push(anio, anio); }
+
+        const whereCF = condCF.length  ? 'WHERE ' + condCF.join(' AND ')  : '';
+        const whereNC = 'WHERE ' + condNC.join(' AND ');
+
         const query = `
             SELECT 
                 idconsfinal, iddeclaNIT, ConsFecha, ConsClaseDoc, ConsTipoDoc, ConsSerieDoc, 
@@ -12,30 +25,27 @@ export const getVentasCF = async (req, res) => {
                 ConsNumDocIdentCliente, ConsNomRazonCliente, 
                 ConsVtaExentas, ConsVtaNoSujetas, ConsVtaGravLocales, ConsTotalVta, 
                 ConsTipoOpera, ConsTipoIngreso, ConsNumAnexo, ConsMesDeclarado, ConsAnioDeclarado, 
-                ConsSelloRecepcion, /* 🛡️ NUEVO */
+                ConsSelloRecepcion,
                 'consumidorfinal' AS OrigenTabla 
-            FROM consumidorfinal 
+            FROM consumidorfinal ${whereCF}
             
             UNION ALL 
             
             SELECT 
                 idNotaCredito as idconsfinal, iddeclaNIT, NCFecha as ConsFecha, NCClaseDoc as ConsClaseDoc, 
                 NCTipoDoc as ConsTipoDoc, NULL as ConsSerieDoc, NCNumero as ConsNumDocDEL, NCNumero as ConsNumDocAL, 
-                NCCodGeneracion as ConsCodGeneracion, 
-                NULL as ConsNumResolu, NULL as ConsNumMaqRegistro, 
-                NCNitContraparte as ConsNumDocIdentCliente, 
-                NCNombreContraparte as ConsNomRazonCliente, NCMontoExento as ConsVtaExentas, 0.00 as ConsVtaNoSujetas, 
+                NCCodGeneracion as ConsCodGeneracion, NULL as ConsNumResolu, NULL as ConsNumMaqRegistro, 
+                NCNitContraparte as ConsNumDocIdentCliente, NCNombreContraparte as ConsNomRazonCliente, 
+                NCMontoExento as ConsVtaExentas, 0.00 as ConsVtaNoSujetas, 
                 NCMontoGravado as ConsVtaGravLocales, NCTotal as ConsTotalVta, '1' as ConsTipoOpera, 
                 '1' as ConsTipoIngreso, NCAnexo as ConsNumAnexo, NCMesDeclarado as ConsMesDeclarado, 
-                NCAnioDeclarado as ConsAnioDeclarado, 
-                NULL as ConsSelloRecepcion, /* 🛡️ RELLENO PARA NOTAS DE CRÉDITO */
+                NCAnioDeclarado as ConsAnioDeclarado, NULL as ConsSelloRecepcion,
                 'notas_credito' AS OrigenTabla 
-            FROM notas_credito 
-            WHERE NCTipo = 'VENTA' AND NCAnexo = '1'
+            FROM notas_credito ${whereNC}
             
             ORDER BY ConsFecha ASC
         `;
-        const [rows] = await pool.query(query);
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener ventas CF', error: error.message });

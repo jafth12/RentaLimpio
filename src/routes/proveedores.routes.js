@@ -4,6 +4,7 @@ import { requireAdmin } from '../middlewares/roleAuth.js';
 
 const router = Router();
 
+// Devolvemos el prefijo /proveedores que necesita tu index.js
 router.get('/proveedores', getProveedores);
 router.post('/proveedores', createProveedor);
 router.put('/proveedores/:nitOriginal', updateProveedor);

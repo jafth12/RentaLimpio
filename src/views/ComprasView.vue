@@ -667,7 +667,7 @@ const cargarDatos = async () => {
     const [resP, resD, resC, resA] = await Promise.all([
         axios.get(API_PROVEEDORES), 
         axios.get(API_DECLARANTES), 
-        axios.get(API_COMPRAS),
+        axios.get(API_COMPRAS, { params: { nit: declaranteFiltro.value || undefined, mes: mesFiltro.value || undefined, anio: anioFiltro.value || undefined } }),
         axios.get(`${BASE_URL}/api/anulados`)
     ]);
     todosLosProveedores.value = resP.data; 
@@ -780,6 +780,12 @@ const guardarCompra = async () => {
 
 const eliminarCompra = async (id) => { if(confirm('¿Eliminar registro?')) { try { await axios.delete(`${API_COMPRAS}/${id}`); await cargarDatos(); } catch (e) { alert('Error'); } } };
 const formatearFecha = (f) => f ? new Date(f).toLocaleDateString('es-SV', { timeZone: 'UTC' }) : '---';
+
+
+// 🛡️ Recargar datos del backend cuando cambian los filtros principales
+watch([declaranteFiltro, mesFiltro, anioFiltro], () => {
+    cargarDatos();
+});
 
 onMounted(cargarDatos);
 </script>

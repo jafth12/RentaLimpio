@@ -15,8 +15,22 @@ const formatearFecha = (fecha) => {
 
 // --- 1. OBTENER TODAS LAS RETENCIONES ---
 export const getRetenciones = async (req, res) => {
+        const { nit, mes, anio } = req.query;
     try {
-        const [rows] = await pool.query('SELECT * FROM retenciones ORDER BY idRetenciones DESC');
+        let query = 'SELECT * FROM retenciones';
+        const params = [];
+        const condiciones = [];
+
+        if (nit)  { condiciones.push('iddeclaNIT = ?');  params.push(nit); }
+        if (mes)  { condiciones.push('RetenMesDeclarado = ?');  params.push(mes); }
+        if (anio) { condiciones.push('RetenAnioDeclarado = ?'); params.push(anio); }
+
+        if (condiciones.length > 0) {
+            query += ' WHERE ' + condiciones.join(' AND ');
+        }
+        query += ' ORDER BY idRetenciones DESC';
+
+        const [rows] = await pool.query(query, params);;
         
         // Limpiamos las fechas antes de mandarlas al frontend
         rows.forEach(r => {

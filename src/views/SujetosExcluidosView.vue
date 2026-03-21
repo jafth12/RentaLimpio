@@ -402,7 +402,7 @@ const cargarDatos = async () => {
     try { 
         const resD = await axios.get(`${BASE_URL}/api/declarantes`); 
         todosLosDeclarantes.value = resD.data || []; 
-        const resV = await axios.get(API_URL);
+        const resV = await axios.get(API_URL, { params: { nit: declaranteFiltro.value || undefined, mes: mesFiltro.value || undefined, anio: anioFiltro.value || undefined } });
         listaSujetos.value = resV.data || [];
     } catch (error) { console.error("Error cargando DB:", error); } 
 };
@@ -512,6 +512,12 @@ const resetForm = () => {
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
 const formatearFecha = (f) => f ? f.split('T')[0] : '';
+
+
+// 🛡️ Recargar datos del backend cuando cambian los filtros principales
+watch([declaranteFiltro, mesFiltro, anioFiltro], () => {
+    cargarDatos();
+});
 
 onMounted(cargarDatos);
 </script>

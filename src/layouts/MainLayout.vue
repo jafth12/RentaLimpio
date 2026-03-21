@@ -110,7 +110,8 @@ const cerrarSesion = () => {
   if(confirm('¿Cerrar sesión del sistema?')) {
     usuarioAutenticado.value = false;
     sessionStorage.removeItem('sesionActiva');
-    sessionStorage.removeItem('rolUsuario'); 
+    sessionStorage.removeItem('rolUsuario');
+    sessionStorage.removeItem('sessionToken'); // 🛡️ Limpiar token firmado
     router.push('/login');
   }
 };

@@ -68,6 +68,10 @@
             sessionStorage.setItem('sesionActiva', 'true');
             const rolUsuario = respuesta.data.rol || 'empleado';
             sessionStorage.setItem('rolUsuario', rolUsuario);
+            // 🛡️ Guardar token firmado del backend
+            if (respuesta.data.token) {
+                sessionStorage.setItem('sessionToken', respuesta.data.token);
+            }
             
             // 🛡️ MODIFICACIÓN APLICADA: Guardamos el nombre del usuario para el Historial
             sessionStorage.setItem('usuario', respuesta.data.usuario);

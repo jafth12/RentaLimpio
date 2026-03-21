@@ -328,7 +328,7 @@ const cargarDeclarantes = async () => {
 
 const cargarRetenciones = async () => {
     try {
-        const res = await axios.get(API_URL);
+        const res = await axios.get(API_URL, { params: { nit: declaranteFiltro.value || undefined, mes: mesFiltro.value || undefined, anio: anioFiltro.value || undefined } });
         listaRetenciones.value = res.data;
     } catch (error) { console.error("Error cargando retenciones", error); }
 };
@@ -464,6 +464,12 @@ const formatearFechaParaInput = (f) => {
     if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
     return f;
 };
+
+
+// 🛡️ Recargar datos del backend cuando cambian los filtros principales
+watch([declaranteFiltro, mesFiltro, anioFiltro], () => {
+    cargarDatos();
+});
 
 onMounted(() => {
     cargarDeclarantes();

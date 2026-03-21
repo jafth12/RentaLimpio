@@ -1,4 +1,5 @@
-import pool from '../config/db.js'
+import pool from '../config/db.js';
+import { generarToken } from '../middlewares/Sessionauth.js';
 
 export const login = async (req, res) => {
     const { UsuaNombre, UsuarioPassword } = req.body;
@@ -11,11 +12,13 @@ export const login = async (req, res) => {
 
         if (rows.length > 0) {
             const usuario = rows[0];
-            
-            return res.json({ 
-                message: 'Login exitoso', 
-                rol: usuario.Rol,   
-                usuario: usuario.UsuaNombre 
+            const token = generarToken(usuario.UsuaNombre, usuario.Rol);
+
+            return res.json({
+                message: 'Login exitoso',
+                rol: usuario.Rol,
+                usuario: usuario.UsuaNombre,
+                token
             });
         } else {
             return res.status(401).json({ message: 'Usuario o contraseña Incorrectos' });

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { requireSession } from './src/middlewares/Sessionauth.js';
 
 // Importación de rutas generales
 import clientesRoutes from './src/routes/clientes.routes.js'; 
@@ -30,6 +31,10 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// 🛡️ MIDDLEWARE DE AUTENTICACIÓN GLOBAL
+// Protege todas las rutas excepto /api/login
+app.use(requireSession);
 
 // 🛡️ REGISTRO DE RUTAS (CORREGIDO)
 // 1. Rutas que ya traen su nombre internamente
