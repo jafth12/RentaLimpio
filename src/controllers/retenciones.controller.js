@@ -29,27 +29,47 @@ export const getRetenciones = async (req, res) => {
     }
 };
 
-// --- 2. CREAR NUEVA RETENCIÓN ---
+// --- 2. CREAR NUEVA RETENCIÓN (CON ANTIDUPLICADOS) ---
 export const createRetencion = async (req, res) => {
     const d = req.body;
 
-    if (!d.numDoc || !d.iddeclaNIT || !d.mesDeclarado || !d.anioDeclarado) {
-        return res.status(400).json({ message: 'Empresa, Periodo y Documento son obligatorios' });
+    if (!d.numDoc || !d.iddeclaNIT || !d.mesDeclarado || !d.anioDeclarado || !d.nitAgente) {
+        return res.status(400).json({ message: '⚠️ Empresa, Periodo, Documento y NIT del Agente son obligatorios' });
     }
 
-    // 🛡️ Forzar la conversión a número decimal
-    const montoSujeto = parseFloat(d.montoSujeto) || 0.00;
-    const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
-
     try {
-        // 🛡️ SE INYECTA RetenSelloRecepcion EN EL INSERT
+        // 🛡️ IDENTIFICACIÓN DTE vs FÍSICO
+        const esFisico = !d.codGeneracion || d.codGeneracion.trim() === '';
+        const uuidDte = esFisico ? null : d.codGeneracion;
+        const selloRec = esFisico ? null : (d.sello_recepcion || null);
+
+        // 🛡️ REGLA ANTIDUPLICADOS MEJORADA
+        const [duplicado] = await pool.query(
+            `SELECT idRetenciones FROM retenciones 
+             WHERE iddeclaNIT = ? 
+             AND (
+                 (RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') 
+                 OR 
+                 ((RetenCodGeneracion IS NULL OR RetenCodGeneracion = '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, uuidDte, d.numDoc, d.nitAgente]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Comprobante duplicado. Esta retención ya se encuentra registrada en la base de datos.' });
+        }
+
+        const montoSujeto = parseFloat(d.montoSujeto) || 0.00;
+        const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
+
+        // 🛡️ INSERCIÓN BLINDADA
         const [result] = await pool.query(
             `INSERT INTO retenciones 
             (RetenNitAgente, RetenNomAgente, RetenFecha, RetenListTipoDoc, RetenSerieDoc, RetenNumDoc, RetenCodGeneracion, RetenSelloRecepcion, RetenMontoSujeto, RetenMontoDeReten, RetenDuiDelAgente, RetenNumAnexo, iddeclaNIT, RetenMesDeclarado, RetenAnioDeclarado) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 d.nitAgente || '', d.nomAgente || '', d.fecha, d.tipoDoc || '07', d.serie || '', 
-                d.numDoc, d.codGeneracion || '', d.sello_recepcion || null, montoSujeto, montoRetenido, d.duiAgente || '', 
+                d.numDoc, uuidDte, selloRec, montoSujeto, montoRetenido, d.duiAgente || '', 
                 d.anexo || '4', d.iddeclaNIT, d.mesDeclarado, d.anioDeclarado
             ]
         );
@@ -64,24 +84,44 @@ export const createRetencion = async (req, res) => {
     }
 };
 
-// --- 3. ACTUALIZAR RETENCIÓN ---
+// --- 3. ACTUALIZAR RETENCIÓN (CON ANTIDUPLICADOS) ---
 export const updateRetencion = async (req, res) => {
     const { id } = req.params;
     const d = req.body;
 
-    // 🛡️ Forzar la conversión a número decimal
-    const montoSujeto = parseFloat(d.montoSujeto) || 0.00;
-    const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
-
     try {
-        // 🛡️ SE INYECTA RetenSelloRecepcion EN EL UPDATE
+        // 🛡️ IDENTIFICACIÓN DTE vs FÍSICO
+        const esFisico = !d.codGeneracion || d.codGeneracion.trim() === '';
+        const uuidDte = esFisico ? null : d.codGeneracion;
+        const selloRec = esFisico ? null : (d.sello_recepcion || null);
+
+        // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR
+        const [duplicado] = await pool.query(
+            `SELECT idRetenciones FROM retenciones 
+             WHERE iddeclaNIT = ? AND idRetenciones != ?
+             AND (
+                 (RetenCodGeneracion = ? AND RetenCodGeneracion IS NOT NULL AND RetenCodGeneracion != '') 
+                 OR 
+                 ((RetenCodGeneracion IS NULL OR RetenCodGeneracion = '') AND REPLACE(RetenNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(RetenNitAgente, '-', '') = REPLACE(?, '-', ''))
+             )`,
+            [d.iddeclaNIT, id, uuidDte, d.numDoc, d.nitAgente]
+        );
+
+        if (duplicado.length > 0) {
+            return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO comprobante con ese mismo Número o UUID.' });
+        }
+
+        const montoSujeto = parseFloat(d.montoSujeto) || 0.00;
+        const montoRetenido = parseFloat(d.montoRetenido) || 0.00;
+
+        // 🛡️ ACTUALIZACIÓN BLINDADA
         const [result] = await pool.query(
             `UPDATE retenciones SET 
             RetenNitAgente=?, RetenNomAgente=?, RetenFecha=?, RetenListTipoDoc=?, RetenSerieDoc=?, RetenNumDoc=?, RetenCodGeneracion=?, RetenSelloRecepcion=?, RetenMontoSujeto=?, RetenMontoDeReten=?, RetenDuiDelAgente=?, RetenNumAnexo=?, iddeclaNIT=?, RetenMesDeclarado=?, RetenAnioDeclarado=? 
             WHERE idRetenciones=?`,
             [
                 d.nitAgente || '', d.nomAgente || '', d.fecha, d.tipoDoc || '07', d.serie || '', 
-                d.numDoc, d.codGeneracion || '', d.sello_recepcion || null, montoSujeto, montoRetenido, d.duiAgente || '', 
+                d.numDoc, uuidDte, selloRec, montoSujeto, montoRetenido, d.duiAgente || '', 
                 d.anexo || '4', d.iddeclaNIT, d.mesDeclarado, d.anioDeclarado, id
             ]
         );
@@ -120,13 +160,11 @@ export const anularRetencion = async (req, res) => {
     const { id } = req.params;
 
     try {
-        // 1. Obtener los datos actuales antes de anular (para el historial)
         const [rows] = await pool.query('SELECT * FROM retenciones WHERE idRetenciones = ?', [id]);
         if (rows.length === 0) return res.status(404).json({ message: 'Retención no encontrada' });
         
         const retencion = rows[0];
 
-        // 2. Marcar como anulado (Montos a 0 y concatenar ANULADO al documento)
         const numDocAnulado = retencion.RetenNumDoc.includes('ANULADO') 
             ? retencion.RetenNumDoc 
             : `${retencion.RetenNumDoc} (ANULADO)`;
@@ -142,7 +180,6 @@ export const anularRetencion = async (req, res) => {
 
         if (result.affectedRows === 0) return res.status(404).json({ message: 'No se pudo anular la retención' });
 
-        // 3. Registrar la acción en el historial
         const usuario = req.headers['x-usuario'] || 'Sistema';
         registrarAccion(usuario, 'ANULACION', 'RETENCIONES', `Documento Anulado: ${retencion.RetenNumDoc} | Empresa: ${retencion.iddeclaNIT}`);
 

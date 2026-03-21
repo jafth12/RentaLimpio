@@ -12,35 +12,40 @@ export const getSujetos = async (req, res) => {
     }
 };
 
-// 2. CREAR REGISTRO (CON ANTIDUPLICADOS)
+// 2. CREAR REGISTRO (CON ANTIDUPLICADOS INTELIGENTE)
 export const createSujeto = async (req, res) => {
     const data = req.body;
 
     if (!data.iddeclaNIT || !data.numero_control || !data.nit || !data.monto) {
-        return res.status(400).json({ message: 'Auditoría: Empresa, DTE, NIT/DUI y Monto son obligatorios.'});
+        return res.status(400).json({ message: '⚠️ Auditoría: Empresa, Documento, NIT/DUI y Monto son obligatorios.'});
     }
 
     try {
-        // 🛡️ REGLA ANTIDUPLICADOS
+        // 🛡️ IDENTIFICACIÓN DTE vs FÍSICO
+        const esFisico = !data.uuid_dte || data.uuid_dte.trim() === '';
+        const uuidDte = esFisico ? null : data.uuid_dte;
+        const selloRec = esFisico ? null : (data.sello_recepcion || null);
+
+        // 🛡️ REGLA ANTIDUPLICADOS MEJORADA (Incluye NIT para los físicos)
         const [duplicado] = await pool.query(
             `SELECT idComSujExclui FROM comprassujexcluidos 
              WHERE iddeclaNIT = ? 
              AND (
                  (ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') 
                  OR 
-                 (REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', ''))
+                 ((ComprasSujExcluCodGeneracion IS NULL OR ComprasSujExcluCodGeneracion = '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', ''))
              )`,
-            [data.iddeclaNIT, data.uuid_dte, data.numero_control]
+            [data.iddeclaNIT, uuidDte, data.numero_control, data.nit]
         );
 
         if (duplicado.length > 0) {
-            return res.status(400).json({ message: '⚠️ Documento duplicado. Esta retención a Sujeto Excluido ya se encuentra registrada.' });
+            return res.status(400).json({ message: '⚠️ Documento duplicado. Esta retención a Sujeto Excluido ya se encuentra registrada en la base de datos.' });
         }
 
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
-        // 🛡️ SE INYECTA ComprasSujExcluSelloRecepcion EN EL INSERT
+        // 🛡️ INSERCIÓN BLINDADA
         const [result] = await pool.query(
             `INSERT INTO comprassujexcluidos 
             (iddeclaNIT, ComprasSujExcluFecha, ComprasSujExcluMesDeclarado, ComprasSujExcluAnioDeclarado, ComprasSujExcluTipoDoc, 
@@ -50,29 +55,16 @@ export const createSujeto = async (req, res) => {
              ComprasSujExcluTipoCostoGast, ComprasSujExcluAnexo) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
-                data.iddeclaNIT, 
-                data.fecha, 
-                data.mesDeclarado,
-                data.anioDeclarado,
-                data.tipoDoc || '14', 
-                data.nit, 
-                data.nombre || '', 
-                data.serie || null, 
-                data.numero_control, // 🛡️ DTE
-                data.uuid_dte,       // 🛡️ UUID de Generación
-                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
-                monto, 
-                retencion, 
-                data.tipoOp || '1', 
-                data.clasificacion || '2', 
-                data.sector || '4',
-                data.costoGasto || '2', 
-                data.anexo || '5' 
+                data.iddeclaNIT, data.fecha, data.mesDeclarado, data.anioDeclarado, data.tipoDoc || '14', 
+                data.nit, data.nombre || '', data.serie || null, 
+                data.numero_control, uuidDte, selloRec, 
+                monto, retencion, data.tipoOp || '1', data.clasificacion || '2', 
+                data.sector || '4', data.costoGasto || '2', data.anexo || '5' 
             ]
         );
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'CREACION', 'SUJETOS EXCLUIDOS', `DTE: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
+        registrarAccion(usuario, 'CREACION', 'SUJETOS EXCLUIDOS', `Doc: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
 
         res.status(201).json({ message: 'Registro de Sujeto Excluido Guardado en BD', id: result.insertId });
     } catch (error) {
@@ -87,27 +79,31 @@ export const updateSujeto = async (req, res) => {
     const data = req.body;
 
     try {
+        // 🛡️ IDENTIFICACIÓN DTE vs FÍSICO
+        const esFisico = !data.uuid_dte || data.uuid_dte.trim() === '';
+        const uuidDte = esFisico ? null : data.uuid_dte;
+        const selloRec = esFisico ? null : (data.sello_recepcion || null);
+
         // 🛡️ REGLA ANTIDUPLICADOS PARA ACTUALIZAR
         const [duplicado] = await pool.query(
             `SELECT idComSujExclui FROM comprassujexcluidos 
-             WHERE iddeclaNIT = ? 
-             AND idComSujExclui != ?
+             WHERE iddeclaNIT = ? AND idComSujExclui != ?
              AND (
                  (ComprasSujExcluCodGeneracion = ? AND ComprasSujExcluCodGeneracion IS NOT NULL AND ComprasSujExcluCodGeneracion != '') 
                  OR 
-                 (REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', ''))
+                 ((ComprasSujExcluCodGeneracion IS NULL OR ComprasSujExcluCodGeneracion = '') AND REPLACE(ComprasSujExcluNumDoc, '-', '') = REPLACE(?, '-', '') AND REPLACE(ComprasSujExcluNIT, '-', '') = REPLACE(?, '-', ''))
              )`,
-            [data.iddeclaNIT, id, data.uuid_dte, data.numero_control]
+            [data.iddeclaNIT, id, uuidDte, data.numero_control, data.nit]
         );
 
         if (duplicado.length > 0) {
-            return res.status(400).json({ message: '⚠️ Conflicto de Documento. Ya existe OTRO registro con ese mismo Número o UUID.' });
+            return res.status(400).json({ message: '⚠️ Conflicto. Ya existe OTRO registro de Sujeto Excluido con ese mismo Número o UUID.' });
         }
 
         const monto = parseFloat(data.monto) || 0;
         const retencion = data.retencion !== undefined ? parseFloat(data.retencion) : (monto * 0.10);
 
-        // 🛡️ SE INYECTA ComprasSujExcluSelloRecepcion EN EL UPDATE
+        // 🛡️ ACTUALIZACIÓN BLINDADA
         const [result] = await pool.query(
             `UPDATE comprassujexcluidos SET 
                 iddeclaNIT = ?, ComprasSujExcluFecha = ?, ComprasSujExcluMesDeclarado = ?, ComprasSujExcluAnioDeclarado = ?,
@@ -118,32 +114,18 @@ export const updateSujeto = async (req, res) => {
                 ComprasSujExcluTipoCostoGast = ?, ComprasSujExcluAnexo = ?
             WHERE idComSujExclui = ?`,
             [
-                data.iddeclaNIT, 
-                data.fecha, 
-                data.mesDeclarado,
-                data.anioDeclarado,
-                data.tipoDoc || '14', 
-                data.nit, 
-                data.nombre, 
-                data.serie || null, 
-                data.numero_control,
-                data.uuid_dte,       
-                data.sello_recepcion || null, // 🛡️ NUEVO CAMPO CAPTURADO
-                monto, 
-                retencion, 
-                data.tipoOp || '1', 
-                data.clasificacion || '2', 
-                data.sector || '4',
-                data.costoGasto || '2', 
-                data.anexo || '5',
-                id
+                data.iddeclaNIT, data.fecha, data.mesDeclarado, data.anioDeclarado, data.tipoDoc || '14', 
+                data.nit, data.nombre, data.serie || null, 
+                data.numero_control, uuidDte, selloRec, 
+                monto, retencion, data.tipoOp || '1', data.clasificacion || '2', 
+                data.sector || '4', data.costoGasto || '2', data.anexo || '5', id
             ]
         );
         
         if (result.affectedRows === 0) return res.status(404).json({ message: 'Registro no encontrado' });
         
         const usuario = req.headers['x-usuario'] || 'Sistema';
-        registrarAccion(usuario, 'MODIFICACION', 'SUJETOS EXCLUIDOS', `DTE Actualizado: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
+        registrarAccion(usuario, 'MODIFICACION', 'SUJETOS EXCLUIDOS', `Doc Actualizado: ${data.numero_control} - Sujeto: ${data.nombre} - Monto: $${monto}`);
 
         res.json({ message: 'Registro Actualizado Exitosamente' });
     } catch (error) {

@@ -2,7 +2,6 @@
   <MainLayout>
     <div class="rl-view">
 
-      <!-- Encabezado -->
       <div class="rl-view-header">
         <div class="rl-view-title">
           <h1>🛡️ Retenciones 1% al Declarante</h1>
@@ -13,24 +12,31 @@
         </button>
       </div>
 
-      <!-- FORMULARIO -->
-      <div v-if="!mostrandoLista" class="rl-card">
-        <div class="rl-card-header">
+      <div v-if="!mostrandoLista" class="rl-card rl-fade-in">
+        
+        <div class="rl-card-header" style="align-items: center;">
           <div>
             <h2>{{ modoEdicion ? '✏️ Editar Retención' : '✨ Registrar Nueva Retención' }}</h2>
+            <span class="rl-badge rl-badge-info rl-mt-2">
+              {{ modoEdicion ? 'Actualizando documento' : 'Comprobante de Retención 1%' }}
+            </span>
           </div>
-          <span class="rl-badge rl-badge-info">
-            {{ modoEdicion ? 'Actualizando documento' : 'Comprobante de Retención 1%' }}
-          </span>
+          <div class="rl-toggle-switch">
+             <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico
+             </label>
+             <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico
+             </label>
+          </div>
         </div>
 
         <form @submit.prevent="guardarRetencion">
 
-          <!-- Sección: Configuración -->
           <div class="rl-form-section">
             <p class="rl-section-title">Configuración de la Declaración</p>
             <div class="rl-grid rl-grid-2">
-              <div class="rl-field">
+              <div class="rl-field" :class="{'has-error': errores.empresa}">
                 <label class="rl-label">Empresa (Declarante - Receptor) <span class="req">*</span></label>
                 <select v-model="formulario.iddeclaNIT" class="rl-select" required>
                   <option value="" disabled>-- Seleccione Contribuyente --</option>
@@ -38,6 +44,7 @@
                     {{ emp.declarante }}
                   </option>
                 </select>
+                <span v-if="errores.empresa" class="rl-error-msg">⚠ Requerido</span>
               </div>
               <div class="rl-field">
                 <label class="rl-label">Mes y Año de Declaración <span class="req">*</span></label>
@@ -51,15 +58,14 @@
             </div>
           </div>
 
-          <!-- Sección: Agente -->
           <div class="rl-form-section">
             <p class="rl-section-title">Agente de Retención (Emisor)</p>
             <div class="rl-grid rl-grid-3">
-              <div class="rl-field">
+              <div class="rl-field" :class="{'has-error': errores.nit}">
                 <label class="rl-label">NIT del Agente <span class="req">*</span></label>
                 <input type="text" v-model="formulario.nitAgente" class="rl-input" placeholder="0000-000000-000-0" required>
               </div>
-              <div class="rl-field">
+              <div class="rl-field" :class="{'has-error': errores.nombre}">
                 <label class="rl-label">Nombre o Razón Social <span class="req">*</span></label>
                 <input type="text" v-model="formulario.nomAgente" class="rl-input" style="font-weight:700" placeholder="Ej: CREDICAMPO S.A de C.V" required>
               </div>
@@ -70,23 +76,40 @@
             </div>
           </div>
 
-          <!-- Sección: Comprobante DTE -->
           <div class="rl-form-section rl-bg-soft">
-            <p class="rl-section-title">Detalles del Comprobante DTE-07</p>
+            <p class="rl-section-title">Detalles del Comprobante (Anexo 4)</p>
             <div class="rl-grid rl-grid-2">
               <div class="rl-field">
                 <label class="rl-label">Fecha de Emisión <span class="req">*</span></label>
                 <input type="date" v-model="formulario.fecha" class="rl-input" required>
               </div>
-              <div class="rl-field">
-                <label class="rl-label">Número de Control (DTE) <span class="req">*</span></label>
-                <input type="text" v-model="formulario.numDoc" class="rl-input" style="font-weight:700" placeholder="DTE-07-..." required>
+            </div>
+
+            <div class="rl-field rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
+              <label class="rl-label">Número DTE-07 <span class="req">*</span></label>
+              <div class="rl-dte-wrap" :class="{ 'has-error': errores.numero }">
+                <span class="rl-dte-prefix">DTE</span>
+                <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e,'part1',2)" class="rl-dte-part w2" placeholder="07">
+                <span class="rl-dte-sep">–</span>
+                <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="rl-dte-part letter" placeholder="S" @focus="$event.target.select()">
+                <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e,'part2',3)" class="rl-dte-part w3" placeholder="000">
+                <span class="rl-dte-sep">P</span>
+                <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e,'part3',3)" class="rl-dte-part w3" placeholder="000">
+                <span class="rl-dte-sep">–</span>
+                <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e,'part4',15)" class="rl-dte-part grow" placeholder="Correlativo...">
               </div>
             </div>
-            <!-- UUID + Sello unificados -->
-            <div class="rl-dte-group rl-mt-3">
+
+            <div class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'fisico'">
+               <div class="rl-field" :class="{ 'has-error': errores.numero }">
+                 <label class="rl-label">Número de Comprobante (Físico) <span class="req">*</span></label>
+                 <input type="text" v-model="formulario.numero_fisico" class="rl-input" placeholder="Ej: 123456" :required="formulario.modoIngreso === 'fisico'">
+               </div>
+            </div>
+
+            <div class="rl-dte-group rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
               <div class="rl-field">
-                <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID)</label>
+                <label class="rl-label" style="color:#0369a1">🔑 Código UUID (con guiones)</label>
                 <input type="text" v-model="formulario.codGeneracion" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX">
               </div>
               <div class="rl-field rl-field-sello">
@@ -95,12 +118,11 @@
                   <span class="rl-sello-icon">✅</span>
                   <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Ej: 202542266B...">
                 </div>
-                <span class="rl-sello-hint">40 caracteres alfanuméricos · Solo aplica para DTE</span>
+                <span class="rl-sello-hint">40 caracteres alfanuméricos</span>
               </div>
             </div>
           </div>
 
-          <!-- Sección: Montos -->
           <div class="rl-form-section">
             <p class="rl-section-title">Montos de Operación</p>
             <div class="rl-montos">
@@ -122,7 +144,6 @@
             </div>
           </div>
 
-          <!-- Acciones -->
           <div class="rl-form-actions">
             <button type="button" v-if="modoEdicion" @click="cancelarEdicion" class="rl-btn rl-btn-secondary">Cancelar</button>
             <button type="submit" class="rl-btn rl-btn-success rl-btn-lg" :disabled="cargando">
@@ -135,8 +156,7 @@
         </form>
       </div>
 
-      <!-- LISTADO -->
-      <div v-else class="rl-card">
+      <div v-else class="rl-card rl-fade-in">
         <div class="rl-card-header">
           <div style="display:flex;align-items:center;gap:10px">
             <h3>📋 Historial de Retenciones (1%)</h3>
@@ -160,9 +180,9 @@
             <thead>
               <tr>
                 <th>Fecha</th>
-                <th>Empresa</th>
+                <th>Clase</th>
                 <th>Agente Retenedor</th>
-                <th>N° Comprobante (DTE)</th>
+                <th>N° Comprobante</th>
                 <th style="text-align:right">Monto Sujeto</th>
                 <th style="text-align:right;color:#ef4444">IVA Retenido</th>
                 <th style="text-align:center">Acciones</th>
@@ -175,14 +195,18 @@
                   <div style="font-weight:700">{{ formatearFechaVisual(ret.RetenFecha) }}</div>
                   <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ ret.RetenMesDeclarado || '---' }}</strong></small>
                 </td>
-                <td><span class="rl-badge rl-badge-info">{{ ret.iddeclaNIT || 'Sin Asignar' }}</span></td>
+                <td>
+                  <span class="rl-badge rl-badge-type" :class="ret.RetenCodGeneracion ? 'blue' : 'orange'">
+                    {{ ret.RetenCodGeneracion ? 'DTE' : 'Físico' }}
+                  </span>
+                </td>
                 <td>
                   <div style="font-weight:700">{{ ret.RetenNomAgente || '---' }}</div>
                   <small class="rl-text-muted">NIT: {{ ret.RetenNitAgente }}</small>
                 </td>
                 <td>
-                  <span class="rl-doc-number" :style="esAnulado(ret.RetenNumDoc) ? 'color:#ef4444' : ''">{{ ret.RetenNumDoc }}</span>
-                  <small v-if="ret.RetenCodGeneracion" class="rl-text-muted" style="display:block;margin-top:2px" :title="ret.RetenCodGeneracion">{{ truncarCodGen(ret.RetenCodGeneracion) }}</small>
+                  <span class="rl-doc-number" :style="esAnulado(ret.RetenNumDoc) ? 'color:#ef4444' : ''" :title="ret.RetenCodGeneracion || 'N/A'">{{ ret.RetenNumDoc }}</span>
+                  <div v-if="ret.RetenSelloRecepcion" class="rl-badge-sello-mh mt-1" :title="ret.RetenSelloRecepcion">✔️ Sello MH</div>
                 </td>
                 <td style="text-align:right;color:#6b7280">${{ parseFloat(ret.RetenMontoSujeto || 0).toFixed(2) }}</td>
                 <td style="text-align:right;font-weight:700;color:#ef4444">
@@ -206,7 +230,6 @@
   </MainLayout>
 </template>
 
-
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
 import axios from 'axios';
@@ -218,12 +241,21 @@ const API_URL = `${BASE_URL}/api/retenciones`;
 
 const meses = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
+// --- LÓGICA DE MÁSCARA DTE ---
+const ccfParts = ref({ part1: '07', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' });
+const handleLetraInput = (e) => { let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); ccfParts.value.letraSerie = val; e.target.value = val; actualizarNumeroCompleto(); };
+const handleInputMask = (e, partName, maxLength) => { let raw = e.target.value.replace(/\D/g, ''); if (raw.length > maxLength) raw = raw.slice(-maxLength); const padded = raw.padStart(maxLength, '0'); ccfParts.value[partName] = padded; e.target.value = padded; actualizarNumeroCompleto(); };
+const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie || 'S'; formulario.value.numero_control = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; };
+
 // --- ESTADOS ---
+const errores = ref({ empresa: false, numero: false, nit: false, nombre: false });
+
 const formulario = ref({
+    modoIngreso: 'dte', // 🛡️ Switch
     iddeclaNIT: '', mesDeclarado: meses[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(),
     nitAgente: '', nomAgente: '', duiAgente: '', fecha: new Date().toISOString().split('T')[0],
-    tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', 
-    sello_recepcion: '', // 🛡️ NUEVO CAMPO INTEGRADO
+    tipoDoc: '07', serie: '', numero_control: '', numero_fisico: '', codGeneracion: '', 
+    sello_recepcion: '', 
     anexo: '4', montoSujeto: '', montoRetenido: ''
 });
 
@@ -302,50 +334,62 @@ const cargarRetenciones = async () => {
 };
 
 const guardarRetencion = async () => {
+    if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto(); 
+    const numeroFinal = formulario.value.modoIngreso === 'dte' ? formulario.value.numero_control : formulario.value.numero_fisico;
+
+    // Validaciones visuales
+    errores.value.empresa = !formulario.value.iddeclaNIT;
+    errores.value.nit = !formulario.value.nitAgente;
+    errores.value.nombre = !formulario.value.nomAgente;
+    errores.value.numero = !numeroFinal;
+
+    if (Object.values(errores.value).some(v => v)) {
+        tipoMensaje.value = 'error'; mensaje.value = 'Complete los campos obligatorios.'; return; 
+    }
+
     cargando.value = true;
     mensaje.value = '';
-    
     if (!formulario.value.montoRetenido) formulario.value.montoRetenido = 0;
+
+    const payload = {
+        ...formulario.value,
+        numDoc: numeroFinal,
+        codGeneracion: formulario.value.modoIngreso === 'dte' ? formulario.value.codGeneracion : null,
+        sello_recepcion: formulario.value.modoIngreso === 'dte' ? formulario.value.sello_recepcion : null
+    };
 
     const headers = { 'x-usuario': sessionStorage.getItem('username') || 'Sistema' };
 
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value, { headers });
+            await axios.put(`${API_URL}/${idEdicion.value}`, payload, { headers });
             tipoMensaje.value = 'success';
             mensaje.value = '¡Retención actualizada correctamente!';
         } else {
-            await axios.post(API_URL, formulario.value, { headers });
+            await axios.post(API_URL, payload, { headers });
             tipoMensaje.value = 'success';
             mensaje.value = '¡Retención guardada exitosamente!';
         }
         
         await cargarRetenciones();
-        
-        setTimeout(() => { 
-            resetForm(); 
-            mostrandoLista.value = true; 
-        }, 1500);
+        setTimeout(() => { resetForm(); mostrandoLista.value = true; }, 1500);
     } catch (error) {
         tipoMensaje.value = 'error';
-        mensaje.value = 'Error al procesar el registro.';
+        mensaje.value = error.response?.data?.message || 'Error al procesar el registro.';
     } finally {
         cargando.value = false;
     }
 };
 
-// 🛡️ NUEVA FUNCIÓN: ANULAR RETENCIÓN
 const anularRetencion = async (id) => {
     if (!confirm("⚠️ ¿Está seguro que desea ANULAR este comprobante de retención? Sus montos pasarán a $0.00.")) return;
-    
     const headers = { 'x-usuario': sessionStorage.getItem('username') || 'Sistema' };
-    
     try {
         await axios.put(`${API_URL}/anular/${id}`, {}, { headers });
         alert("Retención anulada con éxito.");
         await cargarRetenciones();
     } catch (error) {
-        alert(error.response?.data?.message || 'Error al anular. Verifique sus permisos de Administrador.');
+        alert(error.response?.data?.message || 'Error al anular. Verifique sus permisos.');
     }
 };
 
@@ -355,38 +399,59 @@ const eliminarRetencion = async (id) => {
     try {
         await axios.delete(`${API_URL}/${id}`, { headers });
         await cargarRetenciones();
-    } catch (e) { alert(e.response?.data?.message || 'Error al eliminar. Verifique sus permisos de Administrador.'); }
+    } catch (e) { alert(e.response?.data?.message || 'Error al eliminar.'); }
 };
 
 const prepararEdicion = (ret) => {
+    let fechaSegura = formatearFechaParaInput(ret.RetenFecha);
+    const rawNum = ret.RetenNumDoc || '';
+    
+    // 🛡️ Detección Inteligente DTE vs Físico
+    const esDTE = !!ret.RetenCodGeneracion || rawNum.startsWith('DTE');
+    
+    if (esDTE) {
+        const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
+        const match = rawNum.replace(/-/g, '').match(regex);
+        ccfParts.value = match ? 
+            { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
+            { part1: '07', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    }
+
     formulario.value = {
-        iddeclaNIT: ret.iddeclaNIT || '', mesDeclarado: ret.RetenMesDeclarado || meses[new Date().getMonth()], anioDeclarado: ret.RetenAnioDeclarado || new Date().getFullYear().toString(),
+        modoIngreso: esDTE ? 'dte' : 'fisico',
+        iddeclaNIT: ret.iddeclaNIT || '', mesDeclarado: ret.RetenMesDeclarado || meses[new Date(fechaSegura).getMonth()], anioDeclarado: ret.RetenAnioDeclarado || fechaSegura.substring(0,4),
         nitAgente: ret.RetenNitAgente, nomAgente: ret.RetenNomAgente || '', duiAgente: ret.RetenDuiDelAgente,
-        fecha: formatearFechaParaInput(ret.RetenFecha),
+        fecha: fechaSegura,
         tipoDoc: ret.RetenListTipoDoc || '07', serie: ret.RetenSerieDoc, 
-        numDoc: ret.RetenNumDoc, codGeneracion: ret.RetenCodGeneracion || '', 
-        sello_recepcion: ret.RetenSelloRecepcion || '', // 🛡️ SELLO AL EDITAR
+        numero_control: esDTE ? rawNum : '', 
+        numero_fisico: esDTE ? '' : rawNum,
+        codGeneracion: ret.RetenCodGeneracion || '', 
+        sello_recepcion: ret.RetenSelloRecepcion || '', 
         anexo: ret.RetenNumAnexo || '4',
         montoSujeto: ret.RetenMontoSujeto, montoRetenido: ret.RetenMontoDeReten
     };
     idEdicion.value = ret.idRetenciones;
     modoEdicion.value = true;
     mostrandoLista.value = false;
+    errores.value = { empresa: false, numero: false, nit: false, nombre: false };
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => {
     formulario.value = {
+        modoIngreso: 'dte',
         iddeclaNIT: '', mesDeclarado: meses[new Date().getMonth()], anioDeclarado: new Date().getFullYear().toString(),
         nitAgente: '', nomAgente: '', duiAgente: '', fecha: new Date().toISOString().split('T')[0],
-        tipoDoc: '07', serie: '', numDoc: '', codGeneracion: '', 
-        sello_recepcion: '', // 🛡️ RESETEAR SELLO
+        tipoDoc: '07', serie: '', numero_control: '', numero_fisico: '', codGeneracion: '', 
+        sello_recepcion: '', 
         anexo: '4', montoSujeto: '', montoRetenido: ''
     };
+    ccfParts.value = { part1: '07', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; 
     modoEdicion.value = false;
     idEdicion.value = null;
     mensaje.value = '';
+    errores.value = { empresa: false, numero: false, nit: false, nombre: false };
 };
 
 const alternarVista = () => { if (modoEdicion.value) { cancelarEdicion(); } else { resetForm(); mostrandoLista.value = !mostrandoLista.value; } };
@@ -399,7 +464,6 @@ const formatearFechaParaInput = (f) => {
     if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
     return f;
 };
-const truncarCodGen = (cod) => cod ? cod.substring(0, 15) + '...' : '';
 
 onMounted(() => {
     cargarDeclarantes();
@@ -407,7 +471,7 @@ onMounted(() => {
 });
 </script>
 
-
 <style scoped>
-/* RetencionesView — estilos base en assets/forms.css */
+.has-error { border-color: var(--red-500) !important; }
+.mt-1 { margin-top: 4px; }
 </style>

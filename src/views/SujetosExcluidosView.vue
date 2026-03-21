@@ -9,22 +9,34 @@
         <button @click="alternarVista" class="rl-btn rl-btn-primary">{{ mostrandoLista ? '➕ Nuevo Registro' : '📋 Ver Listado' }}</button>
       </div>
 
-      <div v-if="!mostrandoLista" class="rl-card">
-        <div class="rl-card-header">
-          <div><h2>{{ modoEdicion ? '✏️ Editar Registro' : '✨ Nueva Compra a Sujeto Excluido' }}</h2></div>
-          <span class="rl-badge rl-badge-info">{{ modoEdicion ? 'Modificando registro' : 'Documento F-14E o equivalente' }}</span>
+      <div v-if="!mostrandoLista" class="rl-card rl-fade-in">
+        
+        <div class="rl-card-header" style="align-items: center;">
+          <div>
+            <h2>{{ modoEdicion ? '✏️ Editar Registro' : '✨ Nueva Compra a Sujeto Excluido' }}</h2>
+            <span class="rl-badge rl-badge-info rl-mt-2">{{ modoEdicion ? 'Modificando registro' : 'Documento F-14E o equivalente' }}</span>
+          </div>
+          <div class="rl-toggle-switch">
+             <label :class="{ 'active': formulario.modoIngreso === 'dte' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="dte" class="d-none"> 🌐 Electrónico
+             </label>
+             <label :class="{ 'active': formulario.modoIngreso === 'fisico' }">
+                <input type="radio" v-model="formulario.modoIngreso" value="fisico" class="d-none"> 🖨️ Físico
+             </label>
+          </div>
         </div>
+
         <form @submit.prevent="guardarSujeto">
-          <!-- Sección: Documento -->
           <div class="rl-form-section">
             <p class="rl-section-title">Detalles del Documento</p>
             <div class="rl-grid rl-grid-2">
               <div class="rl-field">
                 <label class="rl-label">Empresa / Declarante <span class="req">*</span></label>
-                <select v-model="formulario.iddeclaNIT" class="rl-select" required>
+                <select v-model="formulario.iddeclaNIT" class="rl-select" required :class="{'has-error': errores.empresa}">
                   <option value="" disabled>-- Seleccione Empresa --</option>
                   <option v-for="d in todosLosDeclarantes" :key="d.iddeclaNIT" :value="d.iddeclaNIT">{{ d.declarante }}</option>
                 </select>
+                <span v-if="errores.empresa" class="rl-error-msg">⚠ Requerido</span>
               </div>
               <div class="rl-field" style="display:flex;gap:10px;flex-direction:column">
                 <label class="rl-label">Mes y Año a Declarar <span class="req">*</span></label>
@@ -46,28 +58,36 @@
                 <input type="text" v-model="formulario.serie" class="rl-input" placeholder="SERIE">
               </div>
             </div>
-            <!-- UUID + Sello + DTE -->
-            <div class="rl-dte-group rl-mt-3">
-              <div class="rl-field" style="grid-column:1/-1">
-                <label class="rl-label" style="color:#0369a1">🔑 Código de Generación (UUID) <span class="req">*</span></label>
-                <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX" required>
+
+            <div class="rl-field rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
+              <label class="rl-label">Número DTE-14 <span class="req">*</span></label>
+              <div class="rl-dte-wrap" :class="{ 'has-error': errores.numero }">
+                <span class="rl-dte-prefix">DTE</span>
+                <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e,'part1',2)" class="rl-dte-part w2" placeholder="14">
+                <span class="rl-dte-sep">–</span>
+                <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="rl-dte-part letter" placeholder="S" @focus="$event.target.select()">
+                <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e,'part2',3)" class="rl-dte-part w3" placeholder="000">
+                <span class="rl-dte-sep">P</span>
+                <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e,'part3',3)" class="rl-dte-part w3" placeholder="000">
+                <span class="rl-dte-sep">–</span>
+                <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e,'part4',15)" class="rl-dte-part grow" placeholder="Correlativo...">
               </div>
+            </div>
+
+            <div class="rl-grid rl-grid-2 rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'fisico'">
+               <div class="rl-field" :class="{ 'has-error': errores.numero }">
+                 <label class="rl-label">Número de F-14 (Físico) <span class="req">*</span></label>
+                 <input type="text" v-model="formulario.numero_fisico" class="rl-input" placeholder="Ej: 123456" :required="formulario.modoIngreso === 'fisico'">
+               </div>
+            </div>
+
+            <div class="rl-dte-group rl-mt-3 rl-fade-in" v-if="formulario.modoIngreso === 'dte'">
               <div class="rl-field">
-                <label class="rl-label">Número DTE-14 <span class="req">*</span></label>
-                <div class="rl-dte-wrap">
-                  <span class="rl-dte-prefix">DTE</span>
-                  <input type="text" :value="ccfParts.part1" @input="e => handleInputMask(e,'part1',2)" class="rl-dte-part w2" placeholder="14">
-                  <span class="rl-dte-sep">–</span>
-                  <input type="text" :value="ccfParts.letraSerie" @input="handleLetraInput" class="rl-dte-part letter" placeholder="S" @focus="$event.target.select()">
-                  <input type="text" :value="ccfParts.part2" @input="e => handleInputMask(e,'part2',3)" class="rl-dte-part w3" placeholder="000">
-                  <span class="rl-dte-sep">P</span>
-                  <input type="text" :value="ccfParts.part3" @input="e => handleInputMask(e,'part3',3)" class="rl-dte-part w3" placeholder="000">
-                  <span class="rl-dte-sep">–</span>
-                  <input type="text" :value="ccfParts.part4" @input="e => handleInputMask(e,'part4',15)" class="rl-dte-part grow" placeholder="Correlativo...">
-                </div>
+                <label class="rl-label" style="color:#0369a1">🔑 Código UUID (con guiones)</label>
+                <input type="text" v-model="formulario.uuid_dte" class="rl-input rl-input-uuid" placeholder="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX">
               </div>
               <div class="rl-field rl-field-sello">
-                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción (solo DTE)</label>
+                <label class="rl-label" style="color:#065f46">🛡️ Sello de Recepción</label>
                 <div class="rl-sello-wrap">
                   <span class="rl-sello-icon">✅</span>
                   <input type="text" v-model="formulario.sello_recepcion" class="rl-input rl-input-sello" placeholder="Ej: 202542266B0EFC5743...">
@@ -77,22 +97,20 @@
             </div>
           </div>
 
-          <!-- Sección: Sujeto -->
           <div class="rl-form-section">
             <p class="rl-section-title">Datos del Sujeto</p>
             <div class="rl-grid rl-grid-2">
-              <div class="rl-field">
+              <div class="rl-field" :class="{'has-error': errores.nit}">
                 <label class="rl-label">NIT / DUI <span class="req">*</span></label>
                 <input type="text" v-model="formulario.nit" class="rl-input" placeholder="0000-000000-000-0" required>
               </div>
-              <div class="rl-field">
+              <div class="rl-field" :class="{'has-error': errores.nombre}">
                 <label class="rl-label">Nombre Completo <span class="req">*</span></label>
                 <input type="text" v-model="formulario.nombre" class="rl-input" required>
               </div>
             </div>
           </div>
 
-          <!-- Sección: Montos -->
           <div class="rl-form-section rl-bg-soft">
             <p class="rl-section-title">Clasificación y Montos</p>
             <div class="rl-grid rl-grid-4" style="margin-bottom:16px">
@@ -158,8 +176,7 @@
         </form>
       </div>
 
-      <!-- LISTADO -->
-      <div v-else class="rl-card">
+      <div v-else class="rl-card rl-fade-in">
         <div class="rl-card-header">
           <div style="display:flex;align-items:center;gap:10px">
             <h3>📋 Historial de Sujetos Excluidos</h3>
@@ -199,7 +216,7 @@
                 <th style="width:40px;text-align:center">
                   <input type="checkbox" @change="toggleAll" :checked="sujetosFiltrados.length > 0 && seleccionados.length === sujetosFiltrados.length" class="rl-checkbox">
                 </th>
-                <th>Fecha</th><th>Anexo</th><th>Sujeto</th><th>Documento</th>
+                <th>Fecha</th><th>Tipo</th><th>Sujeto</th><th>Documento</th>
                 <th style="text-align:right">Monto</th><th style="text-align:right;color:#ef4444">Ret. 10%</th>
                 <th style="text-align:center">Acciones</th>
               </tr>
@@ -214,12 +231,19 @@
                   <div style="font-weight:700">{{ formatearFecha(item.ComprasSujExcluFecha) }}</div>
                   <small class="rl-text-muted">Declarado: <strong style="color:#0d9488">{{ item.ComprasSujExcluMesDeclarado || 'N/A' }}</strong></small>
                 </td>
-                <td><span class="rl-badge rl-badge-anexo">Anexo 5</span></td>
+                <td>
+                  <span class="rl-badge rl-badge-type" :class="item.ComprasSujExcluCodGeneracion ? 'blue' : 'orange'">
+                    {{ item.ComprasSujExcluCodGeneracion ? 'DTE' : 'Físico' }}
+                  </span>
+                </td>
                 <td>
                   <div style="font-weight:700">{{ item.ComprasSujExcluNom }}</div>
                   <small class="rl-text-muted">{{ item.ComprasSujExcluNIT }}</small>
                 </td>
-                <td><span class="rl-doc-number">{{ item.ComprasSujExcluNumDoc }}</span></td>
+                <td>
+                  <span class="rl-doc-number" :title="item.ComprasSujExcluCodGeneracion || 'N/A'">{{ item.ComprasSujExcluNumDoc }}</span>
+                  <div v-if="item.ComprasSujExcluSelloRecepcion" class="rl-badge-sello-mh mt-1" :title="item.ComprasSujExcluSelloRecepcion">✔️ Sello MH</div>
+                </td>
                 <td style="text-align:right;font-weight:700">${{ parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2) }}</td>
                 <td style="text-align:right;font-weight:700;color:#ef4444">-${{ parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2) }}</td>
                 <td style="text-align:center">
@@ -256,13 +280,18 @@ const handleInputMask = (e, partName, maxLength) => { let raw = e.target.value.r
 const actualizarNumeroCompleto = () => { const letra = ccfParts.value.letraSerie || 'S'; formulario.value.numero_control = `DTE-${ccfParts.value.part1}-${letra}${ccfParts.value.part2}P${ccfParts.value.part3}-${ccfParts.value.part4}`; };
 
 // --- ESTADOS DEL FORMULARIO ---
+const errores = ref({ empresa: false, numero: false, nit: false, nombre: false });
+
 const formulario = ref({ 
+    modoIngreso: 'dte', // 🛡️ Switch
     iddeclaNIT: '',
     fecha: new Date().toISOString().split('T')[0], 
     mesDeclarado: mesesOptions[new Date().getMonth()],
     anioDeclarado: new Date().getFullYear().toString(),
-    tipoDoc: '14', nit: '', nombre: '', serie: '', numero_control: '', 
-    uuid_dte: '', sello_recepcion: '', // 🛡️ CAMBIO: Campo de Sello Integrado
+    tipoDoc: '14', nit: '', nombre: '', serie: '', 
+    numero_control: '', 
+    numero_fisico: '', // 🛡️ Físico
+    uuid_dte: '', sello_recepcion: '',
     monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 
 });
 
@@ -295,24 +324,16 @@ const aplicarCambioMasivo = async () => {
             if (!sujetoOri) return Promise.resolve();
 
             const payload = {
+                ...sujetoOri,
                 iddeclaNIT: sujetoOri.iddeclaNIT,
                 fecha: sujetoOri.ComprasSujExcluFecha ? sujetoOri.ComprasSujExcluFecha.split('T')[0] : null,
                 mesDeclarado: bulkMes.value,
                 anioDeclarado: bulkAnio.value,
-                tipoDoc: sujetoOri.ComprasSujExcluTipoDoc,
-                nit: sujetoOri.ComprasSujExcluNIT,
-                nombre: sujetoOri.ComprasSujExcluNom,
-                serie: sujetoOri.ComprasSujExcluSerieDoc,
                 numero_control: sujetoOri.ComprasSujExcluNumDoc,
                 uuid_dte: sujetoOri.ComprasSujExcluCodGeneracion,
-                sello_recepcion: sujetoOri.ComprasSujExcluSelloRecepcion, // 🛡️ Mantiene el sello en cambios masivos
-                monto: sujetoOri.ComprasSujExcluMontoOpera,
-                retencion: sujetoOri.ComprasSujExcluMontoReten,
-                tipoOp: sujetoOri.ComprasSujExcluTipoOpera,
-                clasificacion: sujetoOri.ComprasSujExcluClasificacion,
-                sector: sujetoOri.ComprasSujExclusector,
-                costoGasto: sujetoOri.ComprasSujExcluTipoCostoGast,
-                anexo: 5
+                sello_recepcion: sujetoOri.ComprasSujExcluSelloRecepcion,
+                nit: sujetoOri.ComprasSujExcluNIT,
+                monto: sujetoOri.ComprasSujExcluMontoOpera
             };
             return axios.put(`${API_URL}/${id}`, payload);
         });
@@ -387,16 +408,35 @@ const cargarDatos = async () => {
 };
 
 const guardarSujeto = async () => { 
-    if (!formulario.value.iddeclaNIT) { tipoMensaje.value = 'error'; mensaje.value = 'Seleccione una Empresa.'; return; }
-    actualizarNumeroCompleto(); 
+    if (formulario.value.modoIngreso === 'dte') actualizarNumeroCompleto(); 
+    const numeroFinal = formulario.value.modoIngreso === 'dte' ? formulario.value.numero_control : formulario.value.numero_fisico;
+
+    // Validaciones
+    errores.value.empresa = !formulario.value.iddeclaNIT;
+    errores.value.nit = !formulario.value.nit;
+    errores.value.nombre = !formulario.value.nombre;
+    errores.value.numero = !numeroFinal;
+
+    if (Object.values(errores.value).some(v => v)) {
+        tipoMensaje.value = 'error'; mensaje.value = 'Complete los campos en rojo.'; return; 
+    }
+
     cargando.value = true; 
     
+    // Armar el payload final enviando el numero correspondiente
+    const payload = {
+        ...formulario.value,
+        numero_control: numeroFinal,
+        uuid_dte: formulario.value.modoIngreso === 'dte' ? formulario.value.uuid_dte : null,
+        sello_recepcion: formulario.value.modoIngreso === 'dte' ? formulario.value.sello_recepcion : null
+    };
+
     try {
         if(modoEdicion.value) {
-            await axios.put(`${API_URL}/${idEdicion.value}`, formulario.value);
+            await axios.put(`${API_URL}/${idEdicion.value}`, payload);
             tipoMensaje.value = 'success'; mensaje.value = '¡Registro actualizado exitosamente!';
         } else {
-            await axios.post(API_URL, formulario.value);
+            await axios.post(API_URL, payload);
             tipoMensaje.value = 'success'; mensaje.value = '¡Registro guardado en BD!';
         }
         await cargarDatos();
@@ -415,16 +455,22 @@ const eliminarSujeto = async (id) => {
 const prepararEdicion = (item) => {
     let fechaSegura = item.ComprasSujExcluFecha ? new Date(item.ComprasSujExcluFecha).toISOString().split('T')[0] : '';
     const rawNum = item.ComprasSujExcluNumDoc || '';
-    const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
-    const match = rawNum.replace(/-/g, '').match(regex);
     
-    ccfParts.value = match ? 
-        { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
-        { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    // 🛡️ Detección Inteligente DTE vs Físico
+    const esDTE = !!item.ComprasSujExcluCodGeneracion || rawNum.startsWith('DTE');
+    
+    if (esDTE) {
+        const regex = /^DTE(\d{2})([A-Z0-9])(\d{3})P(\d{3})(\d{15})$/; 
+        const match = rawNum.replace(/-/g, '').match(regex);
+        ccfParts.value = match ? 
+            { part1: match[1], letraSerie: match[2], part2: match[3], part3: match[4], part4: match[5] } : 
+            { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' };
+    }
 
     const limpiarCodigoCat = (txt) => { const m = (txt||'').toString().match(/\d+/); return m ? m[0] : '1'; };
 
     formulario.value = { 
+        modoIngreso: esDTE ? 'dte' : 'fisico', // 🛡️ Ajusta el switch
         iddeclaNIT: item.iddeclaNIT,
         fecha: fechaSegura, 
         mesDeclarado: item.ComprasSujExcluMesDeclarado || mesesOptions[new Date(fechaSegura).getMonth()],
@@ -433,9 +479,10 @@ const prepararEdicion = (item) => {
         nit: item.ComprasSujExcluNIT, 
         nombre: item.ComprasSujExcluNom, 
         serie: item.ComprasSujExcluSerieDoc, 
-        numero_control: rawNum, 
+        numero_control: esDTE ? rawNum : '', 
+        numero_fisico: esDTE ? '' : rawNum,
         uuid_dte: item.ComprasSujExcluCodGeneracion || '',
-        sello_recepcion: item.ComprasSujExcluSelloRecepcion || '', // 🛡️ CAMBIO: Sello integrado al editar
+        sello_recepcion: item.ComprasSujExcluSelloRecepcion || '', 
         monto: parseFloat(item.ComprasSujExcluMontoOpera || 0).toFixed(2), 
         retencion: parseFloat(item.ComprasSujExcluMontoReten || 0).toFixed(2), 
         tipoOp: limpiarCodigoCat(item.ComprasSujExcluTipoOpera), 
@@ -445,19 +492,22 @@ const prepararEdicion = (item) => {
         anexo: 5 
     };
     idEdicion.value = item.idComSujExclui; modoEdicion.value = true; mostrandoLista.value = false;
+    errores.value = { empresa: false, numero: false, nit: false, nombre: false };
 };
 
 const cancelarEdicion = () => { resetForm(); mostrandoLista.value = true; };
 
 const resetForm = () => { 
     formulario.value = { 
+      modoIngreso: 'dte',
       iddeclaNIT: '', fecha: new Date().toISOString().split('T')[0], mesDeclarado: mesesOptions[new Date().getMonth()], 
       anioDeclarado: new Date().getFullYear().toString(), tipoDoc: '14', nit: '', nombre: '', serie: '', 
-      numero_control: '', uuid_dte: '', sello_recepcion: '', // 🛡️ CAMBIO: Resetear Sello
+      numero_control: '', numero_fisico: '', uuid_dte: '', sello_recepcion: '', 
       monto: '0.00', retencion: '0.00', tipoOp: '1', clasificacion: '2', sector: '4', costoGasto: '2', anexo: 5 
     }; 
     ccfParts.value = { part1: '14', letraSerie: 'S', part2: '000', part3: '000', part4: '000000000000000' }; 
     modoEdicion.value = false; idEdicion.value = null; mensaje.value = '';
+    errores.value = { empresa: false, numero: false, nit: false, nombre: false };
 };
 
 const alternarVista = () => { if (modoEdicion.value) resetForm(); mostrandoLista.value = !mostrandoLista.value; };
@@ -466,7 +516,7 @@ const formatearFecha = (f) => f ? f.split('T')[0] : '';
 onMounted(cargarDatos);
 </script>
 
--e 
 <style scoped>
-/* SujetosExcluidosView — estilos base en assets/forms.css */
+.has-error { border-color: var(--red-500) !important; }
+.mt-1 { margin-top: 4px; }
 </style>
