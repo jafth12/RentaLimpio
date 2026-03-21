@@ -370,25 +370,54 @@ const cargarArchivo = (event) => {
             };
         }
         
-        if (jsonRaw.identificacion && (jsonRaw.anexo3_compras || jsonRaw.anexo1_consumidor_final || jsonRaw.anexo4_retenciones)) {
+        if (jsonRaw.identificacion && (jsonRaw.anexo3_compras || jsonRaw.anexo2_credito_fiscal || jsonRaw.anexo1_consumidor_final || jsonRaw.anexo4_retenciones)) {
           if (jsonRaw.anexo3_compras) {
               jsonRaw.anexo3_compras.forEach(c => payloadFinal.value.data.compras.push({
-                  ComFecha: c.fecha.split('T')[0], ComClase: c.clase || '4', ComTipo: c.tipo || '03', 
-                  ComNumero: c.numero, ComCodGeneracion: c.numero, 
-                  ComSelloRecepcion: c.selloRecepcion || c.sello_recepcion || null, // 🛡️ BLINDAJE DE BACKUPS
-                  proveedor_ProvNIT: c.nit_proveedor, 
-                  ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0, 
-                  ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0, 
-                  ComTotal: parseFloat(c.total) || 0, 
-                  ComMesDeclarado: obtenerMesNombre(c.fecha), 
-                  ComAnioDeclarado: c.fecha.split('T')[0].split('-')[0]  
+                  ComFecha: c.fecha.split('T')[0], ComClase: c.clase || '4', ComTipo: c.tipo || '03',
+                  ComNumero: c.numero, ComCodGeneracion: c.uuid || c.codigo_generacion || c.numero,
+                  ComSelloRecepcion: c.selloRecepcion || c.sello_recepcion || null,
+                  proveedor_ProvNIT: c.nit_proveedor,
+                  ComNomProve: c.nombre_proveedor, ComIntExe: parseFloat(c.internas_exentas) || 0,
+                  ComIntGrav: parseFloat(c.internas_gravadas) || 0, ComCredFiscal: parseFloat(c.credito_fiscal) || 0,
+                  ComTotal: parseFloat(c.total) || 0,
+                  ComMesDeclarado: obtenerMesNombre(c.fecha),
+                  ComAnioDeclarado: c.fecha.split('T')[0].split('-')[0]
+              }));
+          }
+          if (jsonRaw.anexo2_credito_fiscal) {
+              jsonRaw.anexo2_credito_fiscal.forEach(v => payloadFinal.value.data.ventas_ccf.push({
+                  FiscFecha: v.fecha.split('T')[0], FiscNumDoc: v.numero,
+                  FiscCodGeneracion: v.uuid || v.codigo_generacion || v.numero,
+                  FiscSelloRecepcion: v.selloRecepcion || v.sello_recepcion || null,
+                  FiscNit: v.nit_cliente, FiscNomRazonDenomi: v.nombre,
+                  FiscVtaExen: parseFloat(v.exentas) || 0, FiscVtaNoSujetas: 0,
+                  FiscVtaGravLocal: parseFloat(v.gravadas) || 0,
+                  FiscDebitoFiscal: parseFloat(v.debito_fiscal) || 0,
+                  FiscTotalVtas: parseFloat(v.total) || 0,
+                  FisClasDoc: '4', FisTipoDoc: v.tipo || '03', FiscNumAnexo: '2',
+                  FiscMesDeclarado: obtenerMesNombre(v.fecha),
+                  FiscAnioDeclarado: v.fecha.split('T')[0].split('-')[0]
+              }));
+          }
+          if (jsonRaw.anexo1_consumidor_final) {
+              jsonRaw.anexo1_consumidor_final.forEach(v => payloadFinal.value.data.ventas_cf.push({
+                  ConsFecha: v.fecha.split('T')[0],
+                  ConsNumDocDEL: v.del || v.numero, ConsNumDocAL: v.al || v.numero,
+                  ConsCodGeneracion: v.uuid || v.codigo_generacion || null,
+                  ConsSelloRecepcion: v.selloRecepcion || v.sello_recepcion || null,
+                  ConsVtaExentas: parseFloat(v.exentas) || 0, ConsVtaNoSujetas: 0,
+                  ConsVtaGravLocales: parseFloat(v.gravadas) || 0,
+                  ConsTotalVta: parseFloat(v.total) || 0,
+                  ConsClaseDoc: '4', ConsTipoDoc: v.tipo || '01', ConsNumAnexo: '1',
+                  ConsMesDeclarado: obtenerMesNombre(v.fecha),
+                  ConsAnioDeclarado: v.fecha.split('T')[0].split('-')[0]
               }));
           }
           if (jsonRaw.anexo4_retenciones) {
               jsonRaw.anexo4_retenciones.forEach(r => payloadFinal.value.data.retenciones.push({
                   RetenFecha: r.fecha.split('T')[0], RetenNitAgente: r.nit_agente, RetenNumDoc: r.documento,
-                  RetenCodGeneracion: r.documento,
-                  RetenSelloRecepcion: r.selloRecepcion || r.sello_recepcion || null, // 🛡️ BLINDAJE DE BACKUPS
+                  RetenCodGeneracion: r.uuid || r.codigo_generacion || r.documento,
+                  RetenSelloRecepcion: r.selloRecepcion || r.sello_recepcion || null,
                   RetenMontoSujeto: parseFloat(r.monto_sujeto) || 0, RetenMontoDeReten: parseFloat(r.monto_retenido) || 0,
                   RetenMesDeclarado: obtenerMesNombre(r.fecha), RetenAnioDeclarado: r.fecha.split('T')[0].split('-')[0],
                   RetenNumAnexo: '4', RetenListTipoDoc: '07'
@@ -396,8 +425,18 @@ const cargarArchivo = (event) => {
           }
           datosProcesados.value = true;
         } 
-        else if (jsonRaw.modulos || jsonRaw.data) { 
-          payloadFinal.value = normalizarPayload(jsonRaw);
+        else if (jsonRaw.modulos || jsonRaw.data) {
+          const parsed = normalizarPayload(jsonRaw);
+          if (!payloadFinal.value) {
+            payloadFinal.value = parsed;
+          } else {
+            // Merge: acumula en lugar de sobreescribir
+            for (const key of Object.keys(parsed.data)) {
+              if (Array.isArray(parsed.data[key])) {
+                payloadFinal.value.data[key] = [...(payloadFinal.value.data[key] || []), ...parsed.data[key]];
+              }
+            }
+          }
           datosProcesados.value = true;
         } 
         else { 
@@ -445,12 +484,14 @@ const enviarAlBackend = async () => {
     const msg = res.data.message || 'Importación finalizada';
 
     let desglose = `${msg}\n\n📊 DESGLOSE POR MÓDULO:\n`;
-    if (r.compras) desglose += `🛒 Compras: ${r.compras.insertados} nuevos | 🔄 ${r.compras.actualizados} actualizados\n`;
-    if (r.ventas_ccf) desglose += `📄 Créd. Fiscal: ${r.ventas_ccf.insertados} nuevos | 🔄 ${r.ventas_ccf.actualizados} actualizados\n`;
-    if (r.ventas_cf) desglose += `🧾 Cons. Final: ${r.ventas_cf.insertados} nuevos | 🔄 ${r.ventas_cf.actualizados} actualizados\n`;
-    if (r.sujetos) desglose += `🚫 Suj. Excluidos: ${r.sujetos.insertados} nuevos | 🔄 ${r.sujetos.actualizados} actualizados\n`;
-    if (r.retenciones) desglose += `🛡️ Retenciones 1%: ${r.retenciones.insertados} nuevos | 🔄 ${r.retenciones.actualizados} actualizados\n`;
-    if (r.notas) desglose += `📝 Notas C/D: ${r.notas.insertados} nuevos | 🔄 ${r.notas.actualizados} actualizados\n`;
+    const _act = (m) => m && (m.insertados > 0 || m.actualizados > 0);
+    if (_act(r.compras))     desglose += `🛒 Compras: ${r.compras.insertados} nuevos | 🔄 ${r.compras.actualizados} actualizados\n`;
+    if (_act(r.ventas_ccf))  desglose += `📄 Créd. Fiscal: ${r.ventas_ccf.insertados} nuevos | 🔄 ${r.ventas_ccf.actualizados} actualizados\n`;
+    if (_act(r.ventas_cf))   desglose += `🧾 Cons. Final: ${r.ventas_cf.insertados} nuevos | 🔄 ${r.ventas_cf.actualizados} actualizados\n`;
+    if (_act(r.sujetos))     desglose += `🚫 Suj. Excluidos: ${r.sujetos.insertados} nuevos | 🔄 ${r.sujetos.actualizados} actualizados\n`;
+    if (_act(r.retenciones)) desglose += `🛡️ Retenciones 1%: ${r.retenciones.insertados} nuevos | 🔄 ${r.retenciones.actualizados} actualizados\n`;
+    if (_act(r.notas))       desglose += `📝 Notas C/D: ${r.notas.insertados} nuevos | 🔄 ${r.notas.actualizados} actualizados\n`;
+    if (desglose.trim().endsWith('MÓDULO:')) desglose += `ℹ️ Todos los documentos ya estaban al día.\n`;
 
     alert(desglose);
     
