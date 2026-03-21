@@ -3,7 +3,7 @@ import { registrarAccion } from './historial.controller.js';
 
 // 1. OBTENER REGISTROS
 export const getVentas = async (req, res) => {
-        const { nit, mes, anio } = req.query;
+    const { nit, mes, anio } = req.query;
     try {
         let query = 'SELECT * FROM vtagravterdomici';
         const params = [];
@@ -18,7 +18,7 @@ export const getVentas = async (req, res) => {
         }
         query += ' ORDER BY VtaGraTerFecha ASC';
 
-        const [rows] = await pool.query(query, params);;
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener registros', error: error.message });

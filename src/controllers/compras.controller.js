@@ -15,7 +15,7 @@ const formatearFecha = (fecha) => {
 
 // --- 1. OBTENER TODAS LAS COMPRAS ---
 export const getCompras = async (req, res) => {
-        const { nit, mes, anio } = req.query;
+    const { nit, mes, anio } = req.query;
     try {
         let query = 'SELECT * FROM compras';
         const params = [];
@@ -30,7 +30,7 @@ export const getCompras = async (req, res) => {
         }
         query += ' ORDER BY ComFecha ASC';
 
-        const [rows] = await pool.query(query, params);;
+        const [rows] = await pool.query(query, params);
         rows.forEach(r => {
             if (r.ComFecha) r.ComFecha = formatearFecha(r.ComFecha);
         });

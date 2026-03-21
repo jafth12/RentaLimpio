@@ -3,7 +3,7 @@ import { registrarAccion } from './historial.controller.js';
 
 // 1. OBTENER REGISTROS
 export const getSujetos = async (req, res) => {
-        const { nit, mes, anio } = req.query;
+    const { nit, mes, anio } = req.query;
     try {
         let query = 'SELECT * FROM comprassujexcluidos';
         const params = [];
@@ -18,7 +18,7 @@ export const getSujetos = async (req, res) => {
         }
         query += ' ORDER BY ComprasSujExcluFecha ASC';
 
-        const [rows] = await pool.query(query, params);;
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         console.error(error);

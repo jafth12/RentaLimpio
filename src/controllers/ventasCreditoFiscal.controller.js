@@ -5,13 +5,17 @@ import { registrarAccion } from './historial.controller.js';
 export const getVentasCCF = async (req, res) => {
     const { nit, mes, anio } = req.query;
     try {
-        const condCCF  = [];
-        const condNC   = ["NCTipo = 'VENTA'", "NCAnexo = '2'"];
-        const params   = [];
+        const condCCF   = [];
+        const condNC    = ["NCTipo = 'VENTA'", "NCAnexo = '2'"];
+        const paramsCCF = [];   // params para la parte credfiscal del UNION
+        const paramsNC  = [];   // params para la parte notas_credito del UNION
 
-        if (nit)  { condCCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');       params.push(nit,  nit); }
-        if (mes)  { condCCF.push('FiscMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   params.push(mes,  mes); }
-        if (anio) { condCCF.push('FiscAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  params.push(anio, anio); }
+        if (nit)  { condCCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');        paramsCCF.push(nit);  paramsNC.push(nit); }
+        if (mes)  { condCCF.push('FiscMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   paramsCCF.push(mes);  paramsNC.push(mes); }
+        if (anio) { condCCF.push('FiscAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  paramsCCF.push(anio); paramsNC.push(anio); }
+
+        // Params en orden: primero parte1 (credfiscal) luego parte2 (notas_credito)
+        const params = [...paramsCCF, ...paramsNC];
 
         const whereCCF = condCCF.length ? 'WHERE ' + condCCF.join(' AND ') : '';
         const whereNC  = 'WHERE ' + condNC.join(' AND ');

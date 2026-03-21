@@ -8,11 +8,15 @@ export const getVentasCF = async (req, res) => {
         // Construir condiciones opcionales para ambas partes del UNION
         const condCF   = [];
         const condNC   = ["NCTipo = 'VENTA'", "NCAnexo = '1'"];
-        const params   = [];
+        const paramsCF = [];   // params para la parte consumidorfinal del UNION
+        const paramsNC = [];   // params para la parte notas_credito del UNION
 
-        if (nit)  { condCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');       params.push(nit,  nit); }
-        if (mes)  { condCF.push('ConsMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   params.push(mes,  mes); }
-        if (anio) { condCF.push('ConsAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  params.push(anio, anio); }
+        if (nit)  { condCF.push('iddeclaNIT = ?');       condNC.push('iddeclaNIT = ?');       paramsCF.push(nit);  paramsNC.push(nit); }
+        if (mes)  { condCF.push('ConsMesDeclarado = ?');  condNC.push('NCMesDeclarado = ?');   paramsCF.push(mes);  paramsNC.push(mes); }
+        if (anio) { condCF.push('ConsAnioDeclarado = ?'); condNC.push('NCAnioDeclarado = ?');  paramsCF.push(anio); paramsNC.push(anio); }
+
+        // Params en orden: primero parte1 (consumidorfinal) luego parte2 (notas_credito)
+        const params = [...paramsCF, ...paramsNC];
 
         const whereCF = condCF.length  ? 'WHERE ' + condCF.join(' AND ')  : '';
         const whereNC = 'WHERE ' + condNC.join(' AND ');

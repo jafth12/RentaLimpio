@@ -468,7 +468,7 @@ const formatearFechaParaInput = (f) => {
 
 // 🛡️ Recargar datos del backend cuando cambian los filtros principales
 watch([declaranteFiltro, mesFiltro, anioFiltro], () => {
-    cargarDatos();
+    cargarRetenciones();
 });
 
 onMounted(() => {

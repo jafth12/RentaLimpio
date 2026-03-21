@@ -2,7 +2,7 @@ import pool from "../config/db.js";
 import { registrarAccion } from './historial.controller.js';
 
 export const getAnulados = async (req, res) => {
-        const { nit, mes, anio } = req.query;
+    const { nit, mes, anio } = req.query;
     try {
         let query = 'SELECT * FROM anuladosextraviados';
         const params = [];
@@ -17,7 +17,7 @@ export const getAnulados = async (req, res) => {
         }
         query += ' ORDER BY DetaDocFecha ASC';
 
-        const [rows] = await pool.query(query, params);;
+        const [rows] = await pool.query(query, params);
         res.json(rows);
     } catch (error) {
         return res.status(500).json({ message: 'Error al obtener anulados', error: error.message });
